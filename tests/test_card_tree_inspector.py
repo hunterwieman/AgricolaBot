@@ -18,7 +18,12 @@ card is not placeable (the engine's empty-accumulation-space prune, mirrored);
 import agricola.cards.tree_inspector  # noqa: F401  -- registers the card (not in cards/__init__ yet)
 
 from agricola.actions import PlaceWorker, Proceed, RevealCard, Stop
-from agricola.cards.card_spaces import CARD_ACTION_SPACES, card_space_occupied
+from agricola.cards.card_spaces import (
+    CARD_ACCUMULATIONS,
+    CARD_ACTION_SPACES,
+    card_accumulation_owner,
+    card_space_occupied,
+)
 from agricola.cards.specs import OCCUPATIONS
 from agricola.cards.tree_inspector import CARD_ID
 from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
@@ -203,3 +208,36 @@ def test_for_you_only():
     s = _stock(_own(setup(0), 0), 0, 2)
     s = with_current_player(s, 1)                 # opponent to move
     assert _placements(legal_actions(s)) == []
+
+
+# ---------------------------------------------------------------------------
+# The accumulation-space registry (ruling 75): the stack is exposed to
+# accumulation-stock consumers (Work Certificate's take)
+# ---------------------------------------------------------------------------
+
+def test_registered_as_card_accumulation():
+    assert CARD_ID in CARD_ACCUMULATIONS
+    assert CARD_ACCUMULATIONS[CARD_ID].resource_kind == "wood"
+
+
+def test_accumulation_accessors():
+    """count_fn reads the stack; remove_fn debits the CARD OWNER's stack —
+    including down to empty, which drops the CardStore key (the no-entry
+    idiom of `_discard` / `_use`). The wood's destination is the CONSUMER's
+    side, so remove_fn credits nobody."""
+    spec = CARD_ACCUMULATIONS[CARD_ID]
+    s = _stock(_own(setup(0), 1), 1, 4)           # P1 owns the card at 4 wood
+    assert card_accumulation_owner(s, CARD_ID) == 1
+    assert spec.count_fn(s, 1) == 4
+    res_before = (s.players[0].resources, s.players[1].resources)
+    s = spec.remove_fn(s, 1, 1)
+    assert spec.count_fn(s, 1) == 3
+    assert (s.players[0].resources, s.players[1].resources) == res_before
+    s = spec.remove_fn(s, 1, 3)                   # down to empty
+    assert spec.count_fn(s, 1) == 0
+    assert CARD_ID not in dict(s.players[1].card_state.items)  # key dropped
+
+
+def test_unplayed_card_has_no_accumulation_owner():
+    s = setup(0)                                  # nobody has PLAYED the card
+    assert card_accumulation_owner(s, CARD_ID) is None

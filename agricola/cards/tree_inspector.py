@@ -46,6 +46,16 @@ MECHANICS — three registered pieces:
    fire on it with ``space_id = "card:tree_inspector"`` (the ruling's
    consequence).
 
+Because the card is a "1 Wood" ACCUMULATION space, it also registers in
+``CARD_ACCUMULATIONS`` (`card_spaces.py`) so accumulation-stock readers reach
+its stack. Governing ruling (user ruling 75, 2026-07-21, CARD_DEFERRED_PLANS.md,
+verbatim): "Work Certificate × Tree Inspector: a Work Certificate owner CAN
+take 1 wood from a 4+-stack Tree Inspector card space — regardless of which
+player played Tree Inspector." The registered ``remove_fn`` debits THIS
+card's stack (the owner's CardStore entry); the taken wood's destination is
+the consumer's side (Work Certificate credits its own owner — possibly the
+other player).
+
 Card-game only (ownership-gated registries; the machinery is registry-gated
 and Family-inert), so the Family trace and the C++ differential gates are
 untouched. See CARD_ENGINE_IMPLEMENTATION.md §2/§5d and
@@ -53,7 +63,10 @@ CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
-from agricola.cards.card_spaces import register_card_action_space
+from agricola.cards.card_spaces import (
+    register_card_accumulation,
+    register_card_action_space,
+)
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
 from agricola.constants import STONE_ACCUMULATION_SPACES
@@ -142,8 +155,32 @@ def _use(state: GameState, owner_idx: int, picks) -> GameState:
     return _update_player(state, owner_idx, p)
 
 
+# ---------------------------------------------------------------------------
+# (4) The accumulation-space stock accessors (ruling 75 — Work Certificate's
+#     take reaches this card's stack, whichever player owns each card)
+# ---------------------------------------------------------------------------
+
+def _accum_count(state: GameState, owner_idx: int) -> int:
+    """The stack's current size (wood on the card)."""
+    return _wood(state.players[owner_idx])
+
+
+def _accum_remove(state: GameState, owner_idx: int, n: int) -> GameState:
+    """Debit ``n`` wood from the card's stack (empty = no entry — the
+    CardStore logical-default idiom, matching `_discard` / `_use`)."""
+    p = state.players[owner_idx]
+    cur = _wood(p)
+    assert cur >= n, f"tree_inspector stack {cur} < remove {n}"
+    store = (p.card_state.remove(CARD_ID) if cur == n
+             else p.card_state.set(CARD_ID, cur - n))
+    return _update_player(state, owner_idx, fast_replace(p, card_state=store))
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_card_action_space(CARD_ID, _use, placeable_fn=_placeable)
+# A "1 Wood" accumulation space: expose the stack to accumulation-stock
+# consumers (Work Certificate's source enumeration — ruling 75).
+register_card_accumulation(CARD_ID, "wood", _accum_count, _accum_remove)
 # +1 wood each preparation replenishment (the post-refill window — Nest Site's
 # registration form; rung ordering per ruling 74: the reveal discard precedes).
 register_auto("replenishment", CARD_ID, _accumulate_eligible, _accumulate)

@@ -38,6 +38,20 @@ card's own ``card_id`` entry — Collector keeps its use counter there). Per
 the Tea Time occupancy ruling (user 2026-07-20: what makes a space illegal to
 place on is the presence of a worker on it, nothing else), a card effect that
 returns the on-card worker home mid-round re-opens the space.
+
+**Card accumulation spaces.** A card space that stockpiles a resource on
+itself round over round (Tree Inspector's wood stack) is a true ACCUMULATION
+space, so cards that read or raid accumulation-space stocks reach it too.
+Governing ruling (user ruling 75, 2026-07-21, CARD_DEFERRED_PLANS.md,
+verbatim): "Work Certificate × Tree Inspector: a Work Certificate owner CAN
+take 1 wood from a 4+-stack Tree Inspector card space — regardless of which
+player played Tree Inspector." The second registry below
+(``CARD_ACCUMULATIONS``) is the seam that ruling generalizes to: an
+accumulation card registers its stock's resource type plus count/remove
+accessors, and a consumer (Work Certificate's source enumeration) treats
+every registered card accumulation of EITHER player as one more accumulation
+space — reading its stock against the consumer's own threshold and debiting
+the stack on a take (taker and card owner may differ, per the ruling).
 """
 from __future__ import annotations
 
@@ -86,6 +100,54 @@ def register_card_action_space(card_id: str, use_fn, *, placeable_fn=None) -> No
         placeable_fn = lambda state, owner_idx: [None]   # noqa: E731
     CARD_ACTION_SPACES[card_id] = CardActionSpaceSpec(
         card_id=card_id, use_fn=use_fn, placeable_fn=placeable_fn)
+
+
+# ---------------------------------------------------------------------------
+# Card accumulation spaces (user ruling 75 — module docstring)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CardAccumulationSpec:
+    """One registered card accumulation space — a card space whose card
+    stockpiles a resource on itself (Tree Inspector's wood stack).
+
+    - ``resource_kind`` — the single resource type the card accumulates
+      (``"wood"`` for Tree Inspector). Consumers filter on it (Work
+      Certificate takes only building resources).
+    - ``count_fn(state, owner_idx) -> int`` — the stack's current size.
+    - ``remove_fn(state, owner_idx, n) -> state`` — debit ``n`` from the
+      stack (the card OWNER's stock; the goods' destination is the consumer's
+      business — Work Certificate credits the TAKER, who may be the other
+      player, per ruling 75).
+    """
+    card_id: str
+    resource_kind: str
+    count_fn: Callable
+    remove_fn: Callable
+
+
+# card_id -> CardAccumulationSpec. Populated at card-module import, like every
+# other card registry; empty in the Family game.
+CARD_ACCUMULATIONS: dict[str, CardAccumulationSpec] = {}
+
+
+def register_card_accumulation(card_id: str, resource_kind: str,
+                               count_fn, remove_fn) -> None:
+    """Register ``card_id``'s tableau card as an accumulation space whose
+    stock other cards may read/raid (ruling 75 — module docstring)."""
+    CARD_ACCUMULATIONS[card_id] = CardAccumulationSpec(
+        card_id=card_id, resource_kind=resource_kind,
+        count_fn=count_fn, remove_fn=remove_fn)
+
+
+def card_accumulation_owner(state: GameState, card_id: str):
+    """Which player has PLAYED ``card_id`` (tableau, not hand) — the owner of
+    its card space; ``None`` if nobody has. Cards are dealt without overlap,
+    so at most one player can own a given card."""
+    for i, p in enumerate(state.players):
+        if card_id in p.occupations or card_id in p.minor_improvements:
+            return i
+    return None
 
 
 # ---------------------------------------------------------------------------

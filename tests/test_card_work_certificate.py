@@ -9,11 +9,19 @@ An OPTIONAL `after_action_space` play-variant trigger hooked over EVERY space id
 a TYPELESS total (>= 4 building resources in any mix); firing debits the space's
 accumulated stock and credits the owner. Mechanism approved by user ruling
 2026-07-20 (deferred-plans cluster C3).
+
+CARD accumulation spaces are sources too — user ruling 75 (2026-07-21, verbatim):
+"Work Certificate × Tree Inspector: a Work Certificate owner CAN take 1 wood from
+a 4+-stack Tree Inspector card space — regardless of which player played Tree
+Inspector." Variant shape "card:tree_inspector:wood"; the debit hits the CARD
+owner's stack, the credit the Work-Certificate owner's supply.
 """
+import agricola.cards.tree_inspector  # noqa: F401  (registers the card accumulation)
 import agricola.cards.work_certificate  # noqa: F401  (registers the card)
 
 from agricola.actions import ChooseSubAction, FireTrigger, PlaceWorker, Proceed, Stop
 from agricola.cards.specs import MINORS, prereq_met
+from agricola.cards.tree_inspector import CARD_ID as TREE_INSPECTOR
 from agricola.cards.work_certificate import CARD_ID
 from agricola.constants import GameMode
 from agricola.engine import step
@@ -37,6 +45,27 @@ def _own(state, idx, card_id):
     p = fast_replace(p, minor_improvements=p.minor_improvements | {card_id})
     return fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(len(state.players))))
+
+
+def _edit_player(state, idx, **changes):
+    p = fast_replace(state.players[idx], **changes)
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+
+
+def _own_tree_inspector(state, idx, wood):
+    """`idx` has PLAYED Tree Inspector (an occupation) with `wood` on its stack."""
+    p = state.players[idx]
+    state = _edit_player(state, idx, occupations=p.occupations | {TREE_INSPECTOR})
+    if wood:
+        p = state.players[idx]
+        state = _edit_player(state, idx,
+                             card_state=p.card_state.set(TREE_INSPECTOR, wood))
+    return state
+
+
+def _ti_wood(state, idx):
+    return state.players[idx].card_state.get(TREE_INSPECTOR, 0)
 
 
 def _state(*, forest=Resources(wood=3), clay_pit=Resources(clay=1),
@@ -191,6 +220,75 @@ def test_hand_card_does_not_host_or_fire():
     s = step(s, PlaceWorker(space="grain_seeds"))   # atomic: no host, no trigger
     assert s.players[0].resources.grain == 1
     assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
+
+
+# ---------------------------------------------------------------------------
+# Card accumulation sources (ruling 75): Tree Inspector's card space qualifies
+# ---------------------------------------------------------------------------
+
+def test_own_tree_inspector_at_four_offered_and_take_works():
+    # The owner-takes-own case: P0 owns Work Certificate AND Tree Inspector at
+    # 4 wood; Forest at 3 stays below threshold, so the card is the sole source.
+    s = _state(forest=Resources(wood=3))
+    s = _own_tree_inspector(s, 0, wood=4)
+    s = _use_grain_seeds(s)
+    assert _wc_variants(legal_actions(s)) == {f"card:{TREE_INSPECTOR}:wood"}
+    s = step(s, FireTrigger(card_id=CARD_ID, variant=f"card:{TREE_INSPECTOR}:wood"))
+    assert s.players[0].resources.wood == 1        # the take, card -> taker supply
+    assert _ti_wood(s, 0) == 3                     # the stack decremented
+    # Once per use, then Stop ends the turn as with a board source.
+    assert _wc_variants(legal_actions(s)) == set()
+    s = step(s, Stop())
+    assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
+
+
+def test_cross_player_take_from_opponents_tree_inspector():
+    # Ruling 75's "regardless of which player played Tree Inspector": P0 owns
+    # Work Certificate, P1 owns Tree Inspector at 5 wood — P0's use offers the
+    # take; firing debits P1's stack and credits P0.
+    s = _state(forest=Resources(wood=3))           # board below threshold
+    s = _own_tree_inspector(s, 1, wood=5)
+    p1_res_before = s.players[1].resources
+    s = _use_grain_seeds(s)
+    assert _wc_variants(legal_actions(s)) == {f"card:{TREE_INSPECTOR}:wood"}
+    s = step(s, FireTrigger(card_id=CARD_ID, variant=f"card:{TREE_INSPECTOR}:wood"))
+    assert s.players[0].resources.wood == 1        # the TAKER (P0) gains the wood
+    assert _ti_wood(s, 1) == 4                     # the CARD OWNER's stack -1
+    assert s.players[1].resources == p1_res_before  # P1's supply untouched
+
+
+def test_tree_inspector_at_three_not_offered():
+    # Threshold boundary: a 3-wood stack is below "at least 4" — no card source.
+    s = _state(forest=Resources(wood=3))
+    s = _own_tree_inspector(s, 0, wood=3)
+    s = _use_grain_seeds(s)
+    assert _wc_variants(legal_actions(s)) == set()
+
+
+def test_unplayed_tree_inspector_is_no_source():
+    # In HAND is not played: no card space exists, so no source (any stray
+    # CardStore stock notwithstanding).
+    s = _state(forest=Resources(wood=3))
+    p = s.players[0]
+    s = _edit_player(s, 0, hand_occupations=p.hand_occupations | {TREE_INSPECTOR},
+                     card_state=p.card_state.set(TREE_INSPECTOR, 4))
+    s = _use_grain_seeds(s)
+    assert _wc_variants(legal_actions(s)) == set()
+
+
+def test_board_sources_coexist_and_are_unaffected():
+    # Forest at 4 AND own Tree Inspector at 4: both sources surface; taking
+    # from the BOARD leaves the card stack untouched (and vice versa is the
+    # owner-takes-own test above).
+    s = _state(forest=Resources(wood=4))
+    s = _own_tree_inspector(s, 0, wood=4)
+    s = _use_grain_seeds(s)
+    assert _wc_variants(legal_actions(s)) == {
+        "forest:wood", f"card:{TREE_INSPECTOR}:wood"}
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="forest:wood"))
+    assert s.players[0].resources.wood == 1
+    assert get_space(s.board, "forest").accumulated == Resources(wood=3)
+    assert _ti_wood(s, 0) == 4                     # the card stack untouched
 
 
 # ---------------------------------------------------------------------------

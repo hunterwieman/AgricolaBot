@@ -46,6 +46,22 @@ no special-casing. Firing debits 1 of the chosen type from the space's
 ``accumulated`` (the board-edit idiom: Nail Basket / Pet Lover) and credits the
 owner 1 of it; declining is the host's after-phase Stop.
 
+CARD accumulation spaces are sources too. Governing ruling (user ruling 75,
+2026-07-21, CARD_DEFERRED_PLANS.md, verbatim): "Work Certificate × Tree
+Inspector: a Work Certificate owner CAN take 1 wood from a 4+-stack Tree
+Inspector card space — regardless of which player played Tree Inspector." (Tree
+Inspector D116 is, by its own text, "a '1 Wood' accumulation space", and ruling
+74 made card spaces true action spaces.) So the source enumeration also walks
+``CARD_ACCUMULATIONS`` (`card_spaces.py` — the registry that ruling generalizes
+to): every registered card accumulation of EITHER player whose resource type is
+a building resource and whose stack holds >= 4 qualifies, surfaced as
+``"card:<card_id>:<type>"`` (the board variants' ``<space_id>:<type>`` shape
+with the card-space id ruling 74 established). Firing debits the CARD OWNER's
+stack via the registered ``remove_fn`` and credits the Work-Certificate owner —
+the taker and the card owner may differ, per the ruling. ("For you only" scopes
+who may PLACE on the card space; the ruling holds it does not shield the stack
+from this take.)
+
 The clarification "Can be immediately triggered" — the very action-space use that
 PLAYS Work Certificate (e.g. the Major Improvement space's play-minor branch) may
 fire it in that same use's after window: eligibility/ownership are read at fire
@@ -58,6 +74,10 @@ CARD_ENGINE_IMPLEMENTATION.md §2 and CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
+from agricola.cards.card_spaces import (
+    CARD_ACCUMULATIONS,
+    card_accumulation_owner,
+)
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import (
     register,
@@ -81,8 +101,11 @@ _BUILDING_TYPES = ("wood", "clay", "reed", "stone")
 
 def _variants(state: GameState, idx: int) -> list[str]:
     """The currently-legal takes: one ``"<space_id>:<type>"`` per building-resource
-    type present on a qualifying source (a building-resource accumulation space
-    holding >= 4 building resources in total). Empty list → nothing to take now."""
+    type present on a qualifying source. A qualifying source is a building-resource
+    accumulation space holding >= 4 building resources in total — a BOARD space, or
+    (ruling 75) a registered CARD accumulation space of EITHER player whose stock
+    is a building resource (variant ``"card:<card_id>:<type>"``). Empty list →
+    nothing to take now."""
     out: list[str] = []
     for space_id in sorted(BUILDING_RESOURCE_ACCUMULATION_SPACES):
         acc = get_space(state.board, space_id).accumulated
@@ -92,6 +115,18 @@ def _variants(state: GameState, idx: int) -> list[str]:
         for t in _BUILDING_TYPES:
             if getattr(acc, t) >= 1:
                 out.append(f"{space_id}:{t}")
+    # Card accumulation spaces (ruling 75): a card stockpiles one resource type,
+    # so its building-resource total IS that stack when the type is a building
+    # resource (Tree Inspector's wood) and 0 otherwise (never qualifying).
+    for card_id in sorted(CARD_ACCUMULATIONS):
+        spec = CARD_ACCUMULATIONS[card_id]
+        if spec.resource_kind not in _BUILDING_TYPES:
+            continue
+        owner = card_accumulation_owner(state, card_id)   # EITHER player's card
+        if owner is None:                                 # unplayed: no space
+            continue
+        if spec.count_fn(state, owner) >= _MIN_STOCK:
+            out.append(f"card:{card_id}:{spec.resource_kind}")
     return out
 
 
@@ -109,15 +144,26 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
 
 def _apply(state: GameState, idx: int, variant: str) -> GameState:
     """Fire one take: move 1 of the chosen building-resource type from the chosen
-    space's accumulated stock to the owner's supply."""
-    space_id, rtype = variant.split(":", 1)
+    source's stock to the Work-Certificate owner's supply. The source is a board
+    space (``"<space_id>:<type>"``) or, per ruling 75, a card accumulation space
+    (``"card:<card_id>:<type>"`` — the debit hits the CARD owner's stack, who may
+    be the other player)."""
+    space_id, rtype = variant.rsplit(":", 1)
     one = Resources(**{rtype: 1})
-    # Debit the space's stock (the board-edit idiom — Nail Basket in reverse).
-    sp = get_space(state.board, space_id)
-    state = fast_replace(
-        state, board=with_space(
-            state.board, space_id,
-            fast_replace(sp, accumulated=sp.accumulated - one)))
+    if space_id.startswith("card:"):
+        # A card accumulation space: debit its owner's stack via the registered
+        # remove_fn (card ids never contain ":", so the parse is unambiguous).
+        card_id = space_id[len("card:"):]
+        spec = CARD_ACCUMULATIONS[card_id]
+        state = spec.remove_fn(state, card_accumulation_owner(state, card_id), 1)
+    else:
+        # Debit the board space's stock (the board-edit idiom — Nail Basket in
+        # reverse).
+        sp = get_space(state.board, space_id)
+        state = fast_replace(
+            state, board=with_space(
+                state.board, space_id,
+                fast_replace(sp, accumulated=sp.accumulated - one)))
     # Credit the owner.
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources + one)
