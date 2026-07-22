@@ -1,4 +1,4 @@
-"""Slurry Spreader (minor improvement, C71; Corbarius Expansion; Crop Provider).
+"""Slurry (minor improvement, C71; Corbarius Expansion; Crop Provider).
 
 Card text (verbatim): "In the breeding phase of each harvest, if you get newborn
 animals of at least two types, you also get a "Sow" action."
@@ -6,11 +6,12 @@ Clarification (printed): "You must be able to accommodate each newborn in order
 to get it."
 No cost, no prerequisite, no printed VPs.
 
-**card_id `slurry_spreader_c71`, not the name slug** — the Artifex A106
-occupation of the same name (an unrelated last-crop-from-a-field income card,
-implemented first) already owns the `slurry_spreader` slug; the web UI's
-card-metadata join carries an explicit (slug, deck) alias for this id (the
-Market Stall C54 precedent).
+**card_id `slurry_spreader_c71`, not the name slug** — legacy id: this card's
+JSON name once read "Slurry Spreader" (matching the unrelated Artifex A106
+occupation, a last-crop-from-a-field income card that owns the `slurry_spreader`
+slug), and was later corrected to "Slurry". The id was kept, so the web UI's
+card-metadata join carries an explicit (slug, deck) alias mapping this id to the
+renamed ("slurry", "C") row (the Market Stall C54 precedent).
 
 TIMING — the breed frame's post-commit stretch (user ruling 20, 2026-07-05:
 an outcome-reactive breeding grant surfaces AFTER CommitBreed, before Stop,

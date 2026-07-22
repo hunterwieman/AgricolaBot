@@ -1,8 +1,9 @@
-"""Tests for Reader (occupation, C136).
+"""Tests for Reader (occupation, D085; Dulcinaria Expansion).
 
-Card text (printed): "As soon as you have 6 occupations in front of you (including
-this one), this card provides room for one person. In the draft variant, you need 7
-occupations to play this."
+Card text (project canonical, per the JSON row): "As soon as you have 7 occupations
+in front of you (including this one), this card provides room for one person."
+(Printed compendium original: "6 ... In the draft variant, you need 7 occupations to
+play this.")
 
 Project ruling (user 2026-07-16): draft-only, so the +1 PEOPLE-capacity benefit is
 hardcoded to activate at >= 7 occupations. Verified as the raw bonus and end-to-end

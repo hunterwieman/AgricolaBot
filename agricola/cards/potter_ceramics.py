@@ -1,7 +1,7 @@
 """Potter Ceramics (minor improvement, D66; Consul Dirigens Expansion).
 
 Card text (verbatim): "Each time before you take a 'Bake Bread' action, you
-can exchange 1 clay for 1 grain."
+can exchange exactly 1 clay for 1 grain."
 Clarification: "You must bake if you make this exchange."
 
 Cost: none (free). No prerequisite, no printed VPs, not a passing card.

@@ -184,7 +184,7 @@
     "prerequisites": "2 Occupations",
     "passing_left": null,
     "card_category": "Farm Planner",
-    "text": "Once this game, when you use the \"Farmland\" or Cultivation\" action space with the first person you place in a round, you can plow 2 additional fields."
+    "text": "Once this game, when you use the \"Farmland\" or \"Cultivation\" action space with the first person you place in a round, you can plow 2 additional fields."
   },
   {
     "expansion": "Artifex Expansion",
@@ -985,7 +985,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Points Provider",
-    "text": "During scoring, if your pastures cover at least 6/7/8/10 farm yard spaces, you get 1/2/3/4 bonus points."
+    "text": "During scoring, if your pastures cover at least 6/7/8/10 farmyard spaces, you get 1/2/3/4 bonus points."
   },
   {
     "expansion": "Base (Revised)",
@@ -1724,7 +1724,7 @@
     "prerequisites": "2 Occupations, 1 Building Resource in Your Supply",
     "passing_left": null,
     "card_category": "Farm Planner",
-    "text": "Add 1 to the current round for each building resource in your supply and place 1 field on the corresponding round space. A the start of the round, you can plow the field."
+    "text": "Add 1 to the current round for each building resource in your supply and place 1 field on the corresponding round space. At the start of the round, you can plow the field."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1797,7 +1797,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Actions Booster",
-    "text": "Each time you use the \"Grain Utilization\" action space, you can take a \"Build Fences\" action instead of one of the two actions provide by the action space.",
+    "text": "Each time you use the \"Grain Utilization\" action space, you can take a \"Build Fences\" action instead of one of the two actions provided by the action space.",
     "clarifications": "You can take a “Build Fences” action in this way without the ability to sow or bake."
   },
   {
@@ -1827,7 +1827,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Actions Booster",
-    "text": "Each time after you use the \"Forest\" accumulation space, you can return 2 wood to that space to play 1 occupation without paying an occupation costs."
+    "text": "Each time after you use the \"Forest\" accumulation space, you can return 2 wood to that space to play 1 occupation without paying an occupation cost."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1841,7 +1841,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Points Provider",
-    "text": "Each time you use a \"Lesson\" action space and a cooking improvement on the same turn, you get 1 bonus point.",
+    "text": "Each time you use a \"Lessons\" action space and a cooking improvement on the same turn, you get 1 bonus point.",
     "clarifications": "Cooking improvements have the bowl icon."
   },
   {
@@ -1871,7 +1871,7 @@
     "prerequisites": "Pottery (or an Upgrade Thereof)",
     "passing_left": null,
     "card_category": "Points Provider",
-    "text": "During the scoring, if there are at least 2 orthogonally adjacent unused spaces in your farm, you get 2 bonus points. (You still get the negative points for those unused spaces."
+    "text": "During the scoring, if there are at least 2 orthogonally adjacent unused spaces in your farm, you get 2 bonus points. (You still get the negative points for those unused spaces.)"
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -2240,7 +2240,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Crop Provider",
-    "text": "At any time, you can pay 4 clay and 2 food. If you do, place 1 vegetable on each of the next 2 round spaces. At the start of these rounds, you get the vegetable."
+    "text": "At any time, you can pay 3 clay and 2 food. If you do, place 1 vegetable on each of the next 2 round spaces. At the start of these rounds, you get the vegetable."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -2989,7 +2989,7 @@
     "prerequisites": null,
     "passing_left": null,
     "card_category": "Crop Provider",
-    "text": "Each time before you take a \"Bake Bread\" action, you can exchange 1 clay for 1 grain.",
+    "text": "Each time before you take a \"Bake Bread\" action, you can exchange exactly 1 clay for 1 grain.",
     "clarifications": "You must bake if you make this exchange."
   },
   {
@@ -3661,7 +3661,7 @@
     "prerequisites": "Return the Clay/Stone Oven",
     "passing_left": null,
     "card_category": "Food Provider",
-    "text": "When you play this card, you immediately get 5 food. Each time before you get a \"Bake Bread\" action, you can build the \"Clay Oven\" or \"stone Oven\" major improvement.",
+    "text": "When you play this card, you immediately get 5 food. Each time before you get a \"Bake Bread\" action, you can build the \"Clay Oven\" or \"Stone Oven\" major improvement.",
     "clarifications": "Is an oven, is not an upgrade, and cannot bake."
   },
   {
@@ -3770,7 +3770,7 @@
     "number": 71,
     "type": "Minor Improvement",
     "status": "todo",
-    "name": "Slurry Spreader",
+    "name": "Slurry",
     "cost": null,
     "vps": null,
     "prerequisites": null,

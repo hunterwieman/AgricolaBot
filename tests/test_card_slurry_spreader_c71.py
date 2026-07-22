@@ -1,6 +1,7 @@
-"""Tests for Slurry Spreader (minor improvement, C71; Corbarius Expansion) —
-card_id `slurry_spreader_c71` (the Artifex A106 occupation of the same name
-owns the `slurry_spreader` slug).
+"""Tests for Slurry (minor improvement, C71; Corbarius Expansion) —
+card_id `slurry_spreader_c71`. The id is legacy: the card's JSON name used to
+read "Slurry Spreader" (matching the Artifex A106 occupation, which owns the
+`slurry_spreader` slug) and was later corrected to just "Slurry".
 
 Card text: "In the breeding phase of each harvest, if you get newborn animals
 of at least two types, you also get a "Sow" action."
@@ -151,7 +152,7 @@ def test_registered_and_spec_matches_json_row():
         (Path(__file__).resolve().parent.parent / "agricola" / "cards" / "data"
          / "revised_minor_improvements.json").read_text())
     row = next(r for r in rows if r["deck"] == "C" and r["number"] == 71)
-    assert row["name"] == "Slurry Spreader"
+    assert row["name"] == "Slurry"
     assert row["cost"] is None
     assert row["prerequisites"] is None
     assert row["vps"] is None

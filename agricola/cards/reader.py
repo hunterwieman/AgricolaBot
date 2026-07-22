@@ -1,14 +1,15 @@
-"""Reader (occupation, C136; Corbarius; players 1+).
+"""Reader (occupation, D085; Dulcinaria Expansion; players 1+).
 
-Card text (verbatim): "As soon as you have 6 occupations in front of you (including
-this one), this card provides room for one person. In the draft variant, you need 7
-occupations to play this."
+Card text (project canonical, matches the JSON row): "As soon as you have 7
+occupations in front of you (including this one), this card provides room for one
+person." (The printed compendium card reads "6 ... In the draft variant, you need 7
+occupations to play this."; this project plays only the DRAFT variant, so both the
+displayed card text and the capacity threshold are set to 7 — user rulings 2026-07-16
+and 2026-07-22.)
 
-User ruling (2026-07-16): Reader has NO play prerequisite — it can be played at any
-occupation count. Its capacity benefit is active if and only if the player has played
-7 occupations. (This project plays only the DRAFT variant, so the printed threshold is
-hardcoded to 7; the displayed card text is edited to "7".) A hand holds at most 7
-occupations, so "== 7" and ">= 7" coincide; ">= 7" is used to match the printed
+Reader has NO play prerequisite — it can be played at any occupation count. Its
+capacity benefit is active if and only if the player has played 7 occupations. A hand
+holds at most 7 occupations, so "== 7" and ">= 7" coincide; ">= 7" is used to match the
 "as soon as you have N" threshold semantics — persistent, not a momentary equality.
 
 A passive PEOPLE-capacity bonus of +1 while the owner has played 7 occupations

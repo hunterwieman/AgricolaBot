@@ -778,9 +778,10 @@ def _load_card_meta() -> dict[str, dict]:
         # deck-suffixed id). Maps the id to its exact (slug, deck) row.
         slug_deck_aliases = {
             "market_stall_c54": ("market_stall", "C"),
-            # The Corbarius C71 "Slurry Spreader" minor; the A-deck occupation
-            # of the same name owns the plain slug.
-            "slurry_spreader_c71": ("slurry_spreader", "C"),
+            # The Corbarius C71 "Slurry" minor; its implementation keeps the
+            # legacy card_id "slurry_spreader_c71" (from when the JSON name still
+            # read "Slurry Spreader"), so bridge that id to the renamed row.
+            "slurry_spreader_c71": ("slurry", "C"),
         }
         by_slug: dict[str, dict] = {}
         by_slug_deck: dict[tuple, dict] = {}

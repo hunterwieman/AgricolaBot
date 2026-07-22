@@ -20,7 +20,7 @@
     "players": "1+",
     "name": "Stable Planner",
     "card_category": "Farm Planner",
-    "text": "Add 3, 6, and 9 to the current round. You can place 1 stable on each corresponding round space. A the start of these rounds (not earlier), you can build the stable at no cost.",
+    "text": "Add 3, 6, and 9 to the current round. You can place 1 stable on each corresponding round space. At the start of these rounds (not earlier), you can build the stable at no cost.",
     "clarifications": "Stables built this way are not built on your turn and do not trigger Stable Tree A074 or Farmyard Manure A043."
   },
   {
@@ -104,7 +104,7 @@
     "players": "1+",
     "name": "Fellow Grazer",
     "card_category": "Points Provider",
-    "text": "During scoring, you get 2 bonus points of reach pasture you have covering at least 3 farmyard spaces."
+    "text": "During scoring, you get 2 bonus points for each pasture you have covering at least 3 farmyard spaces."
   },
   {
     "expansion": "Artifex Expansion",
@@ -229,7 +229,7 @@
     "players": "1+",
     "name": "Wood Carrier",
     "card_category": "Building Resource Provider",
-    "text": "When you play this card, you immediately get 1 wood fore each improvement in front of you."
+    "text": "When you play this card, you immediately get 1 wood for each improvement in front of you."
   },
   {
     "expansion": "Artifex Expansion",
@@ -389,7 +389,7 @@
     "players": "3+",
     "name": "Drudgery Reeve",
     "card_category": "Points Provider",
-    "text": "If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with 1+/2+/3+ building resources of each type gets 1/3/5 bonus points.",
+    "text": "If there are still 3/6/9 complete rounds left to play, you immediately get 2/3/4 wood. During scoring, each player with 1+/2+/3+ building resources of each type gets 1/3/5 bonus points.",
     "clarifications": "The resources worth bonus points for the craft majors are spent and DO NOT count towards this card’s bonus effect.  These resources DO count towards the tiebreaker."
   },
   {
@@ -841,7 +841,7 @@
     "players": "1+",
     "name": "Firewood Collector",
     "card_category": "Building Resource Provider",
-    "text": "Each time you use the \"Farmland\", \"Grain Seeds\", Grain Utilization\", or \"Cultivation\" action space, at the end of that turn, you get 1 wood.",
+    "text": "Each time you use the \"Farmland\", \"Grain Seeds\", \"Grain Utilization\", or \"Cultivation\" action space, at the end of that turn, you get 1 wood.",
     "clarifications": "Common misread: the effect is triggered every turn."
   },
   {
@@ -932,7 +932,7 @@
     "players": "4+",
     "name": "Conjurer",
     "card_category": "Goods Provider",
-    "text": "Each time you use the \"traveling Players\" accumulation space, you get an additional 1 wood and 1 grain."
+    "text": "Each time you use the \"Traveling Players\" accumulation space, you get an additional 1 wood and 1 grain."
   },
   {
     "expansion": "Base (Revised)",
@@ -999,7 +999,7 @@
     "players": "1+",
     "name": "Master Bricklayer",
     "card_category": "Actions Booster",
-    "text": "Each time you build a major improvement, reduce the stone cost by the number of rooms you have built onto you initial house.",
+    "text": "Each time you build a major improvement, reduce the stone cost by the number of rooms you have built onto your initial house.",
     "clarifications": "If you have 3 rooms total, the discount is 1 stone."
   },
   {
@@ -1198,7 +1198,7 @@
     "players": "4+",
     "name": "Storehouse Keeper",
     "card_category": "Goods Provider",
-    "text": "Each time you use the \"resource Market\" action space, you also get your choice of 1 clay or 1 grain."
+    "text": "Each time you use the \"Resource Market\" action space, you also get your choice of 1 clay or 1 grain."
   },
   {
     "expansion": "Base (Revised)",
@@ -1288,7 +1288,7 @@
     "players": "1+",
     "name": "Little Stick Knitter",
     "card_category": "Actions Booster",
-    "text": "From Round 5 on, each time you use the \"sheep Market\" accumulation space, you can also take a \"Family Growth with Room Only\" action."
+    "text": "From Round 5 on, each time you use the \"Sheep Market\" accumulation space, you can also take a \"Family Growth with Room Only\" action."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1333,7 +1333,7 @@
     "players": "1+",
     "name": "Clutterer",
     "card_category": "Points Provider",
-    "text": "During scoring, you get 1 bonus point for each card played after this on that has \"accumulation space(s)\" in its text.",
+    "text": "During scoring, you get 1 bonus point for each card played after this one that has \"accumulation space(s)\" in its text.",
     "clarifications": "This card only refers to cards played by the owner."
   },
   {
@@ -1765,7 +1765,7 @@
     "players": "4+",
     "name": "Little Peasant",
     "card_category": "Actions Booster",
-    "text": "You immediately get 1 stone. As long as you live in a wooden house with exactly 2 rooms, actions spaces—excluding Meeting Place—are not considered occupied for you."
+    "text": "You immediately get 1 stone. As long as you live in a wooden house with exactly 2 rooms, action spaces—excluding Meeting Place—are not considered occupied for you."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1809,7 +1809,7 @@
     "players": "4+",
     "name": "Art Teacher",
     "card_category": "Goods Provider",
-    "text": "When you play this card, you immediately get 1 wood and 1 reed. Each time you pay an occupation cost, you can use food from the \"traveling Players\" accumulation space."
+    "text": "When you play this card, you immediately get 1 wood and 1 reed. Each time you pay an occupation cost, you can use food from the \"Traveling Players\" accumulation space."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1820,7 +1820,7 @@
     "players": "4+",
     "name": "Salter",
     "card_category": "Food Provider",
-    "text": "At any time, you can pay 1 sheep/wild boar/cattle from you farm. If you do, place 1 food on each of the next 3/5/7 round spaces. At the start of these rounds, you get the food.",
+    "text": "At any time, you can pay 1 sheep/wild boar/cattle from your farm. If you do, place 1 food on each of the next 3/5/7 round spaces. At the start of these rounds, you get the food.",
     "clarifications": "You may not “split” acquisitions of multiple animals (or generally any groupings of goods.)"
   },
   {
@@ -1954,7 +1954,7 @@
     "players": "1+",
     "name": "Collector",
     "card_category": "Goods Provider",
-    "text": "This card is an action space for you only. When you use it for the 1st/2nd/3rd/4th time, you get 1 begging marker and 6/7/8/9 different good of your choice."
+    "text": "This card is an action space for you only. When you use it for the 1st/2nd/3rd/4th time, you get 1 begging marker and 6/7/8/9 different goods of your choice."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -2077,7 +2077,7 @@
     "players": "1+",
     "name": "Bricklayer",
     "card_category": "Building Resource Provider",
-    "text": "Each improvement and each renovation cost you 1 clay less. Each room costs you 2 clay less."
+    "text": "Each improvement and each renovation costs you 1 clay less. Each room costs you 2 clay less."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -2403,7 +2403,7 @@
     "players": "3+",
     "name": "Porter",
     "card_category": "Building Resource Provider",
-    "text": "Each time you take at least 4 of the same building resource from an accumulation space, you get 1additional building resource of the accumulating type and 1 food.",
+    "text": "Each time you take at least 4 of the same building resource from an accumulation space, you get 1 additional building resource of the accumulating type and 1 food.",
     "clarifications": "4 of the same building resource must already be on the accumulation space."
   },
   {
@@ -2426,7 +2426,7 @@
     "players": "4+",
     "name": "Bean Counter",
     "card_category": "Food Provider",
-    "text": "Each time you use an action space on round spaces 1 to 8, place 1 food on this card. Each time this cards has 3 food on it, move the food to your supply."
+    "text": "Each time you use an action space on round spaces 1 to 8, place 1 food on this card. Each time this card has 3 food on it, move the food to your supply."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -2841,7 +2841,7 @@
     "players": "3+",
     "name": "Charcoal Burner",
     "card_category": "Goods Provider",
-    "text": "Each time any player (including you) plays or builds a cooking improvement, you get 1 wood and 1 food."
+    "text": "Each time any player (including you) plays or builds a baking improvement, you get 1 wood and 1 food."
   },
   {
     "expansion": "Corbarius Expansion",
@@ -3357,7 +3357,7 @@
     "players": "1+",
     "name": "Clay Carrier",
     "card_category": "Building Resource Provider",
-    "text": "Wne you play this card, you immediately get 2 clay. At any time, but only once per round, you can buy 2 clay for 2 food.",
+    "text": "When you play this card, you immediately get 2 clay. At any time, but only once per round, you can buy 2 clay for 2 food.",
     "clarifications": "Name was Clay Seller in the Wizkids printing."
   },
   {
@@ -3413,7 +3413,7 @@
     "players": "3+",
     "name": "Hardworking Man",
     "card_category": "Farm Planner",
-    "text": "This card is an action space for you only. If each other player has more rooms than you, it provides the \"Day Laborer\", \"Building Rooms\", and \"Major Improvement\" actions (all three)."
+    "text": "This card is an action space for you only. If each other player has more rooms than you, it provides the \"Day Laborer\", \"Build Rooms\", and \"Major Improvement\" actions (all three)."
   },
   {
     "expansion": "Dulcinaria Expansion",
@@ -3737,7 +3737,7 @@
     "players": "4+",
     "name": "Cabbage Buyer",
     "card_category": "Crop Provider",
-    "text": "Each time any player (including you) renovates and the builds no/ 1 minor/ 1 major improvement, you can buy 1 vegetable for 3/2/1 food."
+    "text": "Each time any player (including you) renovates and then builds no/ 1 minor/ 1 major improvement, you can buy 1 vegetable for 3/2/1 food."
   },
   {
     "expansion": "Dulcinaria Expansion",
