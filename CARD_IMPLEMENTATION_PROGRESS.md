@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 281 implemented · 🚫 4 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 134 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-21 — the line had gone stale during the tier batches.)*
+**420 minors** — ✅ 281 implemented · 🚫 10 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 128 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-21 — the line had gone stale during the tier batches.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -347,7 +347,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B21 Hayloft Barn** · cost: 3 Wood · prereq: 1 Occupation
   - _Place 4 food on this card. Each time you obtain at least 1 grain, you also get 1 food from this card. Once it is empty, you get a "Family Growth Even without Room" action.  [CLARIFICATION: 《Harvesting 2+ grain at once only counts as obtaining once, regardless of any other crops harvested.》]_
   - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS E-GRANTSUB E-GROWTH ST-STACK ST-THRESHOLD` — On play stocks 4 food on the card (ST-STACK); each grain-obtain automatically pays 1 food out (HOOK S-OBTAIN T-AFTER F-AUTO, E-GOODS). Emptying the stack is a one-time count-reaches-zero fire (ST-THRESHOLD) that grants a family-growth-even-without-room action — family growth is a listed primitive, so E-GRANTSUB + E-GROWTH (granted, hence optional).
-- ⬜ **B22 Walking Boots** · prereq: At Most 4 People
+- 🚫 **B22 Walking Boots** · prereq: At Most 4 People
   - _You immediately get 2 food. You must immediately place a person from your supply. If you do, in the next returning home phase, you must remove that person from play.  [ERRATA: 《RECOMMENDED ERRATA: This card must be played in the work phase.》  ERRATA: remove the “If you do” clause.]  [CLARIFICATION: Consequently, you may never grow to 5 people.]_
   - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS E-EXTRAPLACE E-PEOPLE ST-STORE` — On play: 2 food + a mandatory immediate extra placement (E-EXTRAPLACE) of a temporary person (E-PEOPLE). The errata'd mandatory removal fires at the next returning-home phase — a real delayed game-event fire -> HOOK S-ROUNDEND F-AUTO. People are fungible, so no need to know which SPACE the worker occupied (not ST-PLACELOG); a pending-removal flag (ST-STORE) suffices.
 - ⬜ **B23 Final Scenario** · prereq: Round 13 or Before
@@ -545,7 +545,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C2 Stable** · cost: 1 Wood · passing
   - _Immediately build 1 stable. (The stable costs you nothing, but you must pay the cost shown on this card.)_
   - `ONPLAY E-GRANTSUB E-PASSING` — On play grants a build-one-stable sub-action (free — E-GRANTSUB) and passes on; the play cost is 1 Wood, an ordinary resource, and the stable piece placed is the EFFECT not a cost, so E-PIECECOST is wrong.
-- ⬜ **C3 Carriage Trip** · prereq: 1 Person yet to Place · passing
+- 🚫 **C3 Carriage Trip** · prereq: 1 Person yet to Place · passing
   - _If you play this card in the work phase, you can immediately place another person._
   - `ONPLAY E-EXTRAPLACE E-PASSING` — On play in work phase lets you place an additional person; passing minor.
 - ✅ **C4 Writing Boards** · cost: 1 Food · passing
@@ -716,7 +716,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C59 Schnapps Distillery** · cost: 2 Stone,1 Vegetable
   - _In each feeding phase, you can use this card to turn exactly 1 vegetable into 5 food. During scoring, you get 1 bonus point each for your 5th and 6th vegetable._
   - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-SCORE` — Optional per-feeding-phase conversion (HOOK/S-HFEED/F-TRIG/A-OWN/E-CONVERT) — all four HOOK dimensions are mandatory, so a timing tag is required and T-BEFORE fits (the conversion is available before the feeding payment resolves; labelA omitted timing). The 5th/6th-vegetable bonus is a plain E-SCORE rule.
-- ⬜ **C60 Small Potter's Oven** · cost: 2 Clay · prereq: Return the Clay/Stone Oven
+- 🚫 **C60 Small Potter's Oven** · cost: 2 Clay · prereq: Return the Clay/Stone Oven
   - _When you play this card, you immediately get 5 food. Each time before you get a "Bake Bread" action, you can build the "Clay Oven" or "stone Oven" major improvement.  [CLARIFICATION: Is an oven, is not an upgrade, and cannot bake.]_
   - `ONPLAY E-GOODS E-RETURNCOMP HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GRANTACT` — On play get 5 food (ONPLAY, E-GOODS) after returning the Clay/Stone Oven (E-RETURNCOMP); before each Bake Bread action may build the Clay/Stone Oven major (T-BEFORE, S-SUB, F-TRIG, E-GRANTACT); no L-EXT needed.
 - ✅ **C61 Beer Stein** · cost: 1 Clay
@@ -854,7 +854,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D20 Turnwrest Plow** · cost: 3 Wood · prereq: 2 Occupations
   - _Place 2 field tiles on this card. Each time you use the "Farmland" or "Cultivation" action space, you can also plow up to 2 fields from this card._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB ST-STACK` — Card holds a POOL of 2 field tiles you plow onto your farm (ST-STACK); the card is not itself a sown/harvested field -> L-CARDFIELD removed.
-- ⬜ **D21 Recruitment** · cost: 1 Food · prereq: No People Left in the House
+- 🚫 **D21 Recruitment** · cost: 1 Food · prereq: No People Left in the House
   - _Provided you have room in your house, each time you get a "Minor Improvement" action, you can take a "Family Growth" action instead.  [ERRATA: ERRATA: From Round 5 onwards (this is already the case in other language printings.)]_
   - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE E-GROWTH E-GRANTSUB E-FOODCOST` — Union of both labels: replaces a granted Minor Improvement action with Family Growth (E-SUBSTITUTE + E-GROWTH; family growth is a listed grantable sub-action -> E-GRANTSUB), and the 1-Food play cost is E-FOODCOST per the ruling.
 - ⬜ **D22 Work Permit** · cost: 1 Food · prereq: At Least 1 Building Resource in Your Supply
@@ -1013,7 +1013,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D73 Supply Boat** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time after you use the "Fishing" accumulation space, you can choose to buy 1 grain for 1 food, or 1 vegetable for 3 food._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-FOODCOST` — Optional buy each time after using Fishing (S-SPACE/T-AFTER/F-TRIG/A-OWN). The buy is a food-for-crop exchange at a rate (E-CONVERT) whose price is food, payable by converting (E-FOODCOST — label A missed it). E-GOODS (label B) is redundant: the gained crop is the conversion's output, not an independent grant.
-- ⬜ **D74 Royal Wood** · cost: 1 Food
+- 🚫 **D74 Royal Wood** · cost: 1 Food
   - _At the end of each turn in which you use the "Farm Expansion" action space or build an improvement, you get 1 wood back for every 2 wood paid during those actions (rounded down)._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS E-FOODCOST ST-COUNTER ST-PROV` — 1-Food play cost → E-FOODCOST per the cost ruling; the rebate accumulates wood paid across the turn's qualifying actions (ST-COUNTER) from payment provenance (ST-PROV), paid out automatically at turn end.
 - ✅ **D75 Wood Field** · cost: 1 Food · prereq: 1 Occupation
@@ -1112,7 +1112,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E21 Sheep Rug** · cost: 1 Sheep · prereq: 4 Sheep
   - _You can use any "Wish for Children" action space, even if it is occupied by another player's person._
   - `PASSIVE L-OCCUPY` — May use any Wish for Children space even if occupied.
-- ⬜ **E22 Guest Room** · cost: 4 Wood,1 Reed
+- 🚫 **E22 Guest Room** · cost: 4 Wood,1 Reed
   - _Immediately place any amount of food from your supply on this card. Once per round, you can discard 1 food from this card to place a person from your supply in that round._
   - `ONPLAY ATWILL CAP-ROUND E-EXTRAPLACE E-PEOPLE ST-STACK` — On-play food banked on the card (ST-STACK), once-per-round at-will discard; the placed person comes from SUPPLY (not the family in play) for that round only — a temporary worker (E-PEOPLE) yielding an extra placement (E-EXTRAPLACE).
 - ⬜ **E23 Apiary** · prereq: 4 Occupations
@@ -1386,7 +1386,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 152 implemented · 🚫 2 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 264 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 152 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 263 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -2025,7 +2025,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C124 Stone Importer** · [1+]
   - _In the breeding phase of the 1st/2nd/3rd/4th/5th/6th harvest, you can use this card to buy exactly 2 stone for 2/2/3/3/4/1 food._
   - `HOOK T-BEFORE S-HBREED F-TRIG A-OWN E-FOODCOST E-GOODS` — Optional buy during each breeding phase; the per-harvest price is fixed by the round number (computable from state), so no ST-STORE; pay-food/gain-stone is E-FOODCOST + E-GOODS without also double-tagging E-CONVERT.
-- ⬜ **C125 Nightworker** · [1+]
+- 🚫 **C125 Nightworker** · [1+]
   - _Before the start of each work phase, you can place a person on an accumulation space of a building resource not in your supply. (Then proceed with the start player.)  [CLARIFICATION: A resource you already have can be taken, but only if placed on a qualifying accumulation space by another effect, e.g. Outskirts Director C130.]_
   - `HOOK S-SOR F-TRIG A-OWN E-EXTRAPLACE` — Before each work phase, place an extra person on a not-owned-resource accumulation space.
 - ✅ **C126 Excavator** · [1+]

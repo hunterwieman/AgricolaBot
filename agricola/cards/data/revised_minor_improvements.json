@@ -1687,7 +1687,7 @@
     "deck": "B",
     "number": 15,
     "type": "Minor Improvement",
-    "status": "todo",
+    "status": "wontfix",
     "name": "Carpenter's Bench",
     "cost": "1 Wood",
     "vps": null,
