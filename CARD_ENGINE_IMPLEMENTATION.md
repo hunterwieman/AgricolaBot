@@ -114,7 +114,34 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-21 (the accommodation-chain state widening — ruling 73: the
+> **Last updated: 2026-07-21 (the ruling-74 triage batch — fourteen occupations + eight
+> seams across four waves; per-card rulings in CARD_DEFERRED_PLANS.md ruling 74, which
+> also carries the batch's seven open follow-up questions. Wave 1, existing seams:
+> Bed Maker A93, Sheep Inspector D93, Henpecked Husband D94, Site Manager D95,
+> Dung Collector E90 (the §5b any-source note is resolved — the breeding-outcome payload
+> is Dung Collector's ruled scope). Wave 2, four new seams + their cards: the
+> volatile-capacity barrier re-check (capacity_mods.register_volatile_capacity +
+> engine._reconcile_accommodation) → Livestock Feeder C86; the flexible→single-type-bin
+> upgrade fold (register_flexible_to_bin in extract_slots) → Stable Master C89; the
+> PendingGrantedSubAction max_uses/uses_done use-budget shape → Furnisher D96; the
+> ordinal free-fence source ("source 1b", cost_mods.register_free_fence_ordinals) →
+> Carpenter's Apprentice C88. Wave 3: the improvement-decline-income registry + the
+> registry-gated decline seams (_apply_stop's one guarded exception, the Proceed-host
+> exits, the ownership-gated composite decline route, place-just-to-decline) →
+> Field Merchant B103; the minor-action-major-build seam
+> (legality.register_minor_action_major_build + helpers.swap_play_minor_to_build_major)
+> + granted_by threaded on the play_minor cost path + the harvest span → Braid Maker
+> E109; PendingGrantedSubAction.minor_allowed + the first out-of-turn owner decision
+> (an any_player before-auto pushing an owner-idx wrapper, riding the decider rule) →
+> Miller E95; TriggerEntry.is_owned_fn (non-tableau trigger ownership at both surfacing
+> gates) → the craft majors' Cards-only span windows (craft_major_span.py). Wave 4:
+> card-as-action-space (cards/card_spaces.py registry, the PlaceWorker picks payload,
+> on-card worker markers + the return-home sweep, before/after_action_space hosting
+> with card: space ids — card spaces count as action spaces for hooks) → Collector C104
+> (wide, C(10,6..9) picks) + Tree Inspector D116 (+ Canal Boatman D103 on the marker
+> namespace). Family byte-identity pinned by SHA-256 game-trace fingerprints
+> (tests/test_card_spaces.py) and the craft-span trace-identity negative. Earlier same
+> day: the accommodation-chain state widening — ruling 73: the
 > capacity chain carries GameState (`slots_fn(state, player_state)` with the doctored-player
 > argument kept explicit; every call site swept, encoder values bit-identical, full suite +
 > C++ gates green), `helpers.completed_feeding_phases` added (the GLOBAL game-time count —
@@ -149,7 +176,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > the tier-2 batch — ruling 68: 10 minors implemented via
 > parallel delegation, on two seam families built the same day — the granted-primitive
 > parameter fields and the animal-holder capacity folds; census 213 occ + 315 min = 528;
-> below. Earlier same day: the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> below. Earlier same day: the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Also ~2026-07-16, but **logged retroactively 2026-07-21** (it never got its own entry at the time): the family-growth **housing-capacity** batch — the first explicit PEOPLE-capacity term (`legality._housing_capacity` = room count + the new `HOUSING_CAPACITY_MODS` fold, §3/§5.4), the `workers_in_supply` meeple-supply pile that replaces `people_total < 5` as the family cap (§4), and two new `legality.py` registries, `RENOVATE_FORBID_CARDS` (generalized from Mantlepiece) + `COMPOSITE_ONLY_MINORS` (§3); cards **Homekeeper A85, Reader D85, Lodger A127 [3+] (round-9 returning-home eviction), Bunk Beds C10, Wooden Shed A10**, plus the supply-cap migration of every family-growth-granting card (Autumn Mother, Bed in the Grain Field, Little Stick Knitter, Stork's Nest). The capacity model is memoryless (a decrease never evicts; Lodger the sole exception). Predates the ruling-numbered arc's later entries; the 5 cards are already included in the current census total. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -870,7 +897,16 @@ module-local `_owns(player_state, card_id)` helpers.
     never kept in the tableau. Exemplar: `market_stall.py`.
   - `vps: int` — printed victory points, summed at scoring for kept minors (the second scoring
     path beside `SCORING_TERMS` below).
-- **`register_play_occupation_variant(card_id, variants_fn)`** → `PLAY_OCCUPATION_VARIANTS`.
+- **`register_play_occupation_variant(card_id, variants_fn, pair_ok_fn=None)`** →
+  `PLAY_OCCUPATION_VARIANTS` (+ `PLAY_OCCUPATION_PAIR_GATES` for the optional gate).
+  `pair_ok_fn(state, idx, variant, payment) -> bool` (ruling 75, 2026-07-21) receives the
+  SIMULATED post-debit state (and, on the food-shortfall path, the post-liquidation state) —
+  the enumerator withholds any (variant, payment) pair whose granted effect would no longer
+  be doable after that payment, and the food-payment frame filters its bundles by the same
+  predicate for a gated stored commit. This is the never-offer-a-dead-end rule applied at
+  pair granularity (the Working Gloves × Stable Master stranding; Baker × liquidation).
+  A variant card whose `variants_fn` output can shrink under liquidation and does NOT
+  register a gate retains a rerun `KeyError` exposure — register the gate.
   For an occupation whose play carries an optional all-or-nothing choice (Roof Ballaster: "you
   may pay 1 food to get 1 stone per room"): `variants_fn(state, idx) -> list[(variant_str,
   surcharge: Resources)]` (must be non-empty — include a zero-surcharge decline variant). The
@@ -1106,6 +1142,17 @@ The three folds are the first mechanism to make pasture capacities non-canonical
 owned cards, not just geometry) — which is exactly the situation the frontier-cache
 projection-key contract warns about; see §5's closing note.
 
+**People (housing) capacity lives in the same file, kept entirely separate from the animal
+folds above.** `register_housing_capacity(card_id, bonus_fn)` → `HOUSING_CAPACITY_MODS`.
+`bonus_fn(state, player_idx) -> int` returns the extra PEOPLE the card's owner can house beyond
+their room count; `housing_capacity_bonus` sums owned cards (default 0). Read ONLY by
+`legality._housing_capacity` (= room count + this fold), the gate on the "Family Growth with
+room" action — no accommodation frontier, no cache. Empty registry / nothing owned →
+`_housing_capacity == _num_rooms`, so the whole Family game is byte-identical. Exemplars:
+Homekeeper (+1 when a clay/stone room touches both a field and a pasture), Bunk Beds (to 5 at
+≥4 rooms), Reader (+1 at 7 occupations), Wooden Shed (+1), Lodger (+1 through round 9). The
+model is in §5.4's people-capacity note.
+
 ### `agricola/cards/cooking_mods.py` — cooking rates
 
 Read by `helpers.cooking_rates` (the at-any-time goods→food conversion table every cook site —
@@ -1252,6 +1299,22 @@ These live in `legality.py` (not `cards/`) because they extend its predicates in
   tier, consumed by `_legal_renovate_targets`; each target's cost then flows through the
   chokepoint normally (the renovate-target model, §5). Exemplar: `conservator` (wood → stone
   directly).
+- **`register_renovate_forbid(card_id)`** → `RENOVATE_FORBID_CARDS`. "You may no longer
+  renovate" — `_legal_renovate_targets` returns `[]` for an owner, the single choke that
+  forbids renovation on *every* path (the House/Farm Redevelopment space legality via
+  `_can_renovate`, and any card-granted `PendingRenovate` enumeration). Generalized 2026-07-16
+  from Mantlepiece's old inline `_can_renovate` check; members `mantlepiece` + `wooden_shed`.
+  (The Renovation Materials/Company free-renovate variants withhold their renovate when this
+  fires — the never-offer-a-dead-end rule.)
+- **`register_composite_only_minor(card_id)`** → `COMPOSITE_ONLY_MINORS`. A minor playable ONLY
+  via the "Major or Minor Improvement" action — the composite host (`PendingMajorMinorImprovement`:
+  the Major Improvement space, House Redevelopment, and card grants like Angler) — never the
+  bare "Minor Improvement" action (Meeting Place / Basic Wish / bare "play a minor" grants).
+  `playable_minors(state, idx, composite_only_ok=)` drops these unless the caller is a
+  composite-origin site (passes `True` at each; the generic `PendingPlayMinor` enumerator derives
+  it from `top.initiated_by_id == "major_minor_improvement"`). Exemplar: `wooden_shed` ("can only
+  be played via a Major Improvement action"). The two-actions distinction is the RULES.md ⚠️
+  callout (Small Trader / Merchant's provenance gating is the same seam).
 
 ---
 
@@ -1351,8 +1414,18 @@ Exactly four card-new fields (plus the frames below riding the existing `pending
   barrier below if they overflow — §3 schedules) and **effect-card ids** (round-start grant
   hooks). `FutureReward` is additive (`+` stacks animals and unions ids) and falsy when empty,
   which is what lets `_complete_preparation` skip the whole branch object-identically in Family.
-- **`fences_in_supply: int = 15`** — stored, not derived; the one card field that is **not**
+- **`fences_in_supply: int = 15`** — stored, not derived; a card field that is **not**
   default-skip (its value varies in Family too, where it equals `15 − fences_built`). See §5.
+- **`workers_in_supply: int = 3`** — the family-meeple SUPPLY pile (the `fences_in_supply`
+  sibling): a player owns 5 meeples, 2 start in play, so 3 start in supply. The 5-person family
+  cap is now **`workers_in_supply > 0`** (was `people_total < 5`) at both wish spaces AND every
+  family-growth-GRANTING card; decremented at the single growth chokepoint
+  `resolution._grow_family`. Stored — NOT derived as `5 − people_total` — because a card can
+  REMOVE a meeple from the GAME (Lodger's round-9 returning-home eviction removes an in-play
+  person WITHOUT returning it to supply, so total meeples, and the reachable family size, drop
+  permanently — "can never grow back"). Like `fences_in_supply`: **not** default-skip (varies in
+  Family) → serialized + mirrored in the C++ PlayerState (decrement at the growth site). See
+  §5.4's people-capacity note.
 - **`animals_need_accommodation: bool = False`** — the accommodation barrier's flag. Set by
   `helpers.grant_animals` whenever a **decision-free** animal grant lands (round-start collection,
   an on-play gain), which adds the animals to `animals` *even past housing capacity* — a transient
@@ -1798,6 +1871,22 @@ bug.
 
 ### 5.4 Capacity modifiers
 
+**Two independent capacity axes — this section is the ANIMAL one.** "Capacity" splits into the
+elaborate ANIMAL accommodation layer described below (the frontiers, `extract_slots`, the
+projection-key caches) and a much simpler PEOPLE (housing) layer that shares none of it:
+`legality._housing_capacity(state, idx)` = room count + the `HOUSING_CAPACITY_MODS` fold (§3),
+the gate on the "Family Growth **with** room" action (legal iff `people_total < _housing_
+capacity`). No frontier, no cache — it is read only at the two wish-space placement gates and at
+Lodger's eviction check. Two model facts (user ruling 2026-07-16): (1) **legality is memoryless**
+— a pure function of current state, so a capacity DECREASE never evicts an existing person
+(`people_total` is untouched; a lower ceiling only forbids *future* growth). The sole exception,
+Lodger, removes its person through an explicit `returning_home` auto, not the capacity math. (2)
+The 5-person **cap is the meeple supply** `workers_in_supply > 0` (§4), NOT `people_total < 5` —
+so a card that removes a meeple from the game (Lodger) lowers the reachable family size, and a
+card that grants growth can never drive the supply negative. Grow-WITHOUT-room is a separate
+existing seam (`legality.GROWTH_ROOM_OVERRIDE_EXTENSIONS`, Field Doctor: waives the room half,
+never the supply cap). The rest of this section is the animal layer.
+
 **The signature contract (the 2026-07-21 widening, user-approved).** The whole capacity chain
 carries the GameState alongside an EXPLICIT PlayerState: `extract_slots(state, player_state)`,
 `accommodates(state, player_state, s, b, c)`, `pareto_frontier(state, player_state, gained,
@@ -2061,9 +2150,14 @@ part of the projection key — so a card-dependent requirement can never serve a
   outcome-reactive *trigger* reads its own round-keyed CardStore latch written there (the
   frame carries no payload field). `Stop` declines whatever is unfired.
 
-This is deliberately NOT an any-source newborns event — Dung Collector's "each time you get
-2+ newborn animals" counts market gains too and stays out of scope (§8). The FEED frames, by
-contrast, carry no trigger events (§8).
+This is deliberately NOT an any-source newborns event — but that no longer excludes Dung
+Collector: user ruling 74 (2026-07-21) scoped its "each time you get 2 or more newborn
+animals" to exactly this payload (harvest breeding is the only current source of 2+ newborns
+in one event; the Pig Breeder / Pure Breeder round-12 card breeds are ruled sequential and
+distinct, 1 newborn each), and the card is implemented on the outcome seam. The standing
+caveat: any future card breeding 2+ newborns outside `_execute_breed` must emit the payload
+or the outcome consumers under-fire. The FEED frames, by contrast, carry no trigger
+events (§8).
 
 ### The retired `harvest_field` seam
 

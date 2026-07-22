@@ -1,4 +1,4 @@
-"""Bunk Beds (minor improvement, C11; Corbarius).
+"""Bunk Beds (minor improvement, C10; Corbarius).
 
 Card text (verbatim): "Once you have 4 rooms, your house can hold 5 people."
 Cost: 1 wood.  Prerequisite: 2 built major improvements.

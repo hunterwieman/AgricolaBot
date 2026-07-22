@@ -1,4 +1,4 @@
-"""Wooden Shed (minor improvement, D9; Dulcinaria).
+"""Wooden Shed (minor improvement, A10; Artifex).
 
 Card text (verbatim): "This card can only be played via a \"Major Improvement\" action.
 It provides room for one person. You may no longer renovate."

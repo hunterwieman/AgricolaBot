@@ -1,4 +1,4 @@
-"""Lodger (occupation, C133; Corbarius; players 3+).
+"""Lodger (occupation, A127; Artifex; players 3+).
 
 Card text (verbatim): "This card provides room for one person, but only until the
 returning home phase of round 9. If, by then, there is no room elsewhere for that
