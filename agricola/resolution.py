@@ -923,6 +923,27 @@ def _choose_subaction_major_minor_improvement(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
             min_spend=top.min_spend,
         ))
+    if action.name == "decline_improvement":
+        # The ownership-gated decline route (user ruling 74, 2026-07-21 — Field
+        # Merchant; enumerated only for an owner of a registered decline-income
+        # card, on an unconstrained composite with neither branch chosen). The
+        # named "Major or Minor Improvement" action is DECLINED: pay the decline
+        # income, then POP the composite with neither `*_chosen` flag set and
+        # WITHOUT flipping to its after-phase — the action was not taken, so
+        # nothing keyed on taking it may fire (no after_major_minor_improvement
+        # autos: Small Trader pays nothing; no after-triggers: Merchant's repeat
+        # is never offered off a decline). The parent settles normally: under
+        # the Major Improvement space the wrapper's `subaction_complete` was set
+        # at its choose, so the Delegating auto-advance flips it; under House
+        # Redevelopment `improvement_chosen` is already True, so its own Proceed
+        # decline-seam cannot pay a second time; under a card grant (Angler, a
+        # Merchant repeat) control returns to the granting host.
+        from agricola.cards.triggers import note_improvement_action_declined
+        assert top.min_spend is None, (
+            "decline_improvement on a min-spend composite (Stone Company's "
+            "grant is not declinable — both cards' printed clarifications)")
+        state = note_improvement_action_declined(state, p_idx, "major_or_minor")
+        return pop(state)
     raise ValueError(f"Unknown sub-action {action.name!r} for Major/Minor Improvement")
 
 
@@ -1081,7 +1102,8 @@ def _choose_subaction_granted_subaction(
         from agricola.pending import PendingPlayMinor
         return push(state, PendingPlayMinor(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id,
-            minor_improvement_action=top.minor_is_action))
+            minor_improvement_action=top.minor_is_action,
+            allowed_cards=top.minor_allowed))
     if action.name == "build_major":
         from agricola.pending import PendingBuildMajor
         return push(state, PendingBuildMajor(

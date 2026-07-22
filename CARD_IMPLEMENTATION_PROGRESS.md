@@ -1704,7 +1704,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B102 Consultant** · [1+]
   - _When you play this card in a 1-/2-/3-/4- player game, you immediately get 2 grain/3 clay/2 reed/2 sheep.  [CLARIFICATION: In a 5- or 6-player game, you receive 2 sheep.]_
   - `ONPLAY E-GOODS E-ANIMALS` — On-play gain of goods (grain/clay/reed) or sheep depending on player count; animals must be accommodated. Not NONE since animals require accommodation.
-- ⬜ **B103 Field Merchant** · [1+]
+- ✅ **B103 Field Merchant** · [1+] · ruling 74 (named-action decline income; place-just-to-decline; composite decline route)
   - _When you play this card, you immediately get 1 wood and 1 reed. Each time you decline a "Minor/Major Improvement" action, you get 1 food/vegetable instead.  [CLARIFICATION: Merchant C096 does not double a decline.  Stone Company A023 improvements are conditional on spending stone and can’t be declined.  《You can place onto the “Major Improvement” or “Improvement” (6p) action space just to decline it.》]_
   - `ONPLAY E-GOODS HOOK S-MAJMIN T-AFTER F-MANDCHOICE A-OWN` — On play +1 wood/+1 reed; the decline hook on the Major/Minor Improvement action mandatorily grants '1 food/vegetable' - a forced pick-one ('you get X OR Y, no decline'), so F-MANDCHOICE not F-AUTO.
 - ⬜ **B104 Sheep Walker** · [1+]

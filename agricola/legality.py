@@ -203,6 +203,49 @@ def register_placement_forbid(fn: Callable) -> None:
 # current_material) -> list[HouseMaterial] (extra legal targets) and self-gates on its
 # own ownership. Consumed by `_legal_renovate_targets`. (The cost of each target then
 # flows through the cost-modifier chokepoint as usual.) See COST_MODIFIER_DESIGN.md.
+# Minor-action MAJOR builds (ruling 74, 2026-07-21 — Braid Maker E109's "You can
+# build the Basketmaker's Workshop ... even when taking a 'Minor Impr.' action";
+# Plow Builder E91's Joinery). A registered card lets its owner take the NAMED
+# "Minor Improvement" action (a bare PendingPlayMinor with
+# minor_improvement_action=True — Meeting Place, Basic Wish, granted named
+# actions) and build ONE specific major with it instead of playing a minor.
+# Three consumers keep in agreement, all driven by the same options predicate:
+# (1) the named-action branch gates (Meeting Place / Basic Wish / the wrapper's
+# minor_is_action branch) OR-in "a registered build is available", so the branch
+# is takeable with NO playable minor in hand; (2) the card's own
+# before_play_minor trigger surfaces the swap at the frame (its eligibility MUST
+# be this same predicate, or a gated-in branch could reach a zero-action frame);
+# (3) firing calls helpers.swap_play_minor_to_build_major, which replaces the
+# frame with a menu-restricted bare PendingBuildMajor. Pricing is NOT carried
+# here — a special cost (Braid Maker's 1 reed + 1 stone) is the card's own
+# register_formula, applying to every build of that major per ruling 74. Empty
+# registry -> every gate reads exactly as before (Family byte-identical).
+MINOR_ACTION_MAJOR_BUILDS: dict[str, int] = {}
+
+
+def register_minor_action_major_build(card_id: str, major_idx: int) -> None:
+    """Register `card_id` as granting a build of major `major_idx` at the named
+    "Minor Improvement" action."""
+    MINOR_ACTION_MAJOR_BUILDS[card_id] = major_idx
+
+
+def minor_action_major_build_options(state: GameState, idx: int) -> list[tuple[str, int]]:
+    """The (card_id, major_idx) swaps available to player `idx` right now: card owned,
+    major unbuilt, and payable through the build-major chokepoint (an owned formula —
+    Braid Maker's 1r+1s — participates). Empty registry / nothing owned -> []."""
+    if not MINOR_ACTION_MAJOR_BUILDS:
+        return []
+    from agricola.cards.capacity_mods import _owns as _owns_card
+    p = state.players[idx]
+    out = []
+    for card_id, major_idx in MINOR_ACTION_MAJOR_BUILDS.items():
+        if (_owns_card(p, card_id)
+                and state.board.major_improvement_owners[major_idx] is None
+                and can_pay(state, idx, _build_major_ctx(major_idx))):
+            out.append((card_id, major_idx))
+    return out
+
+
 RENOVATE_TARGET_EXTENSIONS: list[Callable] = []
 
 
@@ -1530,13 +1573,21 @@ def _legal_lessons_cards(state: GameState) -> bool:
 
 def _legal_major_improvement_cards(state: GameState) -> bool:
     """Major/Minor Improvement (card game): legal if you can build a major OR play
-    a minor from hand. (Family keeps the major-only `_legal_major_improvement`.)"""
+    a minor from hand — OR you own a decline-income card (user ruling 74,
+    2026-07-21 — Field Merchant's printed clarification: "You can place onto the
+    'Major Improvement' ... action space just to decline it", so the placement
+    must be legal regardless of affordability; the composite host then offers its
+    ownership-gated decline route). Empty registry / no owned card -> the gate
+    reads exactly as before. (Family keeps the major-only
+    `_legal_major_improvement`.)"""
     if not _is_available(state, "major_improvement"):
         return False
     idx = state.current_player
     p = state.players[idx]
-    return _can_afford_any_major_improvement(state, p) or bool(
-        playable_minors(state, idx, composite_only_ok=True))   # major space = composite action
+    from agricola.cards.triggers import owns_improvement_decline_income
+    return (_can_afford_any_major_improvement(state, p)
+            or bool(playable_minors(state, idx, composite_only_ok=True))   # major space = composite action
+            or owns_improvement_decline_income(state, idx))   # place just to decline
 
 
 def _can_afford_cost(p: PlayerState, cost) -> bool:
@@ -1564,17 +1615,20 @@ def _minor_cost_alternatives(spec, state: GameState, idx: int) -> tuple:
 
 
 def _play_minor_ctx(card_id: str, cost, state: GameState, idx: int,
-                    min_spend=None) -> CostCtx:
+                    min_spend=None, granted_by=None) -> CostCtx:
     """Cost-resolution context for playing minor `card_id` with a SPECIFIC alternative
     `cost` (a `Cost`, one member of `_minor_cost_alternatives`).
 
     The resource portion is the cost-modifier `base`; the animal portion is NOT
     modifiable by cost cards and rides on `reserved_animals` so food-liquidation
     affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4). `min_spend` is a granted
-    action's minimum-spend constraint (Stone Company), threaded from the frame."""
+    action's minimum-spend constraint (Stone Company), threaded from the frame.
+    `granted_by` is the granting card's provenance ("card:<id>") when this play rides
+    a card grant — the build_major/renovate pattern, wired for play_minor by ruling 74
+    (Furnisher's grant-scoped -1 wood); every non-granted path passes None."""
     return CostCtx(
         "play_minor", cost.resources, card_id=card_id,
-        reserved_animals=cost.animals, min_spend=min_spend,
+        reserved_animals=cost.animals, min_spend=min_spend, granted_by=granted_by,
     )
 
 
@@ -1586,7 +1640,7 @@ def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
 
 def playable_minors(state: GameState, idx: int, *,
                     composite_only_ok: bool = False,
-                    min_spend=None) -> list[str]:
+                    min_spend=None, granted_by=None) -> list[str]:
     """Minor card ids in player `idx`'s hand that can currently be played:
     registered spec + prerequisite met + cost affordable. Filtered to registered
     MinorSpecs so an as-yet-unimplemented hand card is simply not offered.
@@ -1619,7 +1673,8 @@ def playable_minors(state: GameState, idx: int, *,
             continue
         if any(
             can_pay(state, idx, _play_minor_ctx(cid, cost, state, idx,
-                                                min_spend=min_spend))
+                                                min_spend=min_spend,
+                                                granted_by=granted_by))
             and _can_afford_minor_animals(p, cost.animals)
             for cost in _minor_cost_alternatives(spec, state, idx)
         ):
@@ -2212,12 +2267,22 @@ def _subactionspace_choice(state, pending) -> ChooseSubAction | None:
     if sid == "fencing":
         return ChooseSubAction(name="build_fences")
     if sid == "major_improvement":
-        return (ChooseSubAction(name="improvement")
-                if _can_afford_any_major_improvement(state, p)
+        if (_can_afford_any_major_improvement(state, p)
                 or (state.mode is GameMode.CARDS
                     and bool(playable_minors(state, pending.player_idx,
-                                             composite_only_ok=True)))   # House Redev = composite
-                else None)
+                                             composite_only_ok=True)))):   # House Redev = composite
+            return ChooseSubAction(name="improvement")
+        # Place-just-to-decline (user ruling 74, 2026-07-21 — Field Merchant):
+        # the placement gate (`_legal_major_improvement_cards`) admits an owner
+        # of a decline-income card with nothing affordable/playable, so the
+        # mandatory choose must stay offered — entering the composite is how the
+        # decline route is reached. Same ownership predicate as the placement
+        # gate, keeping "placement legal <=> choose offered" in sync. Empty
+        # registry / no owned card (every Family state) -> None as before.
+        from agricola.cards.triggers import owns_improvement_decline_income
+        if owns_improvement_decline_income(state, pending.player_idx):
+            return ChooseSubAction(name="improvement")
+        return None
     if sid == "lessons":
         return ChooseSubAction(name="play_occupation")
     raise AssertionError(f"Unknown sub-action space host {sid!r}")
@@ -2406,6 +2471,24 @@ def _enumerate_pending_major_minor_improvement(
             and playable_minors(state, pending.player_idx, composite_only_ok=True,
                                 min_spend=pending.min_spend)):
         actions.append(ChooseSubAction(name="play_minor"))
+    # Ownership-gated decline route (user ruling 74, 2026-07-21 — Field Merchant:
+    # "Each time you decline a 'Major or Minor Improvement' action, you get 1
+    # vegetable"; printed clarification: "You can place onto the 'Major
+    # Improvement' ... action space just to decline it"). Offered on every
+    # UNCONSTRAINED composite — the space, House Redevelopment's step, and card
+    # grants (Angler, a Merchant repeat) alike — while neither branch has been
+    # chosen; taking it completes the composite with neither branch performed
+    # (see `_choose_subaction_major_minor_improvement`). A min-spend composite
+    # (Stone Company's grant) is NOT declinable: both cards' printed
+    # clarifications agree ("Stone Company A023 improvements are conditional on
+    # spending stone and can't be declined" / "Improvement action is not
+    # declinable in order to use Field Merchant B103") — the mandatory-spend
+    # constraint is the structural marker. Empty registry / no owned card
+    # (every Family state) -> nothing appended, byte-identical.
+    if neither and pending.min_spend is None:
+        from agricola.cards.triggers import owns_improvement_decline_income
+        if owns_improvement_decline_income(state, pending.player_idx):
+            actions.append(ChooseSubAction(name="decline_improvement"))
     return actions
 
 
@@ -2636,8 +2719,19 @@ def _granted_subaction_eligible(
                 and _payable_occupation(state, pending.player_idx, p, pending.occ_cost))
     if cat == "play_minor":
         # Mirrors the Meeting Place / Basic Wish optional-minor gate: >=1 hand minor is
-        # currently playable (prereq met + printed/alternative cost affordable).
-        return bool(playable_minors(state, pending.player_idx))
+        # currently playable (prereq met + printed/alternative cost affordable) — under
+        # the GRANT-SCOPED pricing (ruling 74, Furnisher's -1 wood), same as build_major.
+        granted_by = (pending.initiated_by_id
+                      if pending.initiated_by_id.startswith("card:") else None)
+        playable = playable_minors(state, pending.player_idx, granted_by=granted_by)
+        if pending.minor_allowed is not None:
+            # A menu-restricted grant (ruling 74 — Miller's baking minors): the
+            # branch is doable only via a MENU minor, mirroring the child
+            # PendingPlayMinor.allowed_cards filter — gate and frame agree.
+            playable = [cid for cid in playable if cid in pending.minor_allowed]
+        return bool(playable
+                    or (pending.minor_is_action
+                        and minor_action_major_build_options(state, pending.player_idx)))
     if cat == "build_major":
         # A card-granted major build (Oven Site): doable iff a major on the grant's
         # menu is unbuilt AND payable through the grant-scoped ctx — the same
@@ -3025,8 +3119,11 @@ def _enumerate_pending_basic_wish_for_children(
         # Mandatory first sub-action — a singleton the agent auto-applies.
         actions.append(ChooseSubAction(name="family_growth"))
         return actions
-    # Post-growth: optional minor.
-    if not pending.minor_chosen and playable_minors(state, pending.player_idx):
+    # Post-growth: optional minor. A registered minor-action major build (ruling 74
+    # — Braid Maker) also makes the branch takeable, minor in hand or not.
+    if not pending.minor_chosen and (
+            playable_minors(state, pending.player_idx)
+            or minor_action_major_build_options(state, pending.player_idx)):
         actions.append(ChooseSubAction(name="play_minor"))
     # Proceed is the work-complete boundary (replaces the old Stop here).
     actions.append(Proceed())
@@ -3066,7 +3163,11 @@ def _enumerate_pending_meeting_place(
     # the before-window — no before_action_space triggers after it.
     actions = ([] if pending.subaction_started
                else _eligible_fire_triggers(state, pending, trigger_event(pending)))
-    if not pending.minor_chosen and playable_minors(state, pending.player_idx):
+    # A registered minor-action major build (ruling 74 — Braid Maker) also makes
+    # the branch takeable, minor in hand or not.
+    if not pending.minor_chosen and (
+            playable_minors(state, pending.player_idx)
+            or minor_action_major_build_options(state, pending.player_idx)):
         actions.append(ChooseSubAction(name="play_minor"))
     actions.append(Proceed())
     return actions
@@ -3107,8 +3208,13 @@ def _enumerate_pending_play_minor(
     # Composite-only minors (Wooden Shed) are enumerable only when THIS play-minor frame
     # is the "Major or Minor Improvement" action's child (Major space / House Redev / Angler).
     composite = top.initiated_by_id == "major_minor_improvement"
+    # Grant provenance for the cost pipeline (ruling 74 — the build_major pattern):
+    # a play riding a card grant carries that card's id so a grant-scoped cost
+    # modifier (Furnisher's -1 wood) prices it; every other path passes None.
+    granted_by = (top.initiated_by_id
+                  if top.initiated_by_id.startswith("card:") else None)
     for cid in playable_minors(state, top.player_idx, composite_only_ok=composite,
-                               min_spend=top.min_spend):
+                               min_spend=top.min_spend, granted_by=granted_by):
         # A card-restricted play (Firewood's post-fire "a Fireplace, Cooking Hearth,
         # or oven" menu — `allowed_cards`): only the named hand minors are offered.
         # The restricting trigger's eligibility guarantees one is playable, so the
@@ -3120,7 +3226,7 @@ def _enumerate_pending_play_minor(
         variants_fn = PLAY_MINOR_VARIANTS.get(cid)
         for i, cost in enumerate(alternatives):
             ctx = _play_minor_ctx(cid, cost, state, top.player_idx,
-                                  min_spend=top.min_spend)
+                                  min_spend=top.min_spend, granted_by=granted_by)
             # `cost` rides on the commit ONLY when it is a genuine alternative (not the
             # printed `spec.cost`, i.e. index > 0), so ordinary single-cost minors keep
             # the default `cost=None` and their commits are unchanged (existing cards +

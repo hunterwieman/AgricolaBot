@@ -58,6 +58,7 @@ from agricola.pending import (
     PendingAccommodate,
     PendingActionSpace,
     PendingBakeBread,
+    PendingBasicWishForChildren,
     PendingBuildFences,
     PendingBuildRooms,
     PendingBuildStables,
@@ -68,10 +69,13 @@ from agricola.pending import (
     PendingFamilyGrowth,
     PendingFieldPhase,
     PendingFoodPayment,
+    PendingGrantedSubAction,
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingHarvestOccasion,
     PendingHarvestWindow,
+    PendingHouseRedevelopment,
+    PendingMeetingPlace,
     PendingPigMarket,
     PendingPlayMinor,
     PendingPlayOccupation,
@@ -126,7 +130,9 @@ import agricola.cards  # noqa: F401
 # Family fast path (empty registries). cards.triggers is a leaf module — safe
 # to import here without a load-order cycle.
 from agricola.cards.triggers import (
+    IMPROVEMENT_DECLINE_INCOME,
     apply_auto_effects,
+    note_improvement_action_declined,
     should_host_space,
 )
 # The harvest timing-window ladder (HARVEST_WINDOWS_DESIGN.md): the ordered window
@@ -556,6 +562,33 @@ def _apply_commit_card_choice(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
+    # Improvement-decline income seam (user ruling 74, 2026-07-21 — Field
+    # Merchant B103; the ONE registry-gated exception to the pure-pop invariant
+    # below, and with the registry EMPTY the guard short-circuits and Stop is
+    # exactly the pure pop): a granted NAMED "Minor Improvement" action — a
+    # `PendingGrantedSubAction` with `minor_is_action=True` (Sample Stable
+    # Maker, Task Artisan; never the flag-False "play a minor" grants of
+    # Scholar / Beneficiary / Equipper, whose printed clarification "This
+    # effect is not a 'Minor Improvement' action" the flag-keyed detection
+    # excludes structurally) — popped via Stop with its play_minor branch never
+    # entered IS a decline of that named action, paying the decline income
+    # ("minor" kind). An entered branch is a TAKEN action, even when the
+    # Braid-Maker swap (`helpers.swap_play_minor_to_build_major`) converted the
+    # play into a major build — the swap fires only after the branch was chosen,
+    # so this detection structurally cannot fire on it. (For the use-budget
+    # wrapper shape, `max_uses > 0`, "never entered" is `uses_done == 0`; no
+    # named-action multi-use grant exists today — Furnisher's is flag-False —
+    # and whether a PARTIALLY-used one declines its remaining uses is an
+    # unsettled rules question a future card must bring to the user.) The frame
+    # is card-only, so no Family state can ever reach the isinstance.
+    if IMPROVEMENT_DECLINE_INCOME:
+        top = state.pending_stack[-1]
+        if (isinstance(top, PendingGrantedSubAction)
+                and top.minor_is_action
+                and "play_minor" in top.subactions
+                and (top.uses_done == 0 if top.max_uses > 0
+                     else "play_minor" not in top.chosen)):
+            state = note_improvement_action_declined(state, top.player_idx, "minor")
     # Pure pop (SPACE_HOST_REFACTOR.md §11). Every host's after-automatic effects
     # fire at its own work-complete boundary (Proceed for atomic/Proceed-hosts and
     # the multi-shot builders, the commit for the markets, the auto-advance for
@@ -752,6 +785,37 @@ def _apply_proceed(state: GameState) -> GameState:
     # Stop). The chosen sub-actions all resolved at earlier decision boundaries
     # (each reconciled by the barrier there), so an inline flip is safe at the
     # Proceed itself.
+    #
+    # Improvement-decline income seam (user ruling 74, 2026-07-21 — Field
+    # Merchant B103; registry-gated — empty registry short-circuits, and even
+    # populated, `note_improvement_action_declined` pays only cards the
+    # DECLINING player OWNS, which no Family player ever does, so the Family
+    # path returns the same state object): Proceeding past an offered named
+    # improvement branch IS declining that named action, whether or not it was
+    # usable ("exiting an improvement action you could not use counts as
+    # declining" — the user's ruling; Meeting Place with no playable minor
+    # still pays).
+    #   - Meeting Place / Basic Wish for Children offer the named "Minor
+    #     Improvement" action (their optional minor branch) -> kind "minor".
+    #   - House Redevelopment offers the "Major or Minor Improvement" action
+    #     (its optional composite step) -> kind "major_or_minor". An ENTERED
+    #     composite (improvement_chosen=True) that was then declined via the
+    #     composite's own decline route already paid there — the flag keeps
+    #     this seam from paying twice.
+    # A chosen-then-swapped minor branch (helpers.swap_play_minor_to_build_major
+    # — Braid Maker converts the named minor action INTO a major build) is a
+    # TAKEN action, never a decline: the swap fires only after the branch was
+    # chosen, so `minor_chosen=True` structurally excludes it here. Firing
+    # BEFORE `_enter_after_phase` places the income inside the action's work,
+    # before the after-window opens.
+    if IMPROVEMENT_DECLINE_INCOME:
+        if (isinstance(top, (PendingMeetingPlace, PendingBasicWishForChildren))
+                and not top.minor_chosen):
+            state = note_improvement_action_declined(state, top.player_idx, "minor")
+        elif (isinstance(top, PendingHouseRedevelopment)
+                and not top.improvement_chosen):
+            state = note_improvement_action_declined(
+                state, top.player_idx, "major_or_minor")
     return _enter_after_phase(state)
 
 

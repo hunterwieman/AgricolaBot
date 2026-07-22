@@ -1040,3 +1040,6 @@ from agricola.cards import livestock_feeder  # noqa: F401
 from agricola.cards import stable_master  # noqa: F401
 from agricola.cards import carpenters_apprentice  # noqa: F401
 from agricola.cards import furnisher  # noqa: F401
+
+# --- 2026-07-21 ruling-74 triage batch, Wave 3 ---
+from agricola.cards import field_merchant  # noqa: F401

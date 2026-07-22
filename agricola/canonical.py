@@ -170,6 +170,9 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # Furnisher's use-budget grant): the wrapper frame is card-only, so both are
     # Family-constant 0; omitting them at default keeps the JSON stable.
     "max_uses", "uses_done",
+    # PendingGrantedSubAction.minor_allowed (ruling 74 — Miller's baking-minor
+    # menu, the major_allowed sibling): card-only frame, Family-constant None.
+    "minor_allowed",
     # Cell.stone (Stone Clearing C6, user ruling 2026-07-20): stone placed on a
     # field tile — only that card writes it, so it is Family-constant 0. MUST
     # stay qualified: an unqualified "stone" would also skip Resources.stone,

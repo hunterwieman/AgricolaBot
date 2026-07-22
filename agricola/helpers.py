@@ -1302,3 +1302,32 @@ def accumulation_spaces(state: GameState) -> frozenset:
     )
     return (ACCUMULATION_SPACES if state.mode is GameMode.CARDS
             else ACCUMULATION_SPACES_FAMILY)
+
+
+def swap_play_minor_to_build_major(state: GameState, major_idx: int) -> GameState:
+    """Ruling 74's minor-action major-build swap (Braid Maker E109, Plow Builder E91):
+    a card's before_play_minor trigger converts the NAMED "Minor Improvement" action
+    into building one specific major. The play-minor frame is POPPED (the named action
+    is being taken AS the build — no minor play remains) and a menu-restricted bare
+    PendingBuildMajor is pushed carrying the same provenance, then the build-major
+    before-autos are fired here — the pop+push keeps the stack depth unchanged, so
+    engine._fire_subaction_before_auto's depth guard would (correctly, for its own
+    contract) not fire them. The frame then runs the normal commit-terminated host
+    lifecycle: CommitBuildMajor -> the deferred after-flip -> after_build_major.
+
+    Caller contract (the card's trigger): eligibility MUST be
+    legality.minor_action_major_build_options — the same predicate the named-action
+    branch gates consult — or a gated-in branch could reach a zero-action frame.
+    """
+    from agricola.cards.triggers import apply_auto_effects
+    from agricola.pending import PendingBuildMajor, PendingPlayMinor, pop, push
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingPlayMinor) and top.minor_improvement_action, (
+        "swap_play_minor_to_build_major: top frame is not a named Minor "
+        "Improvement action")
+    state = pop(state)
+    state = push(state, PendingBuildMajor(
+        player_idx=top.player_idx, initiated_by_id=top.initiated_by_id,
+        allowed_majors=(major_idx,)))
+    return apply_auto_effects(state, "before_build_major", top.player_idx)

@@ -1478,6 +1478,11 @@ class PendingGrantedSubAction:
     # `allowed_majors` (None = the full board). A push-time parameter exactly
     # like `occ_cost`. Ignored unless "build_major" in subactions.
     major_allowed: tuple | None = None
+    # The play_minor sibling (ruling 74, 2026-07-21 — Miller's baking-minors
+    # menu): the hand-minor card ids the grant may play, threaded onto the
+    # pushed PendingPlayMinor's `allowed_cards` (None = the whole hand).
+    # Ignored unless "play_minor" in subactions.
+    minor_allowed: tuple | None = None
     # Multi-use grants (ruling 74, 2026-07-21 — Furnisher D96: after a build-rooms
     # action, up to N consecutive improvement plays, N = rooms built). `max_uses = 0`
     # is the legacy shape: each category offered at most once (via `chosen`).

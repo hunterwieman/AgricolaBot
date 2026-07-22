@@ -393,3 +393,75 @@ PLAY_VARIANT_TRIGGERS: dict[str, Callable] = {}
 def register_play_variant_trigger(card_id: str, variants_fn: Callable) -> None:
     """Register a card's legal-variant enumerator (called at card-module import)."""
     PLAY_VARIANT_TRIGGERS[card_id] = variants_fn
+
+
+# ---------------------------------------------------------------------------
+# Improvement-decline income (user ruling 74, 2026-07-21 — Field Merchant B103)
+# ---------------------------------------------------------------------------
+# A card paying its owner when the owner DECLINES one of the two named
+# improvement actions (Field Merchant: "Each time you decline a 'Minor/Major
+# Improvement' action, you get 1 food/vegetable instead" — the slash correlates:
+# declining a "Minor Improvement" action pays the "minor" kind, declining a
+# "Major or Minor Improvement" action pays the "major_or_minor" kind).
+#
+# The DETECTION lives at the engine's decline seams, not here: each seam is a
+# moment the engine already knows a named improvement action was
+# offered-and-not-taken (the Meeting Place / Basic Wish Proceed with the minor
+# branch unchosen; House Redevelopment's Proceed with the composite step not
+# entered; a named-minor `PendingGrantedSubAction` popped via Stop untaken; the
+# composite host's ownership-gated decline route). Each seam calls
+# `note_improvement_action_declined(state, decliner_idx, kind)` exactly once per
+# decline event. Per the ruling, exiting an improvement action you COULD NOT USE
+# also counts as declining (Meeting Place with no playable minor still pays).
+#
+# "You decline" — only the DECLINING player's own registered cards pay, which is
+# also what keeps the Family game inert: the registry is populated at import in
+# every mode, but Family players never own cards, so `note_...` returns the same
+# state object untouched (and the card-only frames most seams key on never exist
+# there).
+#
+# payout_fn signature: (state, owner_idx, kind) -> GameState,
+#   kind in {"minor", "major_or_minor"}.
+IMPROVEMENT_DECLINE_INCOME: dict[str, Callable] = {}
+
+
+def register_improvement_decline_income(card_id: str, payout_fn: Callable) -> None:
+    """Register `card_id` as paying its owner on an improvement-action decline
+    (called at card-module import). `payout_fn(state, owner_idx, kind)` with
+    `kind` in {"minor", "major_or_minor"}."""
+    IMPROVEMENT_DECLINE_INCOME[card_id] = payout_fn
+
+
+def owns_improvement_decline_income(state, idx: int) -> bool:
+    """Does player `idx` OWN (have played) a registered decline-income card?
+
+    The gate for the decline affordances that exist only because the income
+    does: the Major Improvement space's place-just-to-decline placement and the
+    composite host's decline route (Field Merchant's printed clarification:
+    "You can place onto the 'Major Improvement' ... action space just to
+    decline it"). Empty registry / hand-only copies -> False (a hand card
+    cannot fire)."""
+    if not IMPROVEMENT_DECLINE_INCOME:
+        return False
+    p = state.players[idx]
+    return any(_owns(p, cid) for cid in IMPROVEMENT_DECLINE_INCOME)
+
+
+def note_improvement_action_declined(state, idx: int, kind: str):
+    """Player `idx` just DECLINED a named improvement action of `kind`
+    ("minor" = the "Minor Improvement" action; "major_or_minor" = the "Major or
+    Minor Improvement" action). Pay each registered decline-income card the
+    declining player owns — their own cards only ("you decline"). Called once
+    per decline event, so each decline pays each owned card exactly once
+    (Field Merchant's printed clarification "Merchant C096 does not double a
+    decline" is satisfied structurally: a Merchant-repeated action declined is
+    ONE decline event and pays once). Empty registry / no owned card -> the
+    same state object, unchanged."""
+    assert kind in ("minor", "major_or_minor"), kind
+    if not IMPROVEMENT_DECLINE_INCOME:
+        return state
+    p = state.players[idx]
+    for cid in sorted(IMPROVEMENT_DECLINE_INCOME):
+        if _owns(p, cid):
+            state = IMPROVEMENT_DECLINE_INCOME[cid](state, idx, kind)
+    return state
