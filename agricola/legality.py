@@ -59,7 +59,7 @@ from agricola.fences import (
 )
 from agricola.cost import CostCtx, meets_min_spend
 from agricola.replace import fast_replace
-from agricola.resources import Animals, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.helpers import (
     buildable_fences, cooking_rates, enclosed_cells, fences_built, food_payment_frontier,
     stables_in_supply,
@@ -3130,10 +3130,17 @@ def _enumerate_pending_play_occupation(
         # together). It is added ON TOP of the chosen base-cost payment, and each
         # (variant, payment) pair is gated on the COMBINED debit being payable
         # (liquidation-aware) — a payment that survived the frontier alone may not
-        # cover payment + surcharge.
+        # cover payment + surcharge. A card with a registered PAIR GATE (user
+        # ruling 75, 2026-07-21 — the stranding pair-gate) additionally has each
+        # pair checked on the simulated POST-DEBIT state, so a payment that would
+        # consume the resource the variant's granted frame needs (Working Gloves
+        # paying with the wood Stable Master's build wants) never surfaces with
+        # that variant; decline variants pass the gate unconditionally.
         for v, surcharge in variants_fn(state, top.player_idx):
             for pm in payments:
-                if _payable(state, top.player_idx, p, pm + surcharge):
+                if (_payable(state, top.player_idx, p, pm + surcharge)
+                        and _variant_pair_ok(state, top.player_idx, cid, v,
+                                             pm, surcharge)):
                     actions.append(CommitPlayOccupation(
                         card_id=cid, variant=v,
                         payment=None if legacy else pm))
@@ -3309,32 +3316,187 @@ def _enumerate_pending_play_minor(
     return actions
 
 
-def _enumerate_pending_food_payment(
-    state: GameState, top: PendingFoodPayment,
-) -> list[Action]:
-    """Legal actions at PendingFoodPayment: one CommitFoodPayment per Pareto-optimal
-    crops/animals-to-food conversion bundle that fully covers the shortfall
-    (FOOD_PAYMENT_DESIGN.md §4). A closed frame — only these frontier points, no Stop/triggers.
+# ---------------------------------------------------------------------------
+# The (variant × payment) stranding pair-gate (user ruling 75, 2026-07-21)
+# ---------------------------------------------------------------------------
+# The problem: a play-occupation variant's eligibility gate runs PRE-play, but the
+# occupation cost debits before the variant's on_play pushes its granted frame — so a
+# payment can consume the resource the granted frame needs, reaching a frame with zero
+# legal actions (a hard dead state: Stable Master's 1-wood build after Working Gloves
+# paid the play with the player's only wood; Baker's grain cooked by a food-shortfall
+# liquidation). The ruled fix (ruling 75, verbatim): "a wide display of (payment ×
+# build/no-build) pairs — the build variant is offered only with payments that leave
+# the build doable; the decline variant with every payment." Cards opt in via
+# `register_play_occupation_variant(..., pair_ok_fn=...)` (specs.py); the gate is
+# consulted at BOTH decision points that fix what the on_play will see:
+#   1. the play-occupation enumerator, per (variant, payment) pair — on the simulated
+#      post-debit state (`_variant_pair_ok`);
+#   2. the PendingFoodPayment enumerator, per liquidation bundle, when the stored
+#      resume commit is such a variant play (`_filter_variant_pair_bundles`) — so a
+#      bundle that cooks the needed resource is withheld too.
+# The two sides run the SAME simulation (`_post_liquidation_variant_state`), which is
+# what guarantees consistency: a food-short pair is offered iff at least one bundle
+# survives, and the frame then offers exactly the surviving bundles — no dead ends.
 
-    `owe` is derived live from the player's current food. The frontier is run over goods MINUS
-    `top.reserved` — the convertible part of the cost the resumed action will itself debit — so
-    a reserved good is never offered as conversion fuel and can't be double-spent (§5). Invert
-    `food_payment_frontier`'s REMAINING tuples to CONSUMED amounts (relative to the reduced
-    goods), exactly as `_enumerate_pending_harvest_feed` does. The frontier is asserted
-    non-empty: the gate (`_liquidatable_to`) guarantees feasibility over the same reduced
-    goods, so an empty frontier here is a gate↔frontier mismatch and must fail loud."""
+
+def _with_player(state: GameState, idx: int, p: PlayerState) -> GameState:
+    """Replace player `idx` in `state` (simulation helper)."""
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+
+
+def _post_liquidation_variant_state(
+    state: GameState, idx: int, commit: CommitFoodPayment,
+    cid: str, variant: str, base_pay: Resources,
+):
+    """Simulate one liquidation bundle + the re-run debit for a play-variant occupation,
+    mirroring `_execute_food_payment` → `_resume` → `_execute_play_occupation` exactly:
+    apply the bundle (goods consumed at `cooking_rates`, named converters fired and
+    budget-marked, food banked), fire the animal-cook reactions the executor would
+    (`note_animal_cook`), re-derive the variant surcharge from variants_fn on the
+    post-bundle state (as the re-run executor does), and debit base_pay + surcharge.
+
+    Returns `(post_state, total_debited)` — the state the variant's on_play would run
+    on — or None when variants_fn no longer offers the chosen variant on the
+    post-bundle state (the re-run's surcharge lookup would fail; the bundle must be
+    withheld)."""
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+    from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
+    from agricola.resolution import note_animal_cook
+
+    sR, bR, cR, vR = cooking_rates(state, idx)
+    produced = (commit.grain + commit.veg * vR
+                + commit.sheep * sR + commit.boar * bR + commit.cattle * cR)
+    conv_cost = Resources()
+    conv_food = 0
+    for conv_id in commit.conversions:
+        inp, food_out = HARVEST_CONVERSIONS[conv_id].frontier_fire
+        conv_cost = conv_cost + Resources(
+            wood=inp[0], clay=inp[1], reed=inp[2], stone=inp[3])
+        conv_food += food_out
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        resources=(p.resources - Resources(grain=commit.grain, veg=commit.veg)
+                   - conv_cost + Resources(food=produced + conv_food)),
+        animals=p.animals - Animals(commit.sheep, commit.boar, commit.cattle),
+    )
+    if commit.conversions:
+        p = fast_replace(p, harvest_conversions_used=(
+            p.harvest_conversions_used | frozenset(commit.conversions)))
+    post = _with_player(state, idx, p)
+    if commit.sheep + commit.boar + commit.cattle > 0:
+        post = note_animal_cook(post, idx)
+    variants = dict(PLAY_OCCUPATION_VARIANTS[cid](post, idx))
+    if variant not in variants:
+        return None
+    total = base_pay + variants[variant]
+    p2 = post.players[idx]
+    post = _with_player(post, idx, fast_replace(p2, resources=p2.resources - total))
+    return post, total
+
+
+def _variant_pair_ok(
+    state: GameState, idx: int, cid: str, variant: str,
+    base_pay: Resources, surcharge: Resources,
+) -> bool:
+    """The enumeration-side pair-gate: may (variant, base_pay) be offered? True when the
+    card has no registered gate. With sufficient food the post-debit state is determinate
+    — subtract base_pay + surcharge and ask the gate. On the food-shortfall path (the
+    commit will detour through PendingFoodPayment) the pair is offered iff SOME
+    liquidation bundle leaves the gate satisfied — the frame's enumerator then filters
+    to exactly those bundles, so the pair never dead-ends."""
+    from agricola.cards.specs import PLAY_OCCUPATION_PAIR_GATES
+    gate = PLAY_OCCUPATION_PAIR_GATES.get(cid)
+    if gate is None:
+        return True
+    p = state.players[idx]
+    total = base_pay + surcharge
+    if p.resources.food >= total.food:
+        post = _with_player(state, idx, fast_replace(
+            p, resources=p.resources - total))
+        return gate(post, idx, variant, total)
+    # Food-short: mirror the frame the executor will push (food_needed = the combined
+    # debit's food; reserved = its non-food components, exactly as
+    # `_execute_play_occupation` builds it) and probe each bundle.
+    commits = _food_payment_commits(
+        state, idx, total.food, Cost(resources=fast_replace(total, food=0)))
+    for c in commits:
+        res = _post_liquidation_variant_state(state, idx, c, cid, variant, base_pay)
+        if res is not None and gate(res[0], idx, variant, res[1]):
+            return True
+    return False
+
+
+def _filter_variant_pair_bundles(
+    state: GameState, top: PendingFoodPayment, commits: list,
+) -> list:
+    """The frame-side pair-gate: when the stored resume commit is a pair-gated variant
+    play, keep only the liquidation bundles whose post-resume state passes the gate (a
+    bundle that cooks the resource the variant's granted frame needs — Baker's grain at
+    the 1:1 base rate — is withheld). Every other frame passes through unfiltered. The
+    result is asserted non-empty: the enumeration-side gate offered the food-short pair
+    only after finding a surviving bundle, so emptiness is a gate↔frontier mismatch."""
+    from agricola.cards.specs import PLAY_OCCUPATION_PAIR_GATES
+    if (top.resume_kind != "rerun"
+            or not isinstance(top.action, CommitPlayOccupation)
+            or top.action.variant is None):
+        return commits
+    gate = PLAY_OCCUPATION_PAIR_GATES.get(top.action.card_id)
+    if gate is None:
+        return commits
+    if top.action.payment is not None:
+        base_pay = top.action.payment
+    else:
+        # Legacy singleton-frontier shape: the debit is the host frame's route cost.
+        # The frame was pushed by `_execute_play_occupation` directly on top of its
+        # host, so the host is one below (the stack invariant: card-triggered
+        # sub-decisions push on top of the frame they fire from).
+        host = state.pending_stack[-2]
+        assert isinstance(host, PendingPlayOccupation), host
+        base_pay = host.cost
+    kept = []
+    for c in commits:
+        res = _post_liquidation_variant_state(
+            state, top.player_idx, c,
+            top.action.card_id, top.action.variant, base_pay)
+        if res is not None and gate(res[0], top.player_idx, top.action.variant, res[1]):
+            kept.append(c)
+    assert kept, (
+        f"variant pair-gate emptied the food-payment frontier: card={top.action.card_id} "
+        f"variant={top.action.variant} — gate↔frontier mismatch"
+    )
+    return kept
+
+
+def _food_payment_commits(
+    state: GameState, idx: int, food_needed: int, reserved: Cost,
+) -> list[CommitFoodPayment]:
+    """The Pareto-optimal crops/animals-to-food conversion bundles (one
+    CommitFoodPayment each) that fully cover `food_needed` given the player's current
+    food, with `reserved` goods excluded as fuel. The shared enumeration behind
+    `_enumerate_pending_food_payment` and the pair-gate's food-short probe
+    (`_variant_pair_ok`) — one implementation, so the gate and the frame can never
+    disagree about which bundles exist.
+
+    `owe` is derived live from the player's current food. The frontier is run over
+    goods MINUS `reserved` — the convertible part of the cost the resumed action will
+    itself debit — so a reserved good is never offered as conversion fuel and can't be
+    double-spent (FOOD_PAYMENT_DESIGN.md §5). Invert `food_payment_frontier`'s
+    REMAINING tuples to CONSUMED amounts (relative to the reduced goods), exactly as
+    `_enumerate_pending_harvest_feed` does."""
     from agricola.cards.harvest_windows import (
         available_span_converters,
         post_breed_floors,
     )
 
-    p = state.players[top.player_idx]
-    owe = max(0, top.food_needed - p.resources.food)
-    rates = cooking_rates(state, top.player_idx)
+    p = state.players[idx]
+    owe = max(0, food_needed - p.resources.food)
+    rates = cooking_rates(state, idx)
     avail = fast_replace(
         p,
-        resources=p.resources - top.reserved.resources,
-        animals=p.animals - top.reserved.animals,
+        resources=p.resources - reserved.resources,
+        animals=p.animals - reserved.animals,
     )
     grain_pre  = avail.resources.grain
     veg_pre    = avail.resources.veg
@@ -3345,14 +3507,10 @@ def _enumerate_pending_food_payment(
     # harvest building-resource converters join the Pareto space, and the
     # post-breed cooking floor protects bred types. Both are () / zeros in the
     # Family game and outside the harvest span — the legacy path.
-    converters = available_span_converters(state, top.player_idx)
-    floors = post_breed_floors(state, top.player_idx)
+    converters = available_span_converters(state, idx)
+    floors = post_breed_floors(state, idx)
     frontier = food_payment_frontier(
         avail, owe, rates, span_converters=converters, animal_floors=floors)
-    assert frontier, (
-        f"PendingFoodPayment frontier empty: owe={owe} food_needed={top.food_needed} "
-        f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
-    )
     if not converters:
         # With or without floors, the converter-less shape is plain 5-tuples.
         return [
@@ -3376,6 +3534,29 @@ def _enumerate_pending_food_payment(
         )
         for (vec, fired) in frontier
     ]
+
+
+def _enumerate_pending_food_payment(
+    state: GameState, top: PendingFoodPayment,
+) -> list[Action]:
+    """Legal actions at PendingFoodPayment: one CommitFoodPayment per Pareto-optimal
+    crops/animals-to-food conversion bundle that fully covers the shortfall
+    (FOOD_PAYMENT_DESIGN.md §4). A closed frame — only these frontier points, no Stop/triggers.
+
+    The bundle enumeration is `_food_payment_commits` (shared with the pair-gate's
+    food-short probe — see the section comment above). The frontier is asserted
+    non-empty: the gate (`_liquidatable_to`) guarantees feasibility over the same reduced
+    goods, so an empty frontier here is a gate↔frontier mismatch and must fail loud. When
+    the stored resume commit is a pair-gated variant play (user ruling 75, 2026-07-21),
+    the bundles are additionally filtered to those whose post-resume state keeps the
+    variant's granted effect doable (`_filter_variant_pair_bundles`)."""
+    commits = _food_payment_commits(
+        state, top.player_idx, top.food_needed, top.reserved)
+    assert commits, (
+        f"PendingFoodPayment frontier empty: food_needed={top.food_needed} "
+        f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
+    )
+    return _filter_variant_pair_bundles(state, top, commits)
 
 
 # (_enumerate_pending_preparation is GONE — the preparation ladder, ruling 54,

@@ -9,6 +9,8 @@ exactly 1 stable for 1 wood. Exactly one of your unfenced stables can hold up
 to 3 animals of one type."
 """
 import agricola.cards.shepherds_whistle  # noqa: F401  (the interplay check)
+import agricola.cards.working_gloves  # noqa: F401  (the pair-gate stranding case)
+import agricola.cards.carpenters_apprentice  # noqa: F401  (the discount-eligibility case)
 
 from agricola.actions import (
     ChooseSubAction,
@@ -178,6 +180,80 @@ def test_no_legal_cell_offers_decline_only():
     cs = with_grid(cs, cp, fills)
     cs = _at_play_host(cs)
     assert [a.variant for a in _sm_plays(cs)] == ["decline_build"]
+
+
+# ---------------------------------------------------------------------------
+# The (payment × variant) stranding pair-gate (user ruling 75, 2026-07-21):
+# "a wide display of (payment × build/no-build) pairs — the build variant is
+# offered only with payments that leave the build doable; the decline variant
+# with every payment."
+# ---------------------------------------------------------------------------
+
+def _gloves_state():
+    """Stable Master in hand, Working Gloves played, a filler occupation owned
+    (so the Lessons cost is 1 food), EXACTLY 1 wood + 1 food: the payment
+    frontier is {1 food, 1 wood} (Working Gloves' substitution), and the wood
+    payment would consume the very wood the build variant's granted 1-wood
+    build needs."""
+    cs, cp = _card_state(wood=1)
+    p = cs.players[cp]
+    cs = _edit_player(
+        cs, cp,
+        occupations=p.occupations | {"o0"},               # 2nd occupation -> 1-food cost
+        minor_improvements=p.minor_improvements | {"working_gloves"},
+        resources=fast_replace(p.resources, wood=1, food=1))
+    return cs, cp
+
+
+def test_working_gloves_wood_payment_withholds_the_build_pair():
+    cs, _cp = _gloves_state()
+    cs = _at_play_host(cs)
+    plays = _sm_plays(cs)
+    wood_pay, food_pay = Resources(wood=1), Resources(food=1)
+    # The wood payment strands the granted build -> only the decline pair.
+    assert CommitPlayOccupation(
+        card_id=SM, variant="build", payment=wood_pay) not in plays
+    assert CommitPlayOccupation(
+        card_id=SM, variant="decline_build", payment=wood_pay) in plays
+    # The food payment leaves the wood intact -> both pairs.
+    assert CommitPlayOccupation(
+        card_id=SM, variant="build", payment=food_pay) in plays
+    assert CommitPlayOccupation(
+        card_id=SM, variant="decline_build", payment=food_pay) in plays
+
+
+def test_working_gloves_no_reachable_sequence_locks():
+    """Exhaustive DFS from the play host over EVERY reachable line until the
+    turn unwinds: no reachable state may have zero legal actions (the hard
+    lock the pair-gate exists to prevent)."""
+    cs, _cp = _gloves_state()
+    cs = _at_play_host(cs)
+    seen = set()
+    frontier = [cs]
+    while frontier:
+        s = frontier.pop()
+        if not s.pending_stack or s in seen:
+            continue                      # turn unwound / already explored
+        seen.add(s)
+        acts = legal_actions(s)
+        assert acts, f"dead state (zero legal actions) at {s.pending_stack[-1]}"
+        frontier.extend(step(s, a) for a in acts)
+    assert seen                           # the walk actually explored the turn
+
+
+def test_broke_player_with_apprentice_discount_is_offered_the_build():
+    """The pair-gate routes through the cost-modifier chokepoint: a 0-wood
+    player with 2 stables built and Carpenter's Apprentice (3rd stable costs
+    1 wood less -> the 1-wood granted build is FREE) must still be offered
+    the build pair — post-debit doability, not a raw wood check."""
+    cs, cp = _card_state(wood=0)
+    p = cs.players[cp]
+    cs = _edit_player(cs, cp,
+                      occupations=p.occupations | {"carpenters_apprentice"})
+    cs = _stable_at(cs, cp, [(2, 3), (2, 4)])
+    assert stables_built(cs.players[cp].farmyard) == 2
+    cs = _at_play_host(cs)
+    assert sorted(a.variant for a in _sm_plays(cs)) == ["build", "decline_build"]
 
 
 # ---------------------------------------------------------------------------

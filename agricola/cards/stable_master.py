@@ -24,6 +24,20 @@ only when `_can_build_stable` passes for the 1-wood cost (supply + empty cell
 on_play pushes the reusable `PendingBuildStables` primitive with
 `cost=Resources(wood=1)`, `max_builds=1` (the wood is spent inside the build,
 not as a play surcharge, so stable-cost modifiers see it normally).
+
+The stranding pair-gate — USER RULING 75 (2026-07-21, verbatim from
+CARD_DEFERRED_PLANS.md): "the overlooked fact is that Stable Master's build is
+OPTIONAL — no mandatory build can strand. The ruled shape: a wide display of
+(payment × build/no-build) pairs — the build variant is offered only with
+payments that leave the build doable; the decline variant with every payment."
+The pre-play `_can_build_stable` gate above runs before the occupation cost
+debits, so a payment could consume the very wood the granted build needs
+(Working Gloves paying the play with the player's only wood) and reach a
+`PendingBuildStables` with zero legal actions. `_pair_ok` (registered as the
+`pair_ok_fn`) re-runs `_can_build_stable` on the POST-DEBIT state the seam
+simulates — routed through the cost-modifier chokepoint, so a broke player
+whose 3rd/4th stable Carpenter's Apprentice makes free stays eligible — and
+returns True unconditionally for the decline variant.
 `build_stables_action=False` per the §9.6 flag contract (name the action the
 card grants): this is the card's own build effect, not the named "Build
 Stables" action — cards keyed to the literal action must not fire on it
@@ -87,6 +101,17 @@ def _variants(state: GameState, idx: int) -> list:
     return out
 
 
+def _pair_ok(state: GameState, idx: int, variant: str, payment) -> bool:
+    """The stranding pair-gate (user ruling 75, 2026-07-21 — docstring above):
+    `state` is the simulated post-debit state; the build pair survives only if
+    the 1-wood build is still doable there (through `_can_build_stable`, hence
+    the cost-modifier chokepoint — Carpenter's Apprentice's 3rd/4th-stable
+    discount keeps a broke player eligible). Decline pairs always pass."""
+    if variant != "build":
+        return True
+    return _can_build_stable(state, state.players[idx], _BUILD_COST)
+
+
 def _on_play(state: GameState, idx: int, variant: str | None = None) -> GameState:
     if variant != "build":
         return state                    # declined at the wide play choice
@@ -104,5 +129,5 @@ def _bin_capacity(player_state) -> int:
 
 
 register_occupation(CARD_ID, _on_play)
-register_play_occupation_variant(CARD_ID, _variants)
+register_play_occupation_variant(CARD_ID, _variants, pair_ok_fn=_pair_ok)
 register_flexible_to_bin(CARD_ID, _bin_capacity)

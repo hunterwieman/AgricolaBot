@@ -69,10 +69,40 @@ def register_occupation(card_id: str, on_play: Callable) -> None:
 # playable).
 PLAY_OCCUPATION_VARIANTS: dict[str, Callable] = {}
 
+# The (variant × payment) stranding pair-gate (user ruling 75, 2026-07-21). The problem it
+# solves: a variant's eligibility gate runs PRE-play, but the occupation cost debits before
+# the variant's on_play pushes its granted frame — so a payment can consume the very resource
+# the granted frame needs, reaching a frame with zero legal actions (Stable Master's 1-wood
+# build after Working Gloves paid the occupation cost with the player's only wood). The ruled
+# shape: "a wide display of (payment × build/no-build) pairs — the build variant is offered
+# only with payments that leave the build doable; the decline variant with every payment."
+# A card whose variant grants a resource-dependent effect registers `pair_ok_fn` beside its
+# variants_fn; the play-occupation enumerator consults it per (variant, payment) pair on a
+# SIMULATED post-debit state, and the PendingFoodPayment enumerator consults it per
+# liquidation bundle when the stored resume commit is such a variant play (so a bundle that
+# cooks the needed resource — Baker's grain at the 1:1 base rate — is withheld too).
+PLAY_OCCUPATION_PAIR_GATES: dict[str, Callable] = {}
 
-def register_play_occupation_variant(card_id: str, variants_fn: Callable) -> None:
-    """Register an occupation's legal-play-variant enumerator (called at import)."""
+
+def register_play_occupation_variant(
+    card_id: str, variants_fn: Callable, pair_ok_fn: Callable | None = None,
+) -> None:
+    """Register an occupation's legal-play-variant enumerator (called at import).
+
+    `pair_ok_fn(state, idx, variant, payment) -> bool` — the optional stranding
+    pair-gate (ruling 75 above). `state` is the SIMULATED state as it will stand
+    after the occupation-cost debit (chosen base payment + surcharge subtracted;
+    on the food-shortfall path, additionally after the candidate liquidation
+    bundle has been applied) — i.e. the state the variant's on_play will run on.
+    `payment` is the total vector being debited. Return False to withhold this
+    (variant, payment) pair (or, at PendingFoodPayment, this liquidation bundle).
+    A decline variant's gate should return True unconditionally — per the ruling,
+    decline pairs are always offered."""
     PLAY_OCCUPATION_VARIANTS[card_id] = variants_fn
+    if pair_ok_fn is not None:
+        PLAY_OCCUPATION_PAIR_GATES[card_id] = pair_ok_fn
+    else:
+        PLAY_OCCUPATION_PAIR_GATES.pop(card_id, None)   # keep the two dicts in sync
 
 
 # The minor analog (built 2026-07-06 for Facades Carving's on-play
