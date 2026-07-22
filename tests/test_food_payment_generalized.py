@@ -211,26 +211,28 @@ def test_crop_converter_infeasible_without_veg():
     assert all(fired == () for _v, fired in rows)
 
 
-def test_beer_tap_group_excludes_cofire():
-    """Beer Tap's three grain tiers are ONE card / ONE budget (ruling 77 uses
-    the Studio group mechanism): a single payment bundle fires at most one tier
-    — co-firing two would use the card twice in one harvest.
+def test_multivariant_group_excludes_cofire():
+    """A multi-variant converter's tiers are ONE card / ONE budget (the Studio
+    group mechanism, ruling 76 item 1): a single payment bundle fires at most one
+    tier — co-firing two would use the card twice in one harvest. Exercised here
+    with SYNTHETIC grain-tier converters sharing a group (no real card registers
+    grain tiers on the frontier — Beer Tap is deliberately feed-seam-only, ruling
+    77: its super-linear bundle pricing makes the incremental pay-as-you-go frame
+    suboptimal; this test covers the group MACHINERY, not a shipped card).
 
-    owe 9 with 9 grain and span (beer_tap_2, beer_tap_3) is DISCRIMINATING: the
-    co-fire (2+3 grain -> 3+6 = 9 food, owe fully covered) keeps 4 grain, which
-    strictly DOMINATES every single fire (beer_tap_3 alone leaves only 3: 3 grain
-    to the tier + 3 base-cooked). If the group did nothing, the co-fire would win
-    the Pareto pass; its absence — the best config keeps only 3 grain — is the
-    group skip doing the work, not dominance. (beer_tap_2 alone, less grain-
-    efficient, is itself dominated by beer_tap_3 and never surfaces — an
-    efficiency fact, unrelated to the group.)"""
-    t2 = ("beer_tap_2", (2, 0, 0, 0, 0, 0), 3, "beer_tap")
-    t3 = ("beer_tap_3", (3, 0, 0, 0, 0, 0), 6, "beer_tap")
+    owe 9 with 9 grain and span (tier2, tier3) is DISCRIMINATING: the co-fire
+    (2+3 grain -> 3+6 = 9 food, owe fully covered) keeps 4 grain, which strictly
+    DOMINATES every single fire (tier3 alone leaves only 3: 3 grain to the tier +
+    3 base-cooked). If the group did nothing, the co-fire would win the Pareto
+    pass; its absence — the best config keeps only 3 grain — is the group skip
+    doing the work, not dominance."""
+    t2 = ("grp_tier2", (2, 0, 0, 0, 0, 0), 3, "grp")
+    t3 = ("grp_tier3", (3, 0, 0, 0, 0, 0), 6, "grp")
     p = _player(grain=9)
     rows = food_payment_frontier(p, 9, RATES, span_converters=(t2, t3))
-    assert all(sum(1 for c in fired if c.startswith("beer_tap")) <= 1
+    assert all(sum(1 for c in fired if c.startswith("grp_")) <= 1
                for _v, fired in rows)
-    assert ("beer_tap_3",) in {fired for _v, fired in rows}
+    assert ("grp_tier3",) in {fired for _v, fired in rows}
     # The excluded co-fire would have kept 4 grain; the best surviving keeps 3.
     assert max(vec[0] for vec, _f in rows) == 3
 

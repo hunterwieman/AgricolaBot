@@ -44,6 +44,20 @@ TWO on-play pieces, in order:
    identical outcome. The child check runs AFTER the take (the harvested grain/
    veg can make a crop-cost minor newly playable).
 
+   ⚠️ FIELD MERCHANT INTERACTION — DEFERRED, DECIDE WITH THE USER (ruling 78
+   item 4, 2026-07-21). HFP grants the "Major or Minor Improvement" action, which
+   Field Merchant (B103) pays 1 vegetable to DECLINE. Two paths, one settled and
+   one open: (a) when the composite IS pushed (a legal child exists), a
+   decline-income owner is offered its `decline_improvement` route and declining
+   pays — already works via the composite's own seam; (b) when NO legal child
+   exists, this card pushes NOTHING, so there is no composite, no decline moment,
+   and Field Merchant pays nothing — the played-but-unusable case. Whether (b)
+   should pay under the "could not use counts as declining" principle (ruling 78
+   item 3, applied there to granted MINOR actions) is UNDECIDED. HFP is
+   deliberately NOT registered on the named-action-grant decline seam (its
+   composite comes from on-play resolution, not a trigger); resolve this
+   explicitly before wiring it.
+
 RELIANCE ON RULING 4 for the sequencing: ``emit_harvest_occasion`` pushes a
 reaction frame only for an eligible occasion TRIGGER, and ruling 4 makes every
 occasion trigger silent for a WORK-phase ``card:``-sourced take (they gate on

@@ -187,6 +187,40 @@ cook reactions against the no-FEED-triggers boundary.
    used this harvest (the `"joinery"` budget-used boolean), once per harvest; the fused
    use-Joinery-and-plow trigger is kept as well.
 
+**Ruling 78 (2026-07-21) — the greedy-pass scope pullback + Field Merchant follow-ups:**
+
+1. **Beer Tap is OUT of the frontier — feed-seam-only** (user). Its super-linear
+   bundle pricing (2/3/4 grain → 3/6/9 food = 1.5/2/2.25 per grain) rewards clumping,
+   and the once-per-harvest budget means an early incremental fire in a `PendingFoodPayment`
+   frame forecloses a better big-clump use later — the pay-as-you-go frontier can't see
+   that, so it interacts badly. The ruling-77 greedy pass was over-scoped: the user wanted
+   only the ARCHITECTURE (the crop-input frontier widening) plus **Schnapps Distiller /
+   Distillery** (clean single-veg binary fires — firing early vs late doesn't change their
+   value). Beer Tap's frontier participation was reverted; it keeps its feed-seam offering.
+2. **Beer Stall is NOT a gap** (correction of a driver mischaracterization): C49 is already
+   implemented elegantly (ruling 30, 2026-07-06) as a joint Pareto frontier over (animals
+   kept, k stables emptied for conversions) via the k-stable doctored-farm technique,
+   one-commit resolution. It stays feed-seam-only by its own design, not for lack of a
+   frontier surface. No action.
+3. **Field Merchant pays even with no minors in hand** (user lean, 2026-07-21): "I lean
+   towards granting Field Merchant income even when the player has no minors in hand." This
+   extends the ruling-74 "could not use counts as declining" rule (already live at Meeting
+   Place / Basic Wish) to the GRANTED named-minor cases that currently pay nothing when
+   unusable — **SSM fired-but-no-playable-minor**, **Task Artisan's on-play grant** (and its
+   reveal grant) with no playable minor. A granted named minor-improvement action that the
+   owner cannot use (no playable minor) pays the decline income, exactly as declining an
+   unusable Meeting Place minor does. (A LEAN — implement, revisitable.)
+4. **Harvest Festival Planning × Field Merchant — DEFER + DECIDE** (user: "Leave a note …
+   we want to decide how it will interact with Field Merchant when we eventually implement
+   it"). HFP (C72) IS implemented and pushes the composite `PendingMajorMinorImprovement`
+   on-play (field phase, then the Major-or-Minor action). Its composite is NOT registered on
+   the named-action-grant (unfired-trigger) seam — it comes from on-play resolution, not a
+   trigger. OPEN for an explicit decision: whether HFP pays Field Merchant via the composite's
+   own decline route (which is offered to a decline-income owner regardless of affordability —
+   current behavior to be verified), and whether the played-but-unusable case pays under
+   item 3's principle. Do not fold HFP into item 3's pass; decide it deliberately with the
+   user.
+
 **Ruling 77 (2026-07-21) — the greedy-conversion principle + two corrections:**
 
 1. **The greedy conversion principle (user, the governing statement):** "The broad point
