@@ -54,6 +54,7 @@ def _apply(state: GameState, idx: int) -> GameState:
     """Grant one free (no-wood) stable build via the shared primitive."""
     return push(state, PendingBuildStables(
         player_idx=idx, initiated_by_id="card:stablehand",
+        build_stables_action=False,  # user ruling 75, 2026-07-21: a card-effect build, not the named action (§9.6)
         cost=_FREE, max_builds=1,
     ))
 

@@ -50,6 +50,7 @@ def _apply(state: GameState, idx: int) -> GameState:
     )
     return push(state, PendingBuildStables(
         player_idx=idx, initiated_by_id="card:groom",
+        build_stables_action=False,  # user ruling 75, 2026-07-21: a card-effect build, not the named action (§9.6)
         cost=_STABLE_COST, max_builds=1))
 
 

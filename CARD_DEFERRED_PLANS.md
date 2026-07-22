@@ -130,8 +130,36 @@ Child Ombudsman (D92) — end-of-turn; Pen Builder (E86) — at-any-time; Wood B
 placement-legality anticipation (reachability, ON HOLD); Master Tanner (E85) — feed-phase
 cook reactions against the no-FEED-triggers boundary.
 
-**Open questions surfaced DURING the ruling-74 implementation (each awaiting the user;
-none blocks a shipped card):**
+**Ruling 75 (2026-07-21) — the user's answers to the seven ruling-74 follow-ups:**
+
+1. **The stranding pair-gate:** the overlooked fact is that Stable Master's build is
+   OPTIONAL — no mandatory build can strand. The ruled shape: a wide display of
+   (payment × build/no-build) pairs — the build variant is offered only with payments
+   that leave the build doable; the decline variant with every payment.
+2. **`build_stables_action` flags:** Groom, Stable Planner, and Stablehand are all
+   wrong — switch all three to False.
+3. **The span family:** Stone Carver joins the harvest span, and the craft majors join
+   (done); ALL of these are additionally payable-from during any harvest-time
+   `PendingFoodPayment`/`CommitConvert`. A catalog sweep for every other card granting a
+   conversion available throughout the harvest is commissioned.
+4. **Partial multi-use named-action declines:** investigate whether any card grants
+   multiple declinable named actions at once (user skeptical one exists). The real
+   scenario of interest: multiple CARDS granting named improvement actions at the same
+   trigger moment — a Proceed implicitly declining both should pay income for BOTH, if
+   that situation is constructible at all (to be investigated).
+5. **Work Certificate × Tree Inspector:** a Work Certificate owner CAN take 1 wood from
+   a 4+-stack Tree Inspector card space — regardless of which player played Tree
+   Inspector.
+6. **Web labels for the craft-span triggers:** make the cosmetic fix.
+7. **Plow Builder:** no Joinery upgrades exist today. The ruled design: a FUSED trigger
+   — perform the Joinery conversion AND the pay-1-food plow as one fired action —
+   available throughout the harvest (every span window), so the player can take the
+   plow early; it shares the Joinery's once-per-harvest budget with the plain surfaces.
+   (Confirmed premise: the free-span converter family already exists — Basket Carrier,
+   Paintbrush, Furniture Carpenter, now Braid Maker + the craft majors.)
+
+**Open questions surfaced DURING the ruling-74 implementation (answered above as
+ruling 75; kept for the record):**
 
 1. **The (variant × payment) stranding pair-gate.** A wide play-occupation variant's gate
    runs at enumeration, but the occupation cost is debited before the variant's on_play
