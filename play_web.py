@@ -829,6 +829,25 @@ def _load_card_meta() -> dict[str, dict]:
 
 _CARD_META: dict[str, dict] = _load_card_meta()
 
+# Synthetic metadata for the craft majors' harvest-span triggers (ruling 75,
+# 2026-07-21 — cosmetic fix): these FireTriggers carry pseudo-ids (they are the
+# built-in majors' Cards-mode span conversions, not catalog cards), so without
+# rows here the buttons would render via the title-case fallback
+# ("Craft Span Joinery").
+for _cid, _name, _text in (
+    ("craft_span_joinery", "Joinery: 1 wood → 2 food",
+     "Use the Joinery's once-per-harvest conversion now (1 wood → 2 food)."),
+    ("craft_span_pottery", "Pottery: 1 clay → 2 food",
+     "Use the Pottery's once-per-harvest conversion now (1 clay → 2 food)."),
+    ("craft_span_basketmaker", "Basketmaker's: 1 reed → 3 food",
+     "Use the Basketmaker's Workshop's once-per-harvest conversion now "
+     "(1 reed → 3 food)."),
+):
+    _CARD_META.setdefault(_cid, {
+        "name": _name, "type": "Major Improvement", "text": _text,
+        "cost": "", "prereq": "", "vps": 0,
+    })
+
 
 def _card_info(card_id: str) -> dict:
     """Display info for one card: {id, name, type, text, cost, prereq}. Falls
