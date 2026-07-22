@@ -152,8 +152,13 @@ def test_variants_gated_on_raw_food_with_surcharge():
     ]
     cs, cp = _cards_state(food=2)
     assert _variants(cs, cp) == [("place_2", Resources(food=2))]
-    cs, cp = _cards_state(food=1)              # cannot afford even the minimum (2) placement
-    assert _variants(cs, cp) == []
+    # Cannot afford even the minimum (2) placement: NOT unplayable — Confidant prints no
+    # "may not play if you cannot place" prerequisite, so it is played-and-wasted (user
+    # ruling 2026-07-21). The sole route is the zero-surcharge `place_0` (place nothing).
+    cs, cp = _cards_state(food=1)
+    assert _variants(cs, cp) == [("place_0", Resources())]
+    cs, cp = _cards_state(food=0)
+    assert _variants(cs, cp) == [("place_0", Resources())]
 
 
 def test_near_end_play_allowed_FLAGGED():
@@ -196,18 +201,22 @@ def test_real_lessons_affordability_limits_variants():
     assert _confidant_plays(_at_play_host(cs)) == ["place_2", "place_3"]
 
 
-def test_lessons_not_offered_when_sole_confidant_unaffordable():
-    # Confidant's placement is MANDATORY (no decline variant), so an unaffordable Confidant
-    # yields NO play commit. When it is the ONLY playable hand occupation, the Lessons
-    # placement gate must NOT offer the space — otherwise the pushed PendingPlayOccupation
-    # would be an empty-legal-set dead-end. The ruling-74 follow-up fix
-    # (`_any_occupation_committable`, which mirrors the play-occupation enumerator's
-    # per-variant filter) closes it: with 0 food the minimum 2-food placement is
-    # unaffordable, so Lessons is withheld; with 2 food it is offered again.
-    cs, _ = _cards_state(food=0)               # 1st occupation free, but surcharge >= 2 food
-    assert PlaceWorker(space="lessons") not in legal_actions(cs)
-    cs2, _ = _cards_state(food=2)
-    assert PlaceWorker(space="lessons") in legal_actions(cs2)
+def test_confidant_playable_and_wasted_when_placement_unaffordable():
+    # User ruling 2026-07-21: Confidant prints no "may not play if you cannot place"
+    # prerequisite, so an unaffordable placement does NOT make it unplayable — you play
+    # the occupation (base cost permitting) and place nothing, a WASTE. So Lessons IS
+    # offered even with 0 food, and the sole play route is `place_0` (no scheduling, no
+    # food debited). This is the Prophet / Basket Weaver category (contrast Established
+    # Person, whose printed prerequisite would gate playability).
+    cs, cp = _cards_state(food=0)              # 1st occupation free (base payable)
+    assert PlaceWorker(space="lessons") in legal_actions(cs)
+    cs = _at_play_host(cs)
+    assert _confidant_plays(cs) == ["place_0"]
+    cs = step(cs, CommitPlayOccupation(card_id=CARD_ID, variant="place_0"))
+    p = cs.players[cp]
+    assert p.resources.food == 0                       # nothing debited
+    assert all(not fr.effect_card_ids for fr in p.future_rewards)   # nothing scheduled
+    assert CARD_ID in p.occupations                    # the occupation IS played
 
 
 # ---------------------------------------------------------------------------

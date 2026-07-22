@@ -62,17 +62,20 @@ general "place on remaining" rule let you play it on 1/0 spaces? This code ALLOW
 (caps placement at what remains), because RULES.md's general rule governs and no "minimum
 required to play" is printed. Awaiting the user's ruling.
 
-ENGINE FIX THIS CARD MOTIVATED (ruling-74 follow-up, 2026-07-21). Because placement is
-MANDATORY (there is NO decline variant, unlike Roof Ballaster / Baker), `_variants` returns
-[] when the player cannot afford any placement — Confidant is the first play-variant
-occupation that can be UNPLAYABLE. That exposed a general dead-end: the occupation-play
-gates checked only the BASE cost, and the play-occupation enumerator offers ordinary-card
-commits unconditionally but FILTERS variant cards per (variant, payment), so a route could
-push an empty `PendingPlayOccupation`. Fixed in `agricola/legality.py`:
-`playable_occupations` now drops a variant occupation with no legal variant, and
-`_any_occupation_committable` (mirroring the enumerator's per-variant filter over
-base + surcharge) gates Lessons / Scholar / a granted play, so a route never strands an
-empty play-occupation frame.
+PLAYABILITY — played-and-wasted, never gated (user ruling 2026-07-21). Confidant prints no
+"you may not play if you cannot place" prerequisite, so it follows the general occupation
+rule: it is ALWAYS playable (base occupation cost permitting), and its mandatory placement
+simply WASTES when it can't be carried out (the `place_0` variant). This is the Prophet /
+Basket Weaver category; the contrast is Established Person, whose printed "You may not play
+this card if you cannot renovate" DOES gate playability. So `_variants` always returns at
+least one route, and Confidant is never excluded from `playable_occupations`.
+
+The `agricola/legality.py` committability guard (`playable_occupations` dropping a
+zero-variant occupation, and `_any_occupation_committable` gating Lessons / Scholar / a
+granted play) is therefore INERT for Confidant — the `place_0` variant is always
+committable. It survives as a defensive safety net (a route must never push an empty
+`PendingPlayOccupation`); the fate of that guard vs. a printed-prerequisite mechanism for a
+future gated card (Established Person) is an open design question for the user.
 """
 from __future__ import annotations
 
@@ -104,14 +107,21 @@ def _placement_counts(round_number: int) -> list[int]:
 
 
 def _variants(state: GameState, idx: int) -> list[tuple[str, Resources]]:
-    """One play route per distinct placement count c, gated on RAW food >= c (the placed
-    food is "from your supply", not liquidation-raisable — ruling 74's "gated food >= N"),
-    each declaring a food SURCHARGE of c. NO decline route: placement is mandatory, so an
-    unaffordable Confidant yields [] (see the docstring's engine-interaction flag)."""
+    """One play route per distinct AFFORDABLE placement count c (1 food per space over the
+    rounds-capped, deduped counts), each declaring a food SURCHARGE of c gated on RAW food
+    >= c (the placed food is "from your supply", not liquidation-raisable — ruling 74's
+    "gated food >= N"). When NO real count is affordable — too few rounds remain (round 14)
+    or the player can't afford the minimum 2 — the sole route is the WASTE `place_0`: you
+    still play the occupation but place nothing (user ruling 2026-07-21). Confidant prints
+    no "you may not play if you cannot place" prerequisite (unlike Established Person), so
+    it is played-and-wasted like Prophet / Basket Weaver, never unplayable — hence there is
+    always at least one variant."""
     food = state.players[idx].resources.food
-    return [(f"place_{c}", Resources(food=c))
-            for c in _placement_counts(state.round_number)
-            if food >= c]
+    affordable = [c for c in _placement_counts(state.round_number)
+                  if c > 0 and food >= c]
+    if affordable:
+        return [(f"place_{c}", Resources(food=c)) for c in affordable]
+    return [("place_0", Resources())]
 
 
 def _on_play(state: GameState, idx: int, variant: str | None = None) -> GameState:
