@@ -161,8 +161,17 @@ def expand_conversions(action_kind: str, state, idx: int, ctx, base: Resources) 
     conversion's own "once per action" budget — its `expand1` already encodes all of
     its 0..max variants — while the producers-before-sinks ordering still lets a later
     conversion consume an earlier one's output (the clay->wood->grain chain). Bounded
-    and finite; a no-op (`[base]`) when no conversion is owned. A test-only guard
-    asserts this equals the budget-respecting closure (COST_MODIFIER_DESIGN.md §4.7)."""
+    and finite; a no-op (`[base]`) when no conversion is owned.
+
+    A test-only guard checks this against an independent all-orderings budget-respecting
+    closure (COST_MODIFIER_DESIGN.md §4.7; `tests/test_cost_conversion_closure.py`). The
+    guarantee is at the level that matters — the *offered* frontier: the payments this
+    yields after `effective_payments`' Pareto-min equal the closure's, over every reachable
+    build cost, so no non-dominated payment is ever missed. (The raw candidate *sets* are
+    byte-equal only for a single feeder + the Millwright sink; once two feeders both produce
+    wood the one-pass leaves out extra, strictly-Pareto-dominated payments a sink-in-the-
+    middle ordering would reach — pruned away before a player sees them. The test documents
+    the details, incl. one currently-unreachable Master-Renovator ordering fragility.)"""
     convs = owned_conversions(action_kind, state, idx)
     cands = {base}
     for fn in convs:
