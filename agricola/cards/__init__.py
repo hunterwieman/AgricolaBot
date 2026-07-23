@@ -417,7 +417,13 @@ from agricola.cards import cube_cutter  # noqa: F401
 # ===========================================================================
 from agricola.cards import artisan_district  # noqa: F401
 from agricola.cards import bale_of_straw  # noqa: F401
-from agricola.cards import beer_tap  # noqa: F401
+# beer_tap is DELIBERATELY NOT wired here — it is NOT dealt / not playable (user, 2026-07-21).
+# The card's feed-seam conversion works, but it is INCOMPLETE: its super-linear once-per-harvest
+# tiers cannot join a mid-feeding PendingFoodPayment frontier (the open problem in
+# CARD_DEFERRED_PLANS.md ruling 78 item 1), so a legal in-feeding use is unavailable. Per §0.2
+# of CARD_AUTHORING_GUIDE.md, an incomplete card is not dealt until it is whole. The module +
+# its test stay in place (the test imports it directly); re-wire this line once the frontier
+# participation is solved.
 from agricola.cards import bookshelf  # noqa: F401
 from agricola.cards import cesspit  # noqa: F401
 from agricola.cards import churchyard  # noqa: F401

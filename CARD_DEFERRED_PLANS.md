@@ -223,7 +223,11 @@ cook reactions against the no-FEED-triggers boundary.
    (make the budget a Pareto dim? only offer the tier matching held grain? offer it but
    protect the save-for-later config? a different converter shape for super-linear cards?) is
    a genuine design question — DEFERRED until the user and driver are sure, tracked here as
-   open, not closed.
+   open, not closed. **Consequence (user, 2026-07-21): Beer Tap is UN-DEALT until this is
+   solved.** Because the frontier gap makes a legal in-feeding use unavailable, the card is
+   incomplete, and an incomplete card is not dealt (CARD_AUTHORING_GUIDE.md §0.2). Its
+   `__init__.py` wiring is removed (the module + test stay in place, validating the feed-seam
+   code); re-wire it once the frontier participation lands.
 2. **Beer Stall is NOT a gap** (correction of a driver mischaracterization): C49 is already
    implemented elegantly (ruling 30, 2026-07-06) as a joint Pareto frontier over (animals
    kept, k stables emptied for conversions) via the k-stable doctored-farm technique,
@@ -1664,13 +1668,16 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   *rescued* — its adjacency is computed inline, no API needed). (**Shelter A1 was rescued and BUILT
   2026-07-20** — its 1-cell-pasture restriction is `PendingBuildStables.allowed_cells`, computed
   inline from `farmyard.pastures`, no geometry subsystem needed.)
-- **Return-home / end-of-round / after-work-phase hook (no such phase event):** Curator (A100),
-  Asparagus Knife (A58), Lifting Machine (A70), Silage (A84), Ale-Benches, Credit (A54),
-  Sculpture Course (B53), Informant (B117), Toolbox (B27, turn-end build detection).
+- **Return-home / end-of-round hook — BUILT** (the §5c round-end ladder, `round_end.py`): Curator
+  (A100), Asparagus Knife (A58), Lifting Machine (A70), Silage (A84), Ale-Benches, Credit (A54),
+  Sculpture Course (B53), Informant (B117) are all implemented on it. Still blocked: **Toolbox
+  (B27)**, which needs *turn-end* build detection (the end-of-turn boundary, §8) — a different event
+  from round-end.
 - **New shared action space:** Chapel (A39), Forest Inn (B42), Final Scenario (B23, owner-private space).
 - **Randomness inside `step` (determinism invariant):** Paper Knife (A3), Moonshine (B3).
 - **Temporary / extra worker:** Telegram (A22), Bassinet (A25), Stock Protector (B94),
-  Walking Boots (B22), Lazy Sowman (A94, also needs a "declined sub-action" event).
+  Lazy Sowman (A94, also needs a "declined sub-action" event). (**Walking Boots B22 — 🚫 WONTFIX**
+  per the card data `status: wontfix`; previously listed in this cluster, reclassified 2026-07-22.)
 - **Hidden round-space identity (reveal order is in the Environment, not GameState):** Knapper (A124),
   Master Workman (A126), Silokeeper (B112), Sweep (B120), Telegram's round-space half.
 - **Card-as-animal-holder / new capacity slot:** the two ANONYMOUS-slot shapes were BUILT 2026-07-20
@@ -1695,24 +1702,25 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   the next visitor — no deposit provenance needed, the native-type filter is final), Forest Stone
   (B48 — also an alternative cost), Maintenance Premium (**note:** B55 was *rescued* — it needs
   only a scalar).
-- **Alternative printed cost ("A OR B" for the card's own play):** Baseboards (A4), Barley Mill (A64),
-  Forest Stone (B48). `MinorSpec.cost` is a single `Cost`; no OR-alternation, and you don't own the card
-  while playing it (so the cost-formula registry can't help). A small `alt_costs` list on `MinorSpec` +
-  an affordability/choice at play would unblock all three — a candidate Group-A item if you want it.
+- **Alternative printed cost ("A OR B" for the card's own play) — BUILT** via `alt_costs` on
+  `MinorSpec` (the full pay-set is `(spec.cost,) + spec.alt_costs`, each enumerated as its own
+  `CommitPlayMinor`): **Baseboards (A4), Barley Mill (A64), Forest Stone (B48) are all implemented.**
 - **Legality / sub-action-menu changes:** Wooden Shed (A10), Forest School (**rescued** via the existing
   occupancy-override registry), Agrarian Fences (B26) (**Oven Site A27 was rescued and BUILT
   2026-07-20** — `PendingBuildMajor.allowed_majors` + `granted_by` on the build-major ctx + a
   grant-scoped cost formula; **Stone Company A23 likewise BUILT 2026-07-21** — the
   `CostCtx.min_spend` payment filter, ruling 72), Carpenter's Hammer (A14, per-action build-count
   discount), Chief Forester (A115, capped sow).
-- **Misc one-offs:** Shaving Horse (A48, "after you obtain wood" event), Winnowing Fan (A61, state-dependent
+- **Misc one-offs:** Winnowing Fan (A61, state-dependent
   baking-rate conversion), Potato Ridger (A59, optional-at-harvest-field — the field hook is auto-only),
   Reclamation Plow (A17) / Wheel/Double-Turn plows, Grain Depot (B65, reads which resource paid),
   Moral Crusader (B106) / Shoreforester (B116) (pre-refill round-space read), Clutterer (B100, fragile
   static "accumulation-space text" card set + exact scoring rule), Wood Palisades (B30, alt fence piece +
   supply-cap bypass), Hawktower (B14), Carpenter's Bench (B15 — 🚫 **WONTFIX, user ruling 2026-07-21**:
   its "the taken wood (and only that)" payment-source restriction is the §8 goods-provenance cost gap,
-  ruled not worth building for this card), Grassland Harrow was **rescued**.
+  ruled not worth building for this card), Grassland Harrow was **rescued**. (**Shaving Horse A48 —
+  🚫 WONTFIX** per the card data `status: wontfix`; had been listed above as an "after you obtain wood"
+  deferral, reclassified 2026-07-22.)
 
 ---
 
@@ -1729,12 +1737,22 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
 
 ---
 
-## Round-end effects — the `PendingRoundEnd` frame (design; NOT yet implemented)
+## Round-end effects — the round-end ladder (BUILT 2026-07-12, rulings 49/50)
 
-**User-directed plan (2026-07-01). Deferred: do not implement until scheduled.** Three related
-card families all resolve at the end of a round and none has a home in the engine today. They
-share one new phase frame, `PendingRoundEnd`, pushed at the round-end boundary (the
-**returning-home phase**, i.e. `RETURN_HOME`, before `PREPARATION`/the reveal).
+> **BUILT.** The design below was realized as the **round-end timing-window ladder** in
+> `agricola/cards/round_end.py` (`_advance_round_end`) — not as a single `PendingRoundEnd` frame.
+> It walks a small window sequence at the round boundary (`end_of_work`, `start_of_returning_home`,
+> `returning_home` — PRE-reset, so the live board is the data — `after_returning_home` and
+> `end_of_round`, post-reset), mirroring the harvest/preparation ladders
+> (CARD_ENGINE_IMPLEMENTATION.md §5c). Many cards ride it (Ale-Benches, Apiary, Curator, Lifting
+> Machine, Silage, Credit, Sculpture Course, Informant, …). **What is NOT yet built** is family 1
+> below — the use-it-or-lose-it conversion members (Corn Schnapps Distillery, Mandoline, Pellet
+> Press) and Claypipe's work-phase counter — which are card-level work *on* the built ladder, not
+> the ladder itself. The original design is kept below for that residual.
+
+**Original user-directed plan (2026-07-01).** Three related card families all resolve at the end of a
+round. The realized ladder hosts them at the windows above; the three families and firing order
+below were the blueprint.
 
 ### The three families the frame hosts
 
@@ -1772,64 +1790,51 @@ Within `PendingRoundEnd`, resolve in this order:
 3. then **"at round end" triggers** (family 3).
 
 ### Status
-Design only, per user direction — **do not implement yet.** When built, re-read each member
-card's exact text (§1) and re-classify. Corn Schnapps Distillery's module + test are preserved in
-`archive/deferred_cards/` and should be un-archived and rebuilt on this frame.
+**Ladder BUILT** (2026-07-12, rulings 49/50; `round_end.py`). The remaining work is card-level: the
+family-1 use-it-or-lose-it members (Corn Schnapps Distillery — still archived in
+`archive/deferred_cards/`; Mandoline; Pellet Press) and family-2's Claypipe (needs a
+"building resources gained this work phase" counter) are not yet built on the ladder. Re-read each
+member's exact text (§1) and re-classify when building it.
 
 ---
 
-## After-the-feeding-phase conversions — `PendingHarvestFeed` after-phase (design; NOT implemented)
+## After-the-feeding-phase conversions — the `after_feeding` window (BUILT)
 
-**Deferred 2026-07-01 (user-approved deferral).** Cards worded *"After the feeding phase of
-each harvest, you can …"* must fire **once feeding is fully resolved**, so their proceeds
-cannot pay that harvest's feeding. Today they have no home: `PendingHarvestFeed` has **no
-phase/after model** (its only fields are `player_idx`, `initiated_by_id`, `conversion_done`),
-and the harvest-conversion registry (`register_harvest_conversion` → `CommitHarvestConversion`)
-offers its conversions **during** `HARVEST_FEED`.
+> **BUILT.** Cards worded *"After the feeding phase of each harvest, you can …"* now fire on the
+> harvest ladder's **`after_feeding` window** (position 10; user ruling 2026-07-05;
+> CARD_ENGINE_IMPLEMENTATION.md §5b), offered only after the feeding payment resolves — so their
+> proceeds cannot re-enter that harvest's feeding calculation. **Farm Store (C41)** — the card the
+> food-laundering concern below was about — is implemented on it (un-archived and rebuilt), as are
+> Studio and Social Benefits.
 
-**The bug this caused (now deferred):** **Farm Store (C41)** — "After the feeding phase of each
+**The original concern (2026-07-01), now resolved.** Farm Store — "After the feeding phase of each
 harvest, you can exchange exactly 1 food for 2 different building resources of your choice or 1
-vegetable" — was implemented as a during-feed `register_harvest_conversion`. Offered during
-feeding, a player can buy a **vegetable** for 1 food and then **cook it** (Fireplace/Hearth) to
-pay that same feeding — a food-laundering exploit the "after" wording exists to forbid. Farm
-Store's module + test are archived in `archive/deferred_cards/`.
-
-**What's needed:** give `PendingHarvestFeed` a before/after phase (or add a distinct
-post-feed frame pushed after the feeding payment resolves) that hosts **after-feed triggers** —
-offered only after `CommitConvert`/the feeding payment is done, so their output cannot re-enter
-the feeding calculation. This is harvest-subsystem surgery (the feed frontier + deferred food
-payment are the engine's most delicate area — see CLAUDE.md Foundations / the harvest §), hence
-deferred. Any other "after the feeding phase" card joins Farm Store here. When built, un-archive
-Farm Store, move it off `register_harvest_conversion` onto the new after-feed hook, and re-test.
+vegetable" — was first implemented as a during-feed `register_harvest_conversion`. Offered *during*
+feeding, a player could buy a **vegetable** for 1 food and then **cook it** (Fireplace/Hearth) to pay
+that same feeding — a food-laundering exploit the "after" wording exists to forbid. The
+`after_feeding` window closes that hole by firing only once the feeding payment is done; any other
+"after the feeding phase" card joins Farm Store on it.
 
 ---
 
-## "Before the start of each round" — a distinct hook (design; NOT implemented)
+## "Before the start of each round" — the `before_round` window (BUILT)
 
-**Deferred 2026-07-01 (user-directed).** Cards worded *"Before the start of each round, …"*
-need a dedicated hook that does not exist yet.
+> **BUILT.** Cards worded *"Before the start of each round, …"* fire on the preparation ladder's
+> **`before_round` window** (`preparation.py` position 0 — the ladder's FIRST rung, after any harvest
+> and any round-end effects, before the reveal, round-space collection, and `start_of_round`; user
+> ruling 2026-07-14). **resource_analyzer (C157)** is implemented on it as an automatic effect
+> (played via Lessons); Small Animal Breeder and Civic Facade ride the same window.
 
-**The card that needs it:** **resource_analyzer** (occupation) — "Before the start of each
-round, if you have more building resources than all other players of at least two types, you
-get 1 food." It was implemented as a `start_of_round` auto, which is WRONG on two counts:
-1. `start_of_round` fires at step 5 of `_complete_preparation` — *after* step 2 distributes the
-   new round's scheduled income (`future_resources`). So the building-resource comparison reads
-   *post-income* counts, whereas "before the start of the round" wants the pre-income snapshot.
-   The divergence is reachable: building-resource scheduling cards exist (club_house schedules
-   stone, cesspit clay, thick_forest wood), so at such a boundary the comparison can flip.
-2. More fundamentally, "before the start of round R+1" is its OWN instant — **not** the
-   end-of-round-R boundary (the `PendingRoundEnd` family). A **harvest** falls between the two
-   on harvest rounds (WORK → RETURN_HOME → *harvest* → PREPARATION), and end-of-round effects
-   must fire **before** before-start-of-round effects. So this is a separate, strictly-later
-   hook, ordered: end-of-round effects → (harvest, if any) → **before-start-of-round effects** →
-   the round's income/reveal.
-
-**What's needed:** a distinct "before the start of each round" hook that fires after the harvest
-(and after any `PendingRoundEnd` end-of-round effects) but **before** the round's income
-distribution — so a card reads the pre-income, post-harvest state. Module + test for
-resource_analyzer are archived in `archive/deferred_cards/`; un-archive and move it onto this
-hook when it exists. (Do NOT approximate with `start_of_round` — that is the post-income instant
-this hook exists to avoid.)
+**Why a distinct window (the original 2026-07-01 reasoning, preserved).** "Before the start of round
+R+1" is its own instant — correctly served by `before_round`, and NOT by `start_of_round`:
+1. `start_of_round` fires *after* the new round's scheduled income (`future_resources`) is
+   distributed, so a building-resource comparison there would read *post-income* counts; `before_round`
+   reads the intended pre-income snapshot. The divergence is reachable — building-resource scheduling
+   cards exist (club_house schedules stone, cesspit clay, thick_forest wood), so the comparison can flip.
+2. "Before the start of round R+1" is strictly later than the end-of-round-R boundary: on harvest
+   rounds a harvest falls between them (WORK → RETURN_HOME → *harvest* → PREPARATION). The ladder
+   ordering honors this — end-of-round effects (§5c) → (harvest, if any) → `before_round` → the
+   round's income/reveal.
 
 ---
 

@@ -977,7 +977,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D61 Bale of Straw**
   - _At the start of each harvest, if you have at least 3 grain fields (including field cards with planted grain), you get 2 food._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — At start of each harvest, if >=3 grain fields get 2 food.
-- ✅ **D62 Beer Tap** · cost: 1 Wood
+- ⚠ **D62 Beer Tap** · cost: 1 Wood · implemented (feed seam) but NOT DEALT — incomplete frontier participation, un-wired pending the fix (ruling 78 item 1)
   - _When you play this card, you immediately get 2 food. In the feeding phase of each harvest, you can turn 2/3/4 grain into 3/6/9 food._
   - `ONPLAY E-GOODS HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT` — On play get 2 food; during feeding phase of each harvest optionally convert grain->food at a scaling rate.
 - ✅ **D63 Lynchet**
