@@ -3,16 +3,23 @@
 Card text: "Immediately after the feeding phase of each harvest, if you have no
 food left, you get 1 wood and 1 clay."
 
-A harvest-window AUTO on the `after_feeding` window (ruling 2026-07-05:
-"immediately after the feeding phase" = "after the feeding phase", one window)
-— fired mechanically inside the harvest walk (`_process_simple_window`,
-window-major, SP first) per owner, AFTER the FEED payment has resolved.
-Eligibility reads the post-payment food (`resources.food == 0`, the "no food
-left" instant), and the reward is a flat +1 wood +1 clay. Tests drive the real
-walk so the fire-point (after feeding, before breeding) is exercised
-end-to-end. The ruled ordering against Farm Store (the same window's optional
-food-spending trigger) — Social Benefits FIRST, via autos-before-triggers — is
-pinned by the interaction test at the bottom.
+Two paths to "no food left", both on the `after_feeding` window (ruling
+2026-07-05: "immediately after the feeding phase" = "after the feeding phase",
+one window), fired inside the harvest walk after the FEED payment resolves:
+
+- The AUTO (`register_auto`): when the player already has 0 food (ran out
+  covering feeding), the flat +1 wood +1 clay fires mechanically. Eligibility
+  reads the post-payment food (`resources.food == 0`).
+- The OPTIONAL discard trigger (`register`): a player who KEPT surplus food may
+  discard all of it to reach 0 ("You may discard goods to the general supply at
+  any time" applies to food) and collect the same +1 wood +1 clay. Offered only
+  when `resources.food > 0`, so it is mutually exclusive with the auto; firing
+  zeros the food, declining (window `Proceed`) keeps it.
+
+Tests drive the real walk so the fire-point (after feeding, before breeding) is
+exercised end-to-end. The ruled ordering against Farm Store (the same window's
+optional food-spending trigger) — Social Benefits FIRST, via autos-before-
+triggers — is pinned by the interaction test at the bottom.
 """
 import agricola.cards.social_benefits  # noqa: F401  -- registers the card
 
@@ -97,6 +104,18 @@ def _run_harvest(state, pick=lambda acts: acts[0]):
     return state
 
 
+def _decline_discard(acts):
+    """A picker that DECLINES Social Benefits' optional discard trigger (Proceed)
+    where it is offered — so the harvest walk exercises only the automatic path
+    (which needs food == 0), never the voluntary food discard."""
+    from agricola.actions import FireTrigger, Proceed
+    if any(isinstance(a, FireTrigger) and a.card_id == CARD_ID for a in acts):
+        proceeds = [a for a in acts if isinstance(a, Proceed)]
+        if proceeds:
+            return proceeds[0]
+    return acts[0]
+
+
 # ---------------------------------------------------------------------------
 # Registration (spec vs the JSON)
 # ---------------------------------------------------------------------------
@@ -130,12 +149,13 @@ def test_grants_when_no_food_left_after_feeding():
 
 
 def test_does_not_grant_when_food_remains():
-    """Player 0 feeds cleanly with surplus food left -> no grant."""
+    """Player 0 feeds cleanly with surplus food left and DECLINES the optional
+    discard -> no grant (the automatic path needs food == 0)."""
     state = _harvest_state(food=10)                   # 2 people need 4, keeps 6
     state = _own_minor(state, 0, CARD_ID)
     wood0 = state.players[0].resources.wood
     clay0 = state.players[0].resources.clay
-    state = _run_harvest(state)
+    state = _run_harvest(state, _decline_discard)     # do not fire the discard
     assert state.players[0].resources.food > 0
     assert state.players[0].resources.wood == wood0   # no wood
     assert state.players[0].resources.clay == clay0   # no clay
@@ -196,6 +216,130 @@ def test_fires_before_breeding():
 
 
 # ---------------------------------------------------------------------------
+# The optional discard trigger — surplus food -> discard all -> +1 wood +1 clay
+# ("You may discard goods to the general supply at any time" applies to food)
+# ---------------------------------------------------------------------------
+
+def _drive_to_after_feeding_window(state, idx):
+    """Advance the real harvest walk until player `idx`'s after_feeding
+    PendingHarvestWindow host is on top (the discard trigger's offer point)."""
+    from agricola.pending import PendingHarvestWindow
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if (isinstance(top, PendingHarvestWindow)
+                and top.window_id == "after_feeding" and top.player_idx == idx):
+            return state
+        state = step(state, legal_actions(state)[0])
+    return state
+
+
+def _social_benefits_fires(acts):
+    from agricola.actions import FireTrigger
+    return [a for a in acts
+            if isinstance(a, FireTrigger) and a.card_id == CARD_ID]
+
+
+def test_discard_trigger_not_offered_when_food_zero():
+    """food == 0 after feeding: the AUTO grants wood+clay and the discard
+    trigger is NEVER offered (no window frame is even hosted for it)."""
+    state = _starving_state()                          # P0 begs to exactly 0 food
+    state = _own_minor(state, 0, CARD_ID)
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+    # Walk the whole harvest; assert the discard FireTrigger is never surfaced.
+    state = _advance_until_decision(state)
+    offered_discard = False
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
+        if _social_benefits_fires(legal_actions(state)):
+            offered_discard = True
+        state = step(state, legal_actions(state)[0])
+    assert not offered_discard                         # auto path only, no choice
+    assert state.players[0].resources.food == 0
+    assert state.players[0].resources.wood == wood0 + 1
+    assert state.players[0].resources.clay == clay0 + 1
+
+
+def test_discard_trigger_offered_and_fires_when_food_remains():
+    """food > 0 after feeding: the discard trigger IS offered; firing it zeros
+    the food and grants +1 wood +1 clay (the auto did NOT fire)."""
+    state = _harvest_state(food=10)                    # 2 people need 4, keeps 6
+    state = _own_minor(state, 0, CARD_ID)
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+    state = _drive_to_after_feeding_window(state, 0)
+    # The auto has NOT fired (food remained), and the discard trigger is offered.
+    assert state.players[0].resources.food == 6
+    assert state.players[0].resources.wood == wood0
+    assert state.players[0].resources.clay == clay0
+    fires = _social_benefits_fires(legal_actions(state))
+    assert len(fires) == 1                             # single "discard all" fire
+    state = step(state, fires[0])
+    assert state.players[0].resources.food == 0        # all food discarded
+    assert state.players[0].resources.wood == wood0 + 1
+    assert state.players[0].resources.clay == clay0 + 1
+    state = _run_harvest(state)                         # finishes cleanly
+    assert state.players[0].resources.food == 0        # discard is not undone
+    assert state.players[0].resources.wood == wood0 + 1
+    assert state.players[0].resources.clay == clay0 + 1
+
+
+def test_discard_trigger_declined_keeps_food():
+    """food > 0 after feeding, decline via the window's Proceed: the food is
+    kept and no wood/clay is granted."""
+    from agricola.actions import Proceed
+    state = _harvest_state(food=10)                    # keeps 6 after feeding
+    state = _own_minor(state, 0, CARD_ID)
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+    state = _drive_to_after_feeding_window(state, 0)
+    assert _social_benefits_fires(legal_actions(state))   # trigger offered
+    proceeds = [a for a in legal_actions(state) if isinstance(a, Proceed)]
+    assert proceeds                                       # decline is available
+    state = step(state, proceeds[0])
+    state = _run_harvest(state)
+    assert state.players[0].resources.food == 6           # food kept
+    assert state.players[0].resources.wood == wood0       # no grant
+    assert state.players[0].resources.clay == clay0
+
+
+def test_discard_trigger_fires_at_most_once_per_window():
+    """Once the discard trigger fires, it cannot fire again this harvest (the
+    frame's triggers_resolved guard, reinforced by food now being 0)."""
+    state = _harvest_state(food=10)
+    state = _own_minor(state, 0, CARD_ID)
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+    state = _drive_to_after_feeding_window(state, 0)
+    fires = _social_benefits_fires(legal_actions(state))
+    assert len(fires) == 1
+    state = step(state, fires[0])
+    # Frame still up; the discard trigger must no longer be offered.
+    assert not _social_benefits_fires(legal_actions(state))
+    state = _run_harvest(state)
+    # Exactly one grant for the whole harvest.
+    assert state.players[0].resources.wood == wood0 + 1
+    assert state.players[0].resources.clay == clay0 + 1
+    assert state.players[0].resources.food == 0
+
+
+def test_auto_and_discard_eligibility_mutually_exclusive():
+    """Structural check: across every food value the AUTO's `food == 0`
+    condition and the discard trigger's `food > 0` condition are never both
+    true — so the reward is granted at most once at the instant."""
+    from agricola.cards.social_benefits import _eligible, _discard_eligible
+    state = _harvest_state(food=0)
+    for f in range(6):
+        s = _set(state, 0, food=f)
+        auto = _eligible(s, 0)
+        trig = _discard_eligible(s, 0, frozenset())
+        assert not (auto and trig)                        # never both
+        assert auto or trig                               # always exactly one
+        assert auto == (f == 0)
+        assert trig == (f > 0)
+
+
+# ---------------------------------------------------------------------------
 # Owner-gating and negative cases
 # ---------------------------------------------------------------------------
 
@@ -211,12 +355,13 @@ def test_unowned_never_fires():
 
 def test_owner_gating_opponent_food_irrelevant():
     """Player 1 owns the card; player 0 is the one who begs. Player 1 fed cleanly
-    (food remains), so player 1 does NOT get the reward off player 0's shortage."""
+    (food remains) and declines its optional discard, so player 1 does NOT get
+    the reward off player 0's shortage — the auto reads the OWNER's food."""
     state = _starving_state()
     state = _set(state, 1, people_total=2, food=10)    # player 1 keeps surplus
     state = _own_minor(state, 1, CARD_ID)
     wood1 = state.players[1].resources.wood
-    state = _run_harvest(state)
+    state = _run_harvest(state, _decline_discard)      # player 1 keeps its food
     assert state.players[1].resources.food > 0
     assert state.players[1].resources.wood == wood1    # no grant (owner has food)
 

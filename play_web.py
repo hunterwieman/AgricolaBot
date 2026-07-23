@@ -640,12 +640,33 @@ def _min_players_excluded_slugs() -> set:
             if ps and all(p in ("3+", "4+", "5+", "6+") for p in ps)}
 
 
+def _wontfix_excluded_slugs() -> set:
+    """Slugs of cards marked `"status": "wontfix"` in the card data — excluded from the
+    deal pool even when their module is still registered. Most wontfix cards were never
+    implemented (so they're absent from the registries anyway); this also covers a card
+    that IS implemented but is deliberately kept out of games — e.g. Teacher's Desk, which
+    can strand a mandatory renovate via a Millwright interaction (CARD_AUDIT_FINDINGS.md
+    #5). The module code is retained; the card is simply never dealt."""
+    data_dir = os.path.join(HERE, "agricola", "cards", "data")
+    out: set = set()
+    try:
+        for fname in ("revised_occupations.json", "revised_minor_improvements.json"):
+            with open(os.path.join(data_dir, fname)) as f:
+                for row in json.load(f):
+                    if row.get("status") == "wontfix":
+                        out.add(_card_slug(row["name"]))
+    except Exception as exc:  # pragma: no cover — defensive at import time
+        print(f"[play_web] WARNING: wontfix-filter load failed: {exc}", file=sys.stderr)
+    return out
+
+
 def _card_pool() -> "CardPool":
     """The card pool for a cards game: every implemented occupation + minor
-    printed for 2 players (3+/4+-only cards are registered but never dealt)."""
+    printed for 2 players (3+/4+-only cards are registered but never dealt), minus any
+    card marked `wontfix` (kept in the codebase but deliberately not dealt)."""
     import agricola.cards  # noqa: F401  (registers OCCUPATIONS / MINORS)
     from agricola.cards.specs import OCCUPATIONS, MINORS
-    excluded = _min_players_excluded_slugs()
+    excluded = _min_players_excluded_slugs() | _wontfix_excluded_slugs()
     return CardPool(occupations=tuple(c for c in OCCUPATIONS if c not in excluded),
                     minors=tuple(c for c in MINORS if c not in excluded))
 

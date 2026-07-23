@@ -63,7 +63,10 @@ class HarvestConversionSpec:
       (2026-07-21) REVERSES that for FEEDING-PHASE crop converters — "we
       convert goods to food greedily … use Schnapps Distiller for the first
       veggie and our smaller rate for the remaining N-1" — so the grain/veg
-      positions are now live (Schnapps Distiller/Distillery, Beer Tap). What
+      positions are now live (Schnapps Distiller/Distillery) — but NOT Beer Tap,
+      whose super-linear tiers (2/3/4 grain -> 3/6/9 food) stay feed-seam-only
+      per ruling 78 item 1 (the once-per-harvest budget is not a Pareto dim, so a
+      forced frontier fire would commit it at the smallest tier). What
       ruling 37 still excludes stays out: rider outputs (points, goods) and
       field-input converters are NOT frontier-eligible and stay feed-seam-only.
       None (the default) = feed-seam-only. The raise-frame fire shares this
