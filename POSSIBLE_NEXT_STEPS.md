@@ -15,14 +15,13 @@ A record of what was removed as complete is at the bottom (§ "Completed since 2
 >    ```bash
 >    ~/miniconda3/bin/python -c "from agricola.cards.specs import OCCUPATIONS, MINORS; print(len(OCCUPATIONS), len(MINORS))"
 >    ```
->    At this revision it returns **232 occupations + 331 minors = 563** of the 840-card catalog.
-> 2. **Some design docs are themselves stale on "what exists."** In particular
->    `CARD_ENGINE_IMPLEMENTATION.md` §8 and `CARD_DEFERRED_PLANS.md`'s bottom sections still label
->    several *built* mechanisms "unbuilt" — the before-scoring decision window, the
->    before-round-start hook, the `PendingRoundEnd` round-end ladder, and the after-feeding-phase
->    conversions frame are all live in the code. Verify against the code, not the doc's prose, before
->    concluding something needs building. (Cleaning up those stale sections is itself a small
->    follow-up task — see §6.)
+>    At this revision it returns **233 occupations + 330 minors = 563** of the 840-card catalog.
+> 2. **Verify "what exists" against the code, not doc prose.** The card docs have lagged reality
+>    before: the before-scoring decision window, the before-round-start hook, the round-end ladder,
+>    and the after-feeding-phase conversions frame were all built while `CARD_ENGINE_IMPLEMENTATION.md`
+>    §8 / `CARD_DEFERRED_PLANS.md` still called them unbuilt (those specific sections corrected
+>    2026-07-22). Registration status is a one-line check — `slug in (OCCUPATIONS | MINORS)` — so
+>    confirm before concluding a card or mechanism needs building.
 
 ---
 
@@ -94,14 +93,25 @@ events: the harvest occasion manifest and the breeding-outcome payload (which is
 Champion Breeder landed without this). Adding payloads to the general system is a firing-API change —
 defer until a cluster justifies it, then decide the API.
 
-### D. Cost-imposition (tax) family + the AND-side placement seam
+### D. Cost-imposition (tax) at a placement + the AND-side legality seam
 
-A small family (`CENSUS_COST_IMPOSITION.md`, 8 cards) imposes a **mandatory cost on an otherwise-free
-action**. Two are built (Credit A54, Animal Catcher C168) — but both are the recurring-upkeep-with-
-begging-fallback shape, which needs *no* legality change. The unbuilt piece is the **"AND-side"
-placement seam**: when a card makes a currently-free action cost something, the placement predicate
-must check that mandatory cost is payable. **Dwelling Mound** is the pivotal card — it puts a cost on
-the currently-free plow primitive. Zero AND-side members built.
+Some cards impose a **mandatory cost on an otherwise-free action** (`CENSUS_COST_IMPOSITION.md`). The
+piece to build is the **"AND-side" legality seam**: when a card makes a currently-free placement cost
+something, the placement predicate must check that mandatory cost is payable before allowing the
+placement. The genuine consumers are the cards that charge the cost **at a placement**:
+- **Dwelling Mound (C37)** — "you must pay 1 food for each new field tile that you place," and the
+  clarification is explicit: *"You must be able to pay the food cost before placing the field tile."*
+  It taxes the currently-free plow/field primitive — the pivotal own-placement case.
+- **Fishing Net (C51)** — "each time another player uses Fishing, they must first pay you 1 food"
+  (clarified: *"Others must have 1 food before using Fishing"*). A **cross-player** legality gate — the
+  cost conditions the *opponent's* placement, which the per-space predicates can't express.
+
+Not this seam (the census counts them, but they need no legality change): **Credit (A54)** imposes a
+mandatory food cost but at **round end**, not at a placement (a begging-fallback — it never gates a
+move); **Animal Catcher (C168)** imposes no mandatory cost at all — it is an *optional* reward-swap
+(take 3 animals instead of 2 food at Day Laborer) with an opt-in recurring food tax. **The filter that
+finds the real consumers: is the cost charged at the moment of a worker placement?** Zero AND-side
+members built.
 
 ### E. Temporary / extra worker
 
@@ -143,28 +153,55 @@ geometry ("1 point per pasture with ≥1 animal and unused capacity for ≥3 mor
 needs end-game conversions whose **proceeds are points**. (Organic Farmer is the last unbuilt member of
 the old Milestone-1 deferral list.)
 
-### J. Per-card goods stack (beyond a CardStore scalar)
+### J. Per-card goods storage — mostly a non-issue (not a subsystem)
 
-CardStore holds only scalars today. Cards that park **multiple goods on the card over time** need a
-real per-card goods stack: Hayloft Barn B21, Muddy Puddles B83. (Forest Plow's return-wood-to-space
-and Maintenance Premium's scalar were rescued without it.)
+There is no general "multi-good stack" gap. Match the representation to the *access pattern*: a
+homogeneous pile and a fixed-order pile both collapse to a **scalar** count, and an order-independent
+heterogeneous total already fits a **`Resources` CardStore slot** (Interim Storage A81 stores exactly
+that). So the two cards previously parked here are tractable, not blocked:
+- **Hayloft Barn (B21)** — 4 *food*, taken one at a time: a scalar (0–4; grant Family Growth at 0).
+- **Muddy Puddles (B83)** — a *fixed* pile (boar, food, cattle, food, sheep, bottom-to-top), taken
+  top-first: a scalar count derives the current top from the fixed sequence.
+
+A genuine ordered-heterogeneous store — where the player *chooses* which good to withdraw and the order
+isn't derivable — would need a real stack, but no implemented or pending card has that shape (the
+buy-conversion "goods on a card" case is already served by `interim_storage`, §1.A). Build these two on
+CardStore scalars; treat them as §2.A tractable work. (This is why, as one might expect, no implemented
+card has needed a stack.)
 
 ### K. Small open per-cluster seams (each a targeted, mostly-cheap build)
 
 The big subsystems above dwarf a set of small, well-scoped seams that each unblock one or a few cards.
 Batch these opportunistically:
 
-- **`after_play_kept_minor` event** (fires only when `minor_improvements` actually grew, so a
-  *passing* minor doesn't trigger it) — Scales B49.
+- **A "kept-improvement-played" event** — fires only when a card actually lands *in front of you*, so a
+  **traveling (passing) minor** (which executes, then moves to the opponent's hand) does not trigger it
+  — **Scales B49** ("Passing cards will not trigger this effect, as they are never in front of you").
+  It does **not** exist yet: the coarse `after_build_improvement` fires for *every* minor play,
+  traveling ones included. **Junk Room A55 correctly rides that coarse event** — its "each time after
+  you build an improvement" has no "in front of you" qualifier, so it *should* pay on a traveling minor
+  (user ruling 2026-07-23) and needs no change. The kept-only event is a **Scales-specific** need:
+  Scales is the one card that must exclude traveling plays.
 - **Per-action build-count cost discount** — Carpenter's Hammer A14.
 - **Fence-legality change** — Agrarian Fences B26.
 - **Grid/adjacency geometry** (most were rescued by inline adjacency; these 3 remain) — Farm Hand B85,
   Future Building Site B38, Love for Agriculture B72. Likely cheap; re-triage per card.
 - **Super-linear multi-tier converter in the payment frontier** (USER-GATED) — Beer Tap's 2/3/4 grain
   → 3/6/9 food doesn't fit the fixed-rate raise frame (forces the once-per-harvest budget at the
-  smallest covering tier, silently removing a save-for-later config). Beer Tap is feed-seam-only for
-  now; the full-frontier handling is an open design question (`CARD_ENGINE_IMPLEMENTATION.md` §8,
-  ruling 78 item 1).
+  smallest covering tier, silently removing a save-for-later config). **Beer Tap is currently un-dealt**
+  (removed from the deal pool per a user ruling, `a8c7d6f` — an incomplete card must not be playable:
+  the feed-seam converter works, but the missing frontier participation makes a legal in-feeding use
+  unavailable). Re-wire it (its module + test stay in place) once the full-frontier handling is solved —
+  an open design question (`CARD_ENGINE_IMPLEMENTATION.md` §8, ruling 78 item 1).
+- **Cook-before-exchange (a conversion whose rate is about to drop)** — building **Oriental Fireplace
+  (A60)** returns your Fireplace/Cooking Hearth, and Oriental Fireplace *cannot cook boar* (its list is
+  veg/sheep/cattle/grain only). The exchange drops the boar→food rate from 2 to 0, so the player must be
+  able to cook boar *before* the exchange resolves — genuinely use-it-or-lose-it, **not** the deferrable
+  case the "preserving optionality" rule prunes. The general rule this exposes: **the
+  never-surface-conversions-early principle inverts whenever a future event lowers a good's conversion
+  rate** (capability removed, option expires, or budget consumed), and the conversion must then be
+  offered *before* that event. (Same family as the round-end use-it-or-lose-it members and Beer Tap's
+  once-per-harvest budget.)
 - **Decline income for a played-but-unusable composite** (USER-GATED) — Harvest Festival Planning
   pushes a "Major or Minor Improvement" composite from its own on-play resolution; when it has *no*
   legal child it pushes nothing and pays nothing. Whether that should pay under the
@@ -178,7 +215,40 @@ Batch these opportunistically:
   (Shaving Horse A48 — an "after you obtain wood" event — was also here but now carries a `wontfix`
   marker in the card data; see §2.E.)
 
-### L. Documented cost-model gap with no current consumer (park, don't build)
+### L. Re-checked conditional grants (the engine currently forbids a legal move)
+
+Some cards grant a benefit conditional on a game-state feature at a moment — Social Benefits:
+*"immediately after the feeding phase, if you have no food left, get 1 wood and 1 clay."* These are
+implemented as one-shot automatic effects, evaluated **once** when the window opens. But a player can
+legally make the condition true *after* that instant: holding 1 food, spend it at Farm Store (*"after
+the feeding phase, spend 1 food for 2 building resources"*) to reach 0 food, then collect Social
+Benefits — one food turned into four goods, nothing illegal about it. The engine checks "no food left"
+one moment too early and so **refuses this legal, non-dominated move** — the same "never prohibit a
+move a rational player would make" principle that governs §1.A. It is a live correctness bug in two
+implemented cards.
+
+**The fix** (design: `design_docs/cards/CONDITIONAL_GRANT_RECHECK_DESIGN.md`): a **re-checked
+conditional grant** — register `(condition_fn, grant_fn, active-scope)`, re-evaluate the condition at
+each decision boundary while the scope is active, and fire the grant the first time it holds, guarded
+by a **fire-once latch** that *any* granting path sets (so an associated optional discard trigger and
+the re-check never double-grant). Two parts, in order:
+1. **Sweep the whole catalog first.** Find every card that grants on a state feature that can change
+   between the window opening and the player finishing that window (by a trigger they fire, or — later
+   — an at-any-time action). Don't design against only the known cards; whether a feature can change at
+   a given moment is a question to ask the user, not guess.
+2. **Build the mechanism** — a scoped re-check over a small live-grant registry (not "re-run every auto
+   after every action"), Family-inert (card-only registry + latch; the C++ gates stay untouched).
+
+**Live consumers today: Social Benefits (D76), Small Animal Breeder (C111)** — both food-keyed, because
+food is the only feature a player can already adjust mid-window through surfaced actions. The ~12 other
+conditional-grant cards catalogued so far (on fields, animals, rooms, goods) become consumers only once
+the actions that change *their* feature within a window are surfaced — the deferred at-any-time
+machinery (§1.B) — so building the mechanism general now spares them a later re-architecture.
+**Ruling note:** with the re-check, Social Benefits fires whenever food reaches 0 *during* the window,
+superseding the earlier "autos resolve before triggers, so Social Benefits resolves first" ordering; it
+stays exploit-free (the food is genuinely spent).
+
+### M. Documented cost-model gap with no current consumer (park, don't build)
 
 **Payment-source restriction** — a build paid *only* from goods that came from a specific source
 ("use only the taken wood"). `effective_payments` has no concept of goods provenance. The one card
@@ -192,8 +262,8 @@ resurfaces the need.
 
 The single largest *ongoing* Phase-3 workstream: keep implementing the 840-card catalog (420
 occupations + 420 minors; Base Revised + Artifex + Bubulcus + Corbarius + Dulcinaria + Consul Dirigens
-+ Ephipparius; decks A–E, 84+84 each). At this revision **563 are built (232 occ + 331 min, ~67%)**,
-leaving **277 unimplemented (188 occ + 89 min)**. There is no untouched expansion or deck — every one
++ Ephipparius; decks A–E, 84+84 each). At this revision **563 are built (233 occ + 330 min, ~67%)**,
+leaving **277 unimplemented (187 occ + 90 min)**. There is no untouched expansion or deck — every one
 is partially done, so this is breadth-wide template work, not a fresh start. The 277 break down as:
 
 ### A. Tractable seam-fit cards — the copy-a-template bulk
@@ -202,15 +272,15 @@ The card machinery is built and rich (66 `register_*` seams; CLAUDE.md's "~35" u
 not-yet-reached, non-blocked cards fit an existing pattern and are "copy an existing template" work,
 bucketed by the categorization docs (`design_docs/cards/ARTIFEX_CATEGORIZATION.md`,
 `BUBULCUS_CATEGORIZATION.md`, `CARD_TRIAGE_CDE.md`, `CARD_BATCH_TRIAGE.md`). This is the bulk of the
-~120 implementable two-player cards — everything left once the §1-blocked, ambiguity-deferred (§2.C),
+~119 implementable two-player cards — everything left once the §1-blocked, ambiguity-deferred (§2.C),
 and Group-C (§2.D) cards are set aside. It is where steady batch progress happens; each batch still
 goes through the per-card verifier (fidelity-first) and updates the Status section.
 
 ### B. 3+/4+ occupations (~144) — design inputs now, dealt only in 4-player
 
-Occupations carry a player-count field (minors are all "1+"). Of the 188 remaining occupations, only
-**44 are "1+"** (dealt in the current 2-player game); **65 are "3+" and 79 are "4+"** — **144 not dealt
-in 2-player**. So the remaining work that touches the *live* 2-player card game is **44 occ + 89 min =
+Occupations carry a player-count field (minors are all "1+"). Of the 187 remaining occupations, only
+**43 are "1+"** (dealt in the current 2-player game); **65 are "3+" and 79 are "4+"** — **144 not dealt
+in 2-player**. So the remaining work that touches the *live* 2-player card game is **43 occ + 90 min =
 133 cards**. Per the 2026-07-03 directive, the 144 higher-count occupations are **design inputs** for
 shared machinery (survey their shapes when building hooks/registries) and are the concrete card list
 for the eventual 4-player variant (§4).
@@ -228,21 +298,22 @@ Virtuoso D129** (3+; ambiguous scope, ruling 51).
 at-any-time buy-conversion family (C1 — partly crossed; Kettle B32, Potters' Market B69, Oriental
 Fireplace A60, Clay Carrier D122 remain), **action substitution** (C2 — the "instead of action X, do
 Y" model; no such model exists. Its one named consumer, Freshman A97, now carries a `wontfix` marker,
-so like the payment-source gap in §1.L this boundary has no live consumer — build only if a future
+so like the payment-source gap in §1.M this boundary has no live consumer — build only if a future
 card resurfaces it), the remaining multi-plow member (C4 — Reclamation Plow A17, reusing the
 Wheel/Double-Turn mechanism now built), and **Confidant B93** (C5 — buildable but composes 4–5
 mechanisms at once; held for an explicit go-ahead + careful test).
 
-### E. WONTFIX (13) — record, never implement
+### E. WONTFIX (14 among remaining) — record, never implement
 
-13 cards are marked `status: wontfix` in the card data (`revised_occupations.json` /
-`revised_minor_improvements.json`): 3 occupations (Freshman A97, Begging Student D97, Nightworker C125)
-+ 10 minors (Shaving Horse A48, Caravan, Carpenter's Bench B15, Walking Boots B22, Carriage Trip,
-Small Potter's Oven, Recruitment, Witches' Dance Floor D25, Royal Wood, Guest Room). Some have explicit
-user rulings behind them (Carpenter's Bench — goods-provenance cost gap; Witches' Dance Floor — a
-field/occupation/major chimera). The true implementable remainder is therefore **264** (277 − 13),
-which splits cleanly into **120 two-player-relevant** cards (dealt in the current game) + **144
-three-plus-only** occupations (§2.B).
+14 of the still-unbuilt cards are marked `status: wontfix` in the card data: 3 occupations (Freshman
+A97, Begging Student D97, Nightworker C125) + 11 minors (Shaving Horse A48, Caravan, Carpenter's Bench
+B15, Walking Boots B22, Carriage Trip, Small Potter's Oven, Recruitment, Witches' Dance Floor D25, Royal
+Wood, Guest Room, Writing Chamber). (The raw `status` field lags the registry — it also stamps a couple
+of already-*built* cards `wontfix`, e.g. Teacher's Desk — so this count is intersected with the
+not-yet-built set.) Some have explicit user rulings behind them (Carpenter's Bench — goods-provenance
+cost gap; Witches' Dance Floor — a field/occupation/major chimera). The true implementable remainder is
+therefore **263** (277 − 14), which splits cleanly into **119 two-player-relevant** cards (dealt in the
+current game) + **144 three-plus-only** occupations (§2.B).
 
 > **Data-vs-doc discrepancy worth reconciling.** Two of these `wontfix`-marked minors — **Shaving
 > Horse A48** and **Walking Boots B22** — are still listed as merely *deferred* (blocked on a
@@ -404,15 +475,6 @@ Hut). None blocking; work through opportunistically.
 The single largest remaining MCTS speedup per `SPEEDUPS.md` Part 2: batch multiple leaf evaluations
 into one NN forward pass (with virtual loss) instead of one per leaf. Unbuilt in both Python and C++.
 Deferred until sim budgets grow large enough that NN forward-pass cost dominates MCTS cost again.
-
-### C. Prune stale "unbuilt" claims from the card docs (doc hygiene)
-
-`CARD_ENGINE_IMPLEMENTATION.md` §8 and the bottom of `CARD_DEFERRED_PLANS.md` still describe as
-"unbuilt / design only" several mechanisms that are now live: the before-scoring decision window
-(Ox Skull), the before-round-start hook (`resource_analyzer` + the `before_round` window), the
-`PendingRoundEnd` round-end ladder (`round_end.py`), and the after-feeding-phase conversions frame
-(`farm_store` + the `after_feeding` window). A short pass to correct those sections would prevent
-future sessions (and this doc's readers) from re-deferring built work.
 
 ---
 

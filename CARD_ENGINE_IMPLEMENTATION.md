@@ -3082,9 +3082,13 @@ defer (§7); building the missing piece is a design conversation with the user f
   bundles conversions into the decision points that need their proceeds; food liquidation (§5.3)
   is that principle applied to food costs. A card whose conversion proceeds are a non-food good
   ("buy wood for food at any time") has no bundling point yet — defer.
-- **No `PendingBeforeScoring`** (CARD_SYSTEM_DESIGN.md §7): end-game conversions whose proceeds
-  are points (Sheep Walker) need a decision window between round 14 and scoring, coupled to
-  arrangement-scoring questions (Organic Farmer). Flagged, unbuilt.
+- **The before-scoring decision window is built; the arrangement/points *scoring* it would host is
+  not.** An end-game window fires at the `BEFORE_SCORING` boundary — `engine._push_before_scoring_choice`
+  offers each owner's end-game choice as a `PendingCardChoice` (registered via
+  `triggers.register_before_scoring`), in use by **Ox Skull** (discard your one cattle to reach 0 for
+  +3). What remains unbuilt is not the window but two *scoring computations* it would host: end-game
+  conversions whose proceeds are **points** (Sheep Walker) and per-pasture **arrangement/capacity
+  scoring** (Organic Farmer; CARD_SYSTEM_DESIGN.md §7).
 - **The general firing system carries no event payload.** `after_play_minor` etc. name an
   event, not the card played — and there is still no ANY-SOURCE newborns-gained event (a
   markets-included "each time you get newborns" trigger). *(Dung Collector is no longer the
@@ -3106,10 +3110,12 @@ defer (§7); building the missing piece is a design conversation with the user f
   `start_of_feeding`/`after_feeding` windows (§5b). *(The BREED half of the old deferral
   retired at `ff874ba`: the breed frame hosts `"breeding"` / `"breeding_outcome"` triggers —
   §5b.)*
-- **No before-round-start hook.** `resource_analyzer` (deck E) is deferred on exactly
-  "before the start of each round" — an instant after the round-end ladder but before round
-  income, which no window covers yet. (Round-end and after-feeding are no longer in this
-  list — the §5c ladder and §5b's `after_feeding` window exist now.)
+- **The before-round-start hook exists now** (this was a boundary). The preparation ladder's
+  `before_round` window (`preparation.py` position 0 — the first rung, after the §5c round-end
+  ladder and any harvest, before the reveal and round income) is exactly that instant;
+  **resource_analyzer** (C157) fires on it as an automatic effect, reading the correct pre-income
+  state (Small Animal Breeder / Civic Facade ride it too). Round-end and after-feeding are likewise
+  built now — the §5c ladder and §5b's `after_feeding` window.
 - **Cost-model gaps** (each flagged so the model isn't mistaken for complete): a
   payment-*source* restriction (Carpenter's Bench "use only the taken wood") — `effective_
   payments` has no concept of where goods came from (Carpenter's Bench itself is 🚫 WONTFIX,

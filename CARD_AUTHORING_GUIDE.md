@@ -586,6 +586,29 @@ points that need them (animal-overflow, capacity-blocked breeding, harvest feedi
 **not** add ad-hoc at-any-time conversions for a card's cost. Cards whose cost is payable
 from convertible goods need the deferred at-any-time-cost machinery (§9) — that's a §0.
 
+### The "always defer" argument has a precondition: conversion rates that don't drop
+
+That reasoning — a rational agent defers a conversion until its proceeds are needed, so the
+engine never surfaces it early — holds **only while the good's conversion rate cannot fall.**
+When a future event *lowers* the rate at which some good converts, deferring past that event
+destroys value: the conversion becomes **use-it-or-lose-it** and must be surfaced *before* the
+event, not bundled into a later decision point. Three shapes trigger this:
+
+- **A capability is removed.** Building **Oriental Fireplace** returns your Fireplace / Cooking
+  Hearth, and Oriental Fireplace cannot cook boar (vegetable / sheep / cattle / grain only) — the
+  exchange takes boar from 2 food to 0. The player must be able to cook their boar *before* that
+  build resolves.
+- **The option expires.** A "once per round, you can [convert]" option is usable all round but
+  gone at round end, so it is offered as an optional round-end trigger — the last moment it can be
+  used (the round-end use-it-or-lose-it home in §9), never at `start_of_round`.
+- **A per-window budget is consumed.** **Beer Tap** turns 2 / 3 / 4 grain into 3 / 6 / 9 food once
+  per harvest; the single use is spent, not deferred, so the tier choice is offered while the grain
+  and the feeding need still coexist (in the feeding phase), not through the deferral machinery.
+
+Before bundling a conversion into a downstream decision point, ask whether any reachable event
+lowers that good's rate first. If one does, that event is the deadline, and the conversion must be
+surfaced there.
+
 ### Scoped "once per …" — pick the right scope
 
 Several latches exist; choose deliberately:
