@@ -44,19 +44,18 @@ TWO on-play pieces, in order:
    identical outcome. The child check runs AFTER the take (the harvested grain/
    veg can make a crop-cost minor newly playable).
 
-   ⚠️ FIELD MERCHANT INTERACTION — DEFERRED, DECIDE WITH THE USER (ruling 78
-   item 4, 2026-07-21). HFP grants the "Major or Minor Improvement" action, which
-   Field Merchant (B103) pays 1 vegetable to DECLINE. Two paths, one settled and
-   one open: (a) when the composite IS pushed (a legal child exists), a
-   decline-income owner is offered its `decline_improvement` route and declining
-   pays — already works via the composite's own seam; (b) when NO legal child
-   exists, this card pushes NOTHING, so there is no composite, no decline moment,
-   and Field Merchant pays nothing — the played-but-unusable case. Whether (b)
-   should pay under the "could not use counts as declining" principle (ruling 78
-   item 3, applied there to granted MINOR actions) is UNDECIDED. HFP is
-   deliberately NOT registered on the named-action-grant decline seam (its
-   composite comes from on-play resolution, not a trigger); resolve this
-   explicitly before wiring it.
+   FIELD MERCHANT INTERACTION — RESOLVED (user ruling 2026-07-21, closing ruling 78
+   item 4). HFP grants the "Major or Minor Improvement" action, which Field Merchant
+   (B103) pays 1 vegetable to DECLINE. Both paths now pay: (a) when the composite IS
+   pushed (a legal child exists), a decline-income owner is offered its
+   `decline_improvement` route and declining pays — via the composite's own seam; (b)
+   when NO legal child exists, this card pushes nothing, so `_take_then_grant` pays the
+   "major_or_minor" decline income DIRECTLY (the could-not-use-counts-as-declining
+   principle, ruling 78 item 3, extended to HFP's played-but-unusable composite). The
+   two paths are mutually exclusive (child ⟹ frame, no-child ⟹ direct pay), so neither
+   double-pays. HFP stays OFF the named-action-grant decline seam (its composite comes
+   from on-play resolution, not a trigger); the direct pay in the no-child branch is the
+   whole fix.
 
 RELIANCE ON RULING 4 for the sequencing: ``emit_harvest_occasion`` pushes a
 reaction frame only for an eligible occasion TRIGGER, and ruling 4 makes every
@@ -76,6 +75,7 @@ from __future__ import annotations
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import (
     apply_auto_effects,
+    note_improvement_action_declined,
     register_card_choice_resolver,
 )
 from agricola.legality import _can_afford_any_major_improvement, playable_minors
@@ -111,6 +111,14 @@ def _take_then_grant(state: GameState, idx: int, modifiers=()) -> GameState:
         state = push(state, PendingMajorMinorImprovement(
             player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
         state = apply_auto_effects(state, "before_major_minor_improvement", idx)
+    else:
+        # No legal child: the granted "Major or Minor Improvement" action is unusable,
+        # which counts as declining it (user ruling 2026-07-21, resolving ruling 78 item 4 —
+        # the could-not-use principle reaches HFP's played-but-unusable COMPOSITE). A
+        # decline-income owner (Field Merchant) still gets its vegetable. No frame is
+        # pushed, so the composite's own decline route can't double-pay; and this is a
+        # same-object no-op on the empty registry / no owner, keeping Family byte-identical.
+        state = note_improvement_action_declined(state, idx, "major_or_minor")
     return state
 
 

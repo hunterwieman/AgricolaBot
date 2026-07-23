@@ -241,18 +241,17 @@ cook reactions against the no-FEED-triggers boundary.
    reveal grant) with no playable minor. A granted named minor-improvement action that the
    owner cannot use (no playable minor) pays the decline income, exactly as declining an
    unusable Meeting Place minor does. (A LEAN — implement, revisitable.)
-4. **Harvest Festival Planning × Field Merchant — DEFER + DECIDE** (user: "Leave a note …
-   we want to decide how it will interact with Field Merchant when we eventually implement
-   it"). HFP (C72) IS implemented and pushes the composite `PendingMajorMinorImprovement`
-   on-play (field phase, then the Major-or-Minor action). Its composite is NOT registered on
-   the named-action-grant (unfired-trigger) seam — it comes from on-play resolution, not a
-   trigger. VERIFIED behavior (2026-07-21, by trace): (a) when HFP's composite IS pushed (a
-   legal child exists), a decline-income owner IS offered the composite's `decline_improvement`
-   route and declining pays 1 veg — already works via the composite's own seam; (b) when HFP
-   has NO legal child it pushes nothing and pays nothing. OPEN for an explicit decision: whether
-   case (b) — the played-but-unusable COMPOSITE — should pay under item 3's could-not-use
-   principle (item 3 applied it only to granted MINOR actions, not composites). Do not fold HFP
-   into item 3's pass; decide it deliberately with the user.
+4. **Harvest Festival Planning × Field Merchant — RESOLVED (user, 2026-07-21).** HFP (C72)
+   pushes the composite `PendingMajorMinorImprovement` on-play (field phase, then the
+   Major-or-Minor action). Two paths, both now paying Field Merchant its vegetable on a
+   decline: (a) when the composite IS pushed (a legal child exists), a decline-income owner is
+   offered the composite's `decline_improvement` route and declining pays — via the composite's
+   own seam; (b) **when HFP has NO legal child it pushes nothing, and `_take_then_grant` now
+   pays the "major_or_minor" decline income DIRECTLY** (the user ruled the could-not-use
+   principle, ruling 78 item 3, extends to HFP's played-but-unusable COMPOSITE, not just
+   granted minor actions). The two branches are mutually exclusive (child ⟹ frame, no-child ⟹
+   direct pay), so neither double-pays; HFP stays OFF the named-action-grant seam (its composite
+   is on-play resolution, not a trigger). One-line fix in `harvest_festival_planning.py`.
 
 **Ruling 77 (2026-07-21) — the greedy-conversion principle + two corrections:**
 

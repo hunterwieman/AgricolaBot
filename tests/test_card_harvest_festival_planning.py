@@ -159,6 +159,25 @@ def test_improvement_action_omitted_when_no_legal_child():
     # ...but no improvement action was granted (no legal child).
     assert not any(isinstance(f, PendingMajorMinorImprovement)
                    for f in cs.pending_stack)
+    # ...and with no decline-income card owned, nothing is paid.
+    assert cs.players[cp].resources.veg == 0
+
+
+def test_no_legal_child_still_pays_field_merchant_decline():
+    """User ruling 2026-07-21 (closing ruling 78 item 4): when HFP has no legal child, the
+    unusable granted 'Major or Minor Improvement' action counts as DECLINING it, so a Field
+    Merchant owner still gets 1 vegetable — paid directly (no composite frame is pushed, so
+    the composite's own decline route can't also pay)."""
+    import agricola.cards.field_merchant  # noqa: F401  (register the decline-income card)
+    cs, cp = _at_play_minor_frame(grain_fields=((0, 1), (0, 2)),
+                                  resources=Resources(food=1))       # no building resources -> no child
+    cs = _edit_player(
+        cs, cp, occupations=cs.players[cp].occupations | {"field_merchant"})
+    v0 = cs.players[cp].resources.veg
+    cs = _play(cs)
+    assert not any(isinstance(f, PendingMajorMinorImprovement)       # confirm still no legal child
+                   for f in cs.pending_stack)
+    assert cs.players[cp].resources.veg == v0 + 1                    # the decline vegetable
 
 
 if __name__ == "__main__":
