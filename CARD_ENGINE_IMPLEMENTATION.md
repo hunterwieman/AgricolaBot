@@ -528,7 +528,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 - **The harvest timing-window system landed (the 2026-07-03 → 05 arc)**: the window ladder +
   virtual walk, the take-occasion manifest, the take-modifier fold-ins, harvest skips, and
   feeding income. **§5b is the machinery reference**; `design_docs/cards/HARVEST_WINDOWS_DESIGN.md`
-  is the design of record (its §12 is the as-built code map), `HARVEST_HANDOFF.md` (repo root)
+  is the design of record (its §12 is the as-built code map), `design_docs/cards/HARVEST_HANDOFF.md`
   preserves the session reasoning behind every ruling, and the 19 dated rulings live in
   `CARD_DEFERRED_PLANS.md`. The legacy `harvest_field` seam is deleted (§5b, last subsection).
 - **The four follow-on seams landed (`ff874ba`)**, all Family-inert: BREED-frame triggers
@@ -3187,7 +3187,7 @@ docs sit at the repo root; the design + batch records live under `design_docs/ca
 | `COST_MODIFIER_DESIGN.md` | design + red-team record for §5.1/5.2 — worked frontier traces (§4), attacks A1–A7, the fence slice (§9) | changing the cost pipeline; any new cost card shape |
 | `FOOD_PAYMENT_DESIGN.md` | design record for §5.3 — the raise-only decision, banking arithmetic, red-team | changing food payment; Ox-Goad-shaped cards |
 | `HARVEST_WINDOWS_DESIGN.md` | design of record for §5b — ladder rationale, during-window classes, FEED/BREED, card-fields, anytime converters; **§12 = the as-built code map** | any harvest-window card or engine change |
-| `HARVEST_HANDOFF.md` (repo root) | the 2026-07-03→05 session-reasoning record — every ruling's derivation, the bug stories, per-item cautions for the remaining work (§12 = the worklist) | resuming the harvest arc; before building any of its §12 items |
+| `HARVEST_HANDOFF.md` | the 2026-07-03→05 session-reasoning record — every ruling's derivation, the bug stories; its §12 worklist is now complete, kept as the reasoning record | rationale questions on any harvest-window ruling |
 | `HARVEST_CARDS_REVIEW.md` | the 130-card verbatim census, grouped by window (2026-07-03 snapshot — impl markers dated) | triaging a harvest-timed card |
 | `LEGALITY_HARD_CASES.md` (repo root) | **LIVE problem catalog (2026-07-09 arc)** — the 10 mechanisms (M1–M10) that break state-read placement legality, the good→gate matrix (M1b), food-as-universal-currency (M8b), worked multi-card interactions, confirmed live defects (§13), open rules questions (§14) | any card that could flip a resource-gated placement's legality; before building the reveal-order cluster |
 | `PLACEMENT_REACHABILITY_DESIGN.md` (repo root) | **ON HOLD** — a solution sketch (reachability/closure-by-simulation oracle + phase ladder); NOT a plan of record, the user is designing the approach | revisiting the legality architecture |

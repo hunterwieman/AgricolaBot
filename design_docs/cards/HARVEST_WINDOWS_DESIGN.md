@@ -734,8 +734,8 @@ of §0–§11 is the authority; this only orients.*
 
 - **Design of record:** this file (§1 ladder, §2 frames, §3 ordering/skips, §4 during-window,
   §5 FEED/BREED, §6 card-fields, §7 migration, §8 open Qs, §10 anytime triggers, §11 stress).
-- **Session-reasoning handoff:** `HARVEST_HANDOFF.md` (repo root) — every ruling's
-  derivation, the bugs and why, per-item cautions for the remaining work. **Doc
+- **Session-reasoning handoff:** `HARVEST_HANDOFF.md` (same directory) — every ruling's
+  derivation, the bugs and why; its worklist is now complete. **Doc
   integration DONE (2026-07-05):** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` was
   folded into CARD_ENGINE_IMPLEMENTATION.md (its new §5b + section updates, stamped at
   HEAD `ff874ba`); the capture file is marked folded.

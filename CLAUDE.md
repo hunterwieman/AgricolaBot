@@ -955,8 +955,7 @@ the project moves; everything else is a frozen design/historical record.
 - `CARD_AUTHORING_GUIDE.md` — LIVE how-to for implementing cards (pitfalls, templates, worked example).
 - `CARD_IMPLEMENTATION_PROGRESS.md` — LIVE per-card ledger (adjudicated mechanics classification).
 - `CARD_DEFERRED_PLANS.md` — LIVE defer clusters + infra proposals + open user questions (incl. the dated harvest-window rulings).
-- `HARVEST_HANDOFF.md` — the harvest-window arc's session-reasoning record: every ruling's derivation, the bug stories, per-item cautions for the remaining work (§12).
-- `design_docs/cards/`: `CARD_SYSTEM_DESIGN.md`, `CARD_IMPLEMENTATION_PLAN.md` (FROZEN), `COST_MODIFIER_DESIGN.md`, `FOOD_PAYMENT_DESIGN.md`, `HARVEST_WINDOWS_DESIGN.md` (the timing-window design of record; §12 = as-built map), the host-refactor records, batch/triage records — the card design records (rationale + red-teams; the as-built truth is CARD_ENGINE_IMPLEMENTATION.md).
+- `design_docs/cards/`: `CARD_SYSTEM_DESIGN.md`, `CARD_IMPLEMENTATION_PLAN.md` (FROZEN), `COST_MODIFIER_DESIGN.md`, `FOOD_PAYMENT_DESIGN.md`, `HARVEST_WINDOWS_DESIGN.md` (the timing-window design of record; §12 = as-built map), `HARVEST_HANDOFF.md` (the harvest-window arc's session-reasoning record — every ruling's derivation, the bug stories; its own worklist is complete, kept as a reasoning record), `ACTION_REPLACEMENT_DESIGN.md` (BUILT — the reward-suppression seam for Animal Catcher/Pet Lover), the host-refactor records, batch/triage records — the card design records (rationale + red-teams; the as-built truth is CARD_ENGINE_IMPLEMENTATION.md).
 
 **Agent (Phase 2)**
 - `MCTS_IMPLEMENTATION.md` — the comprehensive search code reference (PUCT, UCT, chance nodes, fencing).
