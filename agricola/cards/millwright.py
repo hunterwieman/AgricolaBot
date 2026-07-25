@@ -45,7 +45,7 @@ resets it, exactly like the other build actions.
 """
 from __future__ import annotations
 
-from agricola.cards.cost_mods import register_conversion
+from agricola.cards.cost_mods import CONSUMER_ORDER, register_conversion
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
@@ -59,10 +59,6 @@ _BUILDING_FIELDS = ("wood", "clay", "reed", "stone")
 
 # "replace UP TO 2 building resources ... with 1 grain each" — per build-ACTION.
 MAX_GRAIN = 2
-
-# Sink order: higher than feeder conversions (default order 0, e.g. Frame Builder) so the
-# sink is applied after the resources it consumes have been produced (§4.7).
-_SINK_ORDER = 10
 
 
 def _set_count(state: GameState, idx: int, value: int) -> GameState:
@@ -127,7 +123,7 @@ def _reset(state: GameState, idx: int) -> GameState:
 
 
 for _action in ("renovate", "build_room", "build_stable", "build_fence"):
-    register_conversion(_action, CARD_ID, _expand, order=_SINK_ORDER, record=_record)
+    register_conversion(_action, CARD_ID, _expand, order=CONSUMER_ORDER, record=_record)
 # build_fence is a PLAIN conversion (same _expand): fence affordability is checked on the
 # WHOLE-ACTION running total during building AND at the Proceed settle, so the per-action
 # 2-grain cap is counted once at both points (COST_MODIFIER_DESIGN.md §9.2 — see docstring).

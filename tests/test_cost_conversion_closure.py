@@ -46,22 +46,19 @@ player is *offered*: the Pareto-minimal frontier. `test_offered_frontier_matches
 asserts exactly that, over every action kind that has registered conversions and a corpus of
 GAME-REACHABLE base costs, with a player owning every conversion card at once.
 
-A KNOWN, CURRENTLY-UNREACHABLE ORDERING FRAGILITY (documented, not asserted)
----------------------------------------------------------------------------
-Over a deliberately *adversarial* base corpus the offered frontiers do diverge, in exactly six
-cases: `renovate`, with Master Renovator's grant active, on a base carrying >= 2 reed. Master
-Renovator's "pay 1 building resource of your choice less" is a building-resource CONSUMER
-(discount), but it is registered at `order=0` — the same tier as the wood-producing feeders —
-and sorts before Brushwood Collector. So the chain "Brushwood Collector consolidates 2 reed into
-1 wood, then Master Renovator discounts that wood" (paying 0 reed) is not captured by the
-sink-last pass, which only offers a 1-reed payment. This is a genuinely non-dominated payment
-the one-pass misses — but it needs a renovate whose printed cost has >= 2 reed, and a renovate
-ALWAYS costs exactly 1 reed (num_rooms of the target material + 1 reed). So it is unreachable in
-real play today. `test_master_renovator_ordering_is_currently_unreachable` pins both halves: the
-divergence exists on a >= 2-reed base, and every base a real renovate can present has exactly 1
-reed. If a future card ever grants Master Renovator's discount on a multi-reed cost this test
-goes red — the "loud later" §4.7 asks for. (Fixing it would mean giving Master Renovator a
-sink-tier `order`; that is a rules-adjacent engine change, deliberately left to the user.)
+THE MASTER RENOVATOR ORDERING FIX (a latent gap, now closed)
+------------------------------------------------------------
+Master Renovator's "pay 1 building resource of your choice less" is a building-resource CONSUMER
+(a discount), not a producer. It used to register at `order=0` — the producer tier — and sort
+before the wood-producing Brushwood Collector, so the chain "Brushwood turns the reed into 1 wood,
+then Master Renovator discounts that wood" (paying 0 reed) escaped the one-pass, which offered only
+the strictly-worse 1-reed payment. That WAS a genuinely non-dominated payment the shortcut dropped
+— reachable only on a renovate cost carrying >= 2 reed, and a real renovate always costs exactly 1
+reed (where Master Renovator discounts the single reed directly), so it never surfaced in play.
+Master Renovator now carries `order=CONSUMER_ORDER` (cost_mods.py), applied after the producers,
+and `test_master_renovator_ordering_closed` pins the fix: on the >= 2-reed base the one-pass offered
+frontier now equals the closure and offers the 0-reed payment it used to miss. This is why the
+general guard needs no renovate special case.
 
 This test is test-only: no engine behaviour changes, Family-inert, no C++ impact.
 """
@@ -265,45 +262,36 @@ def test_single_feeder_raw_set_is_exact():
             )
 
 
-def test_master_renovator_ordering_is_currently_unreachable():
-    """Pin the one known ordering fragility AND the reason it is currently harmless.
+def test_master_renovator_ordering_closed():
+    """The Master Renovator ordering gap is CLOSED by tiering it as a consumer.
 
-    Master Renovator (a building-resource discount = a consumer, registered at feeder-tier
-    `order=0`) sorting before the wood-producing Brushwood Collector means the chain "Brushwood
-    Collector turns 2 reed into 1 wood, then Master Renovator discounts that wood" (paying 0
-    reed) is missed by the sink-last one-pass, which only offers a 1-reed payment. That is a
-    genuinely NON-dominated payment — but only on a renovate cost carrying >= 2 reed.
+    Master Renovator's "1 building resource less" is a discount — a CONSUMER. It used to
+    register at the producer tier (`order=0`) and sort before the wood-producing Brushwood
+    Collector, so the chain "Brushwood turns the reed into 1 wood, then Master Renovator
+    discounts that wood" (paying 0 reed) was unreachable to the one-pass, which only offered a
+    (strictly worse) 1-reed payment. That is a genuinely NON-dominated payment the one-pass
+    dropped — harmless only because a real renovate always costs exactly 1 reed (where Master
+    Renovator can discount the single reed directly), so it never surfaced in play.
 
-    Half 1: on an (unreachable) 2-reed renovate base under Master Renovator's grant, the offered
-    frontiers DO diverge in exactly this way.
-    Half 2: every base a real renovate can present carries exactly 1 reed, so the divergence is
-    unreachable in play.
+    Master Renovator now carries `order=CONSUMER_ORDER`, so it applies AFTER the producers and
+    the one-pass reaches the chain. On a >= 2-reed base — the case that used to diverge — the
+    one-pass offered frontier now equals the full all-orderings closure, and it offers the
+    previously-missed 0-reed payment (`clay=5`), pruning the dominated 1-reed one.
 
-    If a future card ever grants Master Renovator's discount on a multi-reed cost, Half 1's
-    still-diverging assertion keeps passing while the situation is no longer unreachable — so the
-    guard to watch is that renovate stays single-reed (Half 2). Revisit Master Renovator's
-    `order` (a sink-tier value) if that ever changes.
+    Regression guard: revert Master Renovator to the producer tier and the 0-reed payment drops
+    back out of the one-pass, reopening `closure - one_pass == {clay=5}` and failing this test.
     """
     state = _state_owning_all_conversions(house_redevelopment=False)
     grant = "card:master_renovator"
 
-    # Half 1 — the divergence exists on a >= 2-reed base.
     two_reed_base = Resources(clay=5, reed=2)
     ctx = CostCtx("renovate", two_reed_base, granted_by=grant)
     one_pass = _offered(expand_conversions("renovate", state, 0, ctx, two_reed_base))
     closure = _offered(full_closure("renovate", state, 0, ctx, two_reed_base))
-    assert closure - one_pass == {Resources(clay=5)}, (
-        "expected the Brushwood->Master-Renovator 0-reed payment to be closure-only; "
-        f"got closure-only={closure - one_pass}"
+    assert one_pass == closure, (
+        "gap not closed after tiering Master Renovator as a consumer:\n"
+        f"  closure-only: {closure - one_pass}\n"
+        f"  one-pass-only: {one_pass - closure}"
     )
-    assert Resources(clay=5) not in one_pass  # the one-pass never offers the 0-reed payment
-    assert Resources(clay=5, reed=1) in one_pass  # it offers the dominated 1-reed one instead
-
-    # Half 2 — every base a real renovate can produce carries exactly 1 reed, so on the realistic
-    # corpus the frontiers agree (guarding that the divergence stays unreachable).
-    for base in _REALISTIC_BASES["renovate"]:
-        assert base.reed == 1, f"a real renovate base must have exactly 1 reed; got {base}"
-        rctx = CostCtx("renovate", base, granted_by=grant)
-        assert _offered(expand_conversions("renovate", state, 0, rctx, base)) == _offered(
-            full_closure("renovate", state, 0, rctx, base)
-        ), f"unexpected divergence on a reachable renovate base {base}"
+    assert Resources(clay=5) in one_pass          # the Brushwood->Master-Renovator 0-reed payment
+    assert Resources(clay=5, reed=1) not in one_pass  # its dominated 1-reed sibling is pruned

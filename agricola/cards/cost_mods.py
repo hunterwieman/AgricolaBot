@@ -60,13 +60,26 @@ def register_reduction(action_kind: str, card_id: str, reduce: Callable) -> None
     REDUCTIONS.setdefault(action_kind, []).append((card_id, reduce))
 
 
+# The high tier for `register_conversion(order=...)`. Conversions split in two: a PRODUCER
+# turns cost resources into a building resource (Frame Builder: clay→wood); a CONSUMER turns a
+# building resource into something no conversion re-consumes on that action kind (Millwright→
+# grain, the Site Manager/Wood Expert food-sinks, the Master Renovator/Hunting Trophy discounts
+# that pay a resource away to nothing). A consumer must sort AFTER producers so `expand_conversions`
+# (one pass, in this order) can feed a producer's output into it — the clay→wood→grain chain.
+# Any positive value works; producers keep the default 0. COST_MODIFIER_DESIGN.md §4.7 has the
+# argument that this two-tier order equals the full all-orderings closure for the current catalog.
+CONSUMER_ORDER = 10
+
+
 def register_conversion(action_kind: str, card_id: str, expand1: Callable, *,
                         order: int = 0, record: Callable | None = None) -> None:
     """`expand1(state, idx, ctx, cost: Resources) -> list[Resources]` — an
     internally-budgeted generator that returns the unchanged `cost` plus every legal
-    substitution variant. `order` sequences chained conversions: producers low, a
-    consuming *sink* (e.g. Millwright, which eats any building resource) high, so the
-    sink is applied after the feeders it consumes (COST_MODIFIER_DESIGN.md §4.7).
+    substitution variant. `order` sorts chained conversions into two tiers so a later
+    conversion sees an earlier one's output: PRODUCERS (turn cost resources into a building
+    resource) stay low (the default 0); CONSUMERS (Millwright's grain-sink, the food-sinks,
+    the pay-a-resource-away discounts) go high via `order=CONSUMER_ORDER`, applied after the
+    producers whose output they eat (COST_MODIFIER_DESIGN.md §4.7).
 
     `record(state, idx, payment) -> state` (optional) is for a conversion whose budget
     is PER BUILD-ACTION rather than per single build — e.g. Millwright's "up to 2 grain

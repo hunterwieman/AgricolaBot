@@ -30,7 +30,11 @@ COST_MODIFIER_DESIGN.md §9 and CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
-from agricola.cards.cost_mods import register_conversion, register_free_fence_seed
+from agricola.cards.cost_mods import (
+    CONSUMER_ORDER,
+    register_conversion,
+    register_free_fence_seed,
+)
 from agricola.cards.specs import register_minor
 from agricola.helpers import cooking_rates
 from agricola.replace import fast_replace
@@ -70,4 +74,7 @@ register_free_fence_seed(
         3 if space_id == "farm_redevelopment" else 0),
 )
 for _kind in ("build_major", "play_minor"):
-    register_conversion(_kind, CARD_ID, _house_redev_discount)
+    # CONSUMER_ORDER: a discount (building resource -> nothing) is a CONSUMER; it tiers above
+    # producers so it can discount a producer's output. No producer shares these action kinds
+    # today, so this is structural (uniform invariant), not yet load-bearing.
+    register_conversion(_kind, CARD_ID, _house_redev_discount, order=CONSUMER_ORDER)

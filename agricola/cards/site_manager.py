@@ -50,7 +50,7 @@ from __future__ import annotations
 
 from itertools import combinations
 
-from agricola.cards.cost_mods import register_conversion
+from agricola.cards.cost_mods import CONSUMER_ORDER, register_conversion
 from agricola.cards.specs import register_occupation
 from agricola.pending import PendingGrantedSubAction, push
 from agricola.resources import Resources
@@ -91,4 +91,7 @@ def _expand(state, idx, ctx, cost: Resources) -> list[Resources]:
 
 
 register_occupation(CARD_ID, _on_play)
-register_conversion("build_major", CARD_ID, _expand)
+# CONSUMER_ORDER: a food-sink (building resource -> food) is a CONSUMER; it tiers above
+# producers so any producer's output can feed it. No producer shares build_major today, so this
+# is structural (uniform invariant), not yet load-bearing. See cost_mods.CONSUMER_ORDER.
+register_conversion("build_major", CARD_ID, _expand, order=CONSUMER_ORDER)

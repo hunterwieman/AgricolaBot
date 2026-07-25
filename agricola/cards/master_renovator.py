@@ -47,7 +47,7 @@ is byte-identical and the C++ gates are untouched.
 """
 from __future__ import annotations
 
-from agricola.cards.cost_mods import register_conversion
+from agricola.cards.cost_mods import CONSUMER_ORDER, register_conversion
 from agricola.cards.specs import _noop_on_play, register_occupation
 from agricola.cards.triggers import register
 from agricola.legality import _legal_renovate_targets, _renovate_ctx, can_pay
@@ -108,4 +108,10 @@ def _expand(state: GameState, idx: int, ctx, cost: Resources) -> list[Resources]
 
 register_occupation(CARD_ID, _noop_on_play)   # no on-play effect
 register("end_of_work", CARD_ID, _eligible, _apply)
-register_conversion("renovate", CARD_ID, _expand)
+# CONSUMER_ORDER: Master Renovator's "1 building resource less" is a discount — a CONSUMER
+# (it pays a resource away to nothing), not a producer. Renovate also carries the Brushwood
+# Collector / Frame Builder producers (reed/clay → wood), so Master Renovator must apply AFTER
+# them, else the "Brushwood makes 1 wood from the reed, then discount that wood" chain (a 0-reed
+# payment on a >=2-reed cost) is unreachable to the one-pass. See cost_mods.CONSUMER_ORDER and
+# tests/test_cost_conversion_closure.py.
+register_conversion("renovate", CARD_ID, _expand, order=CONSUMER_ORDER)

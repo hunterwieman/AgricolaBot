@@ -474,25 +474,45 @@ only new model work deferred is the one min-spend filter.
 Conversions act on the **running (already-modified) cost**, so they **chain** (ruled by the user,
 O1). The complete in-pool chain set is narrow:
 
-- **Millwright is the unique sink** — it consumes any building resource → grain, and nothing consumes
-  grain. Every other conversion outputs wood or clay (both building resources) and can feed it.
-- **All chains are length 2**, and exist only on rooms/renovate (Frame Builder→Millwright,
-  Brushwood→Millwright), stables (Feed Fence→Millwright), and fences (Rammed Clay→Millwright) — never
-  majors/minors. Worked: clay room `5 clay+2 reed` → FB→MW → `3 clay+2 reed+1 grain`; stable → MW →
-  `1 grain`.
+- **Conversions form two tiers.** A **producer** turns cost resources into a building resource
+  (Frame Builder / Brushwood → wood; Rammed Clay → clay; Forest School / Working Gloves → a building
+  resource out of food). A **consumer** turns a building resource into something no conversion
+  re-consumes on that action kind: the Millwright grain-sink, the Site Manager / Wood Expert
+  food-sinks, and the Master Renovator / Hunting Trophy discounts (which pay a resource away to
+  nothing). The building resource a producer emits (wood/clay) is the only chain currency; a
+  consumer's output (grain/food/nothing) is inert. So the dependency graph is strictly bipartite
+  producers → consumers, and applying **all producers, then all consumers** reaches the *entire*
+  budget-respecting closure — the tiers commute internally (independent operators), and running a
+  consumer before a producer can only starve it (§4.3). This is *why* a fixed one-pass equals the
+  full all-orderings closure; the closure guard test (§8, `tests/test_cost_conversion_closure.py`)
+  checks it at the offered-frontier level.
+- **Every consumer carries `order=CONSUMER_ORDER`; producers keep the default 0.** Today this only
+  *binds* on renovate, whose conversions mix producers (Frame Builder, Brushwood) with a consumer
+  (Master Renovator) — without the tier, Master Renovator sorts before Brushwood and misses the
+  "Brushwood → 1 wood → discount it away" 0-reed payment on a ≥2-reed cost. The other consumers
+  (Site Manager / Wood Expert / Hunting Trophy) sit on producer-free action kinds (majors/minors,
+  where nothing produces a building resource to chain after), so their tier is not yet load-bearing —
+  but they carry it anyway, so two-tier completeness is **structural**: it holds by construction the
+  instant any producer is ever added to those action kinds, rather than depending on the closure
+  guard's curated base corpus happening to include the triggering cost. (The guard is a confirmation,
+  not the sole safety net — its corpus did not, for instance, exercise the ≥2-reed renovate base that
+  first exposed the Master Renovator gap, so it never flagged that gap; a structural tier needs no
+  such luck.)
+- **All chains are length 2** — e.g. clay room `5 clay+2 reed` → Frame Builder→Millwright →
+  `3 clay+2 reed+1 grain`; renovate `5 clay+2 reed` → Brushwood→Master-Renovator → `5 clay` (0 reed).
 
-**Resolution: `expand_conversions` applies each conversion's generator EXACTLY ONCE, in sink-last
-order.** Each conversion's `expand1` is internally *budgeted* — it returns the unchanged cost plus
-every legal variant up to that conversion's own limit (Frame Builder's "once per room/action" ⇒ its
-0/1-replacement variants; Millwright's "up to 2" ⇒ its 0/1/2-replacement variants). So applying a
-conversion once exhausts its budget; **the conversions are sequenced (producers before the sink) so a
-later conversion sees an earlier one's output** (the clay→wood→grain chain), and no conversion is
-applied twice.
+**Resolution: `expand_conversions` applies each conversion's generator EXACTLY ONCE, in
+producer-then-consumer order** (`CONSUMER_ORDER` marks a consumer). Each conversion's `expand1` is
+internally *budgeted* — it returns the unchanged cost plus every legal variant up to that
+conversion's own limit (Frame Builder's "once per room/action" ⇒ its 0/1-replacement variants;
+Millwright's "up to 2" ⇒ its 0/1/2-replacement variants). So applying a conversion once exhausts its
+budget; **the conversions are sequenced (producers before consumers) so a later conversion sees an
+earlier one's output** (the clay→wood→grain chain), and no conversion is applied twice.
 
 > **Why not "two rounds" (an earlier formulation, corrected during implementation):** applying *all*
 > conversions in two undifferentiated rounds re-applies a conversion to its own output, which
 > **double-counts a once-per-action conversion** — Frame Builder on a 4-clay cost would yield an
-> illegal `4 clay → 2 wood`. Apply-each-once-sink-last is the fix, and is the running code.
+> illegal `4 clay → 2 wood`. Apply-each-once, producer-then-consumer is the fix, and is the running code.
 
 ```python
 def expand_conversions(action_kind, state, idx, ctx, base) -> list[Resources]:
@@ -504,14 +524,21 @@ def expand_conversions(action_kind, state, idx, ctx, base) -> list[Resources]:
 ```
 
 (NOT a general until-stable fixpoint — that would be speculative generality for cards that don't
-exist (YAGNI). The sink-last ordering is a registration-time `order` hint on `register_conversion`;
-all current chains are length 2 with Millwright the only sink.)
+exist (YAGNI). The producer-then-consumer ordering is a registration-time `order` hint on
+`register_conversion` (`CONSUMER_ORDER` marks a consumer); all current chains are length 2.)
 
-**Guard (TEST-ONLY, zero runtime cost; §8):** assert apply-each-once-sink-last == the full
-budget-respecting closure over a corpus with ALL conversion cards owned, and that the closure is
-finite. If a future card (a deck beyond E — E itself adds no at-build conversion, §4.8) introduces a
-longer chain or a second sink, the test goes red and we revisit the ordering then — minimal now, loud
-later, never silently wrong. This never runs on the hot path: `can_pay` short-circuits on base
+**Guard (TEST-ONLY, zero runtime cost; §8):** assert apply-each-once-producer-then-consumer ==
+the full budget-respecting closure over a corpus with ALL conversion cards owned, and that the
+closure is finite. The equality holds at the level that matters — the **offered** frontier (after
+`effective_payments`' Pareto-min), not the raw candidate set: once two producers both emit wood, the
+closure additionally reaches producer→consumer→producer interleavings whose payments are strictly
+*dominated*, so they are pruned before a player sees them. If a future card (a deck beyond E — E
+itself adds no at-build conversion, §4.8) introduces a longer chain — a producer that consumes
+another producer's output, or a conversion that consumes a consumer's output (grain/food), breaking
+the bipartite structure — the test goes red and we revisit the ordering then. Note the guard compares
+over a *curated* base corpus, so it is a confirmation rather than a complete safety net (it did not
+catch the Master Renovator mis-tier, whose divergence needed a ≥2-reed renovate base the corpus
+lacked); the structural producer/consumer tiering is what makes correctness not depend on it. This never runs on the hot path: `can_pay` short-circuits on base
 affordability, and the Family registries are empty (no-op), so the expansion runs only when
 enumerating an actual
 card-game build whose base is unaffordable.
@@ -618,7 +645,8 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 ## 6. Resolved forks (the rulings)
 
 - **O1 (conversion chaining).** ✅ Conversions act on the **running cost**, so they chain
-  (clay→wood→grain). All chains length 2 (Millwright the unique sink). Handled by apply-each-once (sink-last) expansion
+  (clay→wood→grain). All chains length 2 (producers → consumers; Millwright is one consumer among
+  several — see §4.7). Handled by apply-each-once producer-then-consumer expansion
   + a test-only guard, never on the hot path. (§4.7, A3.)
 - **O2 (benefit-from-spending boundary).** ✅ Reward-for-payment effects are triggers, not cost; the
   cost frontier covers only the action's own payment. Three smaller items confirmed native: empty-cost
