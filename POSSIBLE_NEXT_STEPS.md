@@ -350,9 +350,14 @@ Decide whether the two oven pending types are the right abstraction or whether t
 should collapse into the generic `CommitBuildMajor` path (they add two pending types for a narrow
 use case). Low priority; a cleanup, not a blocker.
 
----
+### C. Re-verify Stable Tree once the full catalog is in
 
-## 4. Additional game features / variants (non-card)
+**Stable Tree (A74)** is implemented — *"each time you build 1 or more stables on your turn, place 1
+wood on each of the next 3 round spaces; at the start of these rounds you get the wood"* (and only
+*on-turn* stable builds trigger it — off-turn ones, e.g. via Stable Planner or Groom, do not). It is a
+complicated card, and it may interact with other cards in undesirable ways. **Once all cards have been
+added, re-check its implementation specifically** — deliberately verify those cross-card interactions
+rather than assuming they compose.
 
 ### A. 4-player variant
 
