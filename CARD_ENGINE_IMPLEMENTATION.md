@@ -283,8 +283,12 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   food-on-hand gate — the Canal Boatman shape — because an interactive raise can strand the
   exit-less Lessons play, + the destination predicate evaluated on the post-payment state,
   the stranding-guard discipline; Traveling Players existence-guarded, absent at 2p).
-  Deliberately NOT built: the Steam Machine × jump "last space" interaction (the
-  commit-on-fire seam, deferred) and the occupancy-READER scope of Job Contract's marker
+  Deliberately NOT built: the commit-on-fire
+  "last space" seam — CORRECTED 2026-07-26 (the user caught the error): it is DEAD for
+  the jump family, whose spaces include no accumulation space at all (Grain Seeds is a
+  fixed take, not an accumulation space), so Steam Machine can never fire on a jump
+  member; the seam becomes LIVE with **Lasso B24** (its Sheep/Pig/Cattle Markets ARE
+  accumulation spaces) — the note lives on Lasso's ledger entry and the occupancy-READER scope of Job Contract's marker
   (legality-only per ruling 81.3; Turnip Farmer-class readers are 3+, flagged for that
   pass). Census after: **240 occupations + 333 minors = 573**.
 - **The 2026-07-26 same-worker-jump groundwork + Child Ombudsman D92 (ruling 81; card-only,
