@@ -167,7 +167,10 @@ def test_registered():
     entry = CARDS[CARD_ID]
     assert entry.event == "after_action_space"
     assert entry.mandatory is False                    # optional — declinable
-    assert CARD_ID in FOOD_PAYMENT_RESUMES             # the Plow Hero payment shape
+    # Direction-keyed resume kinds (ruling 82): the frame's preserve filter is
+    # registered for the Grain-Utilization direction only.
+    assert f"{CARD_ID}:grain_utilization" in FOOD_PAYMENT_RESUMES
+    assert f"{CARD_ID}:fencing" in FOOD_PAYMENT_RESUMES
     # Both sources are non-atomic (always hosted): no action-space hook indexed.
     assert all(CARD_ID not in v for v in OWN_ACTION_HOOK_CARDS.values())
     assert all(CARD_ID not in v for v in ANY_PLAYER_HOOK_CARDS.values())
@@ -251,7 +254,7 @@ def test_liquidation_raise_resume():
     s = step(s, FireTrigger(card_id=CARD_ID))
     top = s.pending_stack[-1]
     assert isinstance(top, PendingFoodPayment)
-    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+    assert top.food_needed == 1 and top.resume_kind == f"{CARD_ID}:fencing"
     s = _commit_food_payment(s, grain=1)      # 1 grain -> 1 food, then resume
     # The resume debited the raised food and performed the jump.
     assert s.players[0].resources.food == 0   # raised 1, paid 1
@@ -385,3 +388,50 @@ def test_vacated_source_open_to_opponent_and_destination_blocked():
     s = step(s, Stop())
     assert s.pending_stack == ()
     assert s.players[1].resources.grain == 1  # sowed one of two
+
+
+# ---------------------------------------------------------------------------
+# Ruling 82 — the fee raise must not cook what the destination needs
+# ---------------------------------------------------------------------------
+
+def test_into_gu_withheld_when_every_raise_bundle_strands_it():
+    """Jumping INTO Grain Utilization with 0 food and exactly one crop: the only way
+    to raise the fee is cooking that crop, after which GU has nothing to sow (no
+    baker either) — the jump must NOT be offered. (The pre-ruling-82 code offered it
+    via the bare `_liquidatable_to` gate — a reachable strand.)"""
+    s = _base(food=0, grain=1)
+    s = _use_fencing_to_after_window(s)       # source: Fencing -> dest GU
+    assert _offers(s) == []
+
+
+def test_into_gu_frame_offers_only_preserving_bundles():
+    """0 food, 1 grain + 1 sheep + a Fireplace: two Pareto bundles raise the fee —
+    cook the sheep (leaves the grain sowable ✓) or cook the grain (leaves no crop ✗).
+    The jump IS offered, and the food frame offers ONLY the sheep bundle."""
+    from agricola.actions import CommitFoodPayment
+    from tests.factories import with_animals, with_majors
+    s = _base(food=0, grain=1)
+    s = with_animals(s, 0, sheep=1)
+    s = with_majors(s, owner_by_idx={0: 0})             # major #0: a Fireplace
+    s = _use_fencing_to_after_window(s)
+    assert _offers(s) != []
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles, "the preserve filter must leave the preserving bundle"
+    assert all(b.grain == 0 for b in bundles), (
+        "a bundle cooking the last sowable crop must be withheld")
+    assert any(b.sheep == 1 for b in bundles)
+    # Commit the sheep bundle: the resume pays the fee and jumps; GU stays usable.
+    s = step(s, bundles[0])
+    assert get_space(s.board, "grain_utilization").workers[0] == 1
+    assert s.players[0].resources.grain == 1               # the crop survived
+
+
+def test_into_fencing_raise_may_cook_crops_freely():
+    """The reverse direction is structurally safe (Fencing costs wood + pieces;
+    liquidation consumes only crops/animals), so a crops-only raise is fine."""
+    s = _base(food=0, grain=2)
+    s = _use_gu_to_after_window(s)            # sows 1, leaving 1 grain as fuel
+    assert _offers(s) != []

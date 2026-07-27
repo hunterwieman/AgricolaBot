@@ -44,6 +44,10 @@ def _occupies_both_seed_spaces(state: GameState, idx: int) -> bool:
     """The owner has a worker on BOTH Grain Seeds and Vegetable Seeds — read
     off the still-placed board (``end_of_work`` is pre-reset)."""
     return all(
+        # "if YOU occupy" is PER-PLAYER occupancy — the raw worker read is
+        # correct; legality.space_occupied is the ANY-player definition, and a
+        # "considered occupied" card marker (Job Contract's) attributes to no
+        # per-player read. Revisit if a marker card ever lands on a seed space.
         get_space(state.board, sid).workers[idx] > 0 for sid in _SEED_SPACES
     )
 

@@ -157,6 +157,40 @@ specifically:
   Conversely, never dress an engine preference as a rules constraint: when two faithful designs
   differ only in encoding, say so plainly and choose on the merits.
 
+### 0.4 ⛔ NEVER MAKE A RULES-LEGAL MOVE UNPLAYABLE
+
+**This rule is absolute, and it is the mirror image of "never offer a dead-end."** That
+rule forbids offering an action the rules don't allow; THIS rule forbids withholding an
+action the rules DO allow. An implementation whose gates are narrower than the printed
+rules has deleted options from the game — that is a rules violation, not a
+representation choice, no matter how reasonable the simplification looks. The only
+sanctioned narrowing of the legal set is **dominance** (an option that is never
+strategically correct); "the player can't take this line because our gate doesn't model
+it" is never dominance.
+
+**The canonical violation — the plain food gate** (found and ruled 2026-07-26, ruling
+82): a card cost of "pay 1 food" gated on `resources.food >= 1`. In Agricola a player
+with no food but a grain CAN pay 1 food — the at-any-time conversions are part of the
+rules, and this engine deliberately surfaces them at the moment a cost is charged (the
+food-payment raise frame). The plain gate makes that legal payment line unplayable.
+Canal Boatman and Sheep Inspector shipped with it and were corrected; Junior Artist was
+built on it and **un-implemented**. Never write it again, and treat any `food >= N`
+eligibility you encounter as a defect to surface unless the food is a CONDITION being
+read rather than a COST being paid.
+
+**When the raised fee funds an action with its own goods requirement** (the same-worker
+jumps into Grain Utilization or the Major/Minor Improvement space), the correct shape is
+the **preserve seam** (`register_food_payment_preserve` + `raisable_food_preserving`,
+ruling 82): eligibility offers the option iff SOME liquidation bundle leaves the
+follow-on requirement satisfied, and the food frame then offers exactly those bundles —
+the player can always raise the fee, but never into a stranded destination. Do NOT
+resolve that tension by dropping the raise (deletes legal moves) or by requiring EVERY
+bundle to survive (withholds legal lines whenever any one bundle fails).
+
+**When delegating, this rule propagates verbatim,** exactly like §0.1's: a subagent
+offered a "simpler gate" fallback will take it. Do not sanction one in the prompt — that
+mistake is how the 2026-07-26 defects shipped.
+
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
 

@@ -38,7 +38,12 @@ _SPACES = ("day_laborer", "grain_seeds")
 
 
 def _occupied(state: GameState, space_id: str) -> bool:
-    return sum(get_space(state.board, space_id).workers) > 0
+    # Occupancy is read through THE definition (legality.space_occupied), so a
+    # card marker that makes a space "considered occupied" — Job Contract's Day
+    # Laborer, ruled 2026-07-26 to activate occupancy-reading cards exactly as a
+    # worker would — counts here.
+    from agricola.legality import space_occupied
+    return space_occupied(state, space_id)
 
 
 def _eligible(state: GameState, idx: int) -> bool:

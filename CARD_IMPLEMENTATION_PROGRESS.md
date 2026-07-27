@@ -971,7 +971,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D59 Earth Oven** · prereq: Return a Fireplace
   - _At any time: Vegetable → 3 Food; Sheep → 2 Food; Wild boar → 3 Food; Cattle → 3 Food "Bake Bread" action: Grain → 2 Food  [CLARIFICATION: This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》]_
   - `ATWILL E-CONVERT E-BAKESPEC E-RETURNCOMP` — At-will good→food conversions (E-CONVERT) plus a Bake Bread grain rate (E-BAKESPEC); returning the Fireplace is the play cost = E-RETURNCOMP, not ONPLAY; conversions PRODUCE food so E-FOODCOST is excluded by explicit ruling — matches the A60 precedent exactly.
-- ⬜ **D60 Large Pottery** · cost: 1 Clay,1 Stone · prereq: Return the Pottery
+- ⬜ **D60 Large Pottery** · cost: 1 Clay,1 Stone · prereq: Return the Pottery · ⚠ REVISIT (ruling 82, 2026-07-26): its anytime Clay→2-Food conversion breaks the work-phase liquidation-disjointness invariant that `tests/test_liquidation_disjointness.py` pins (the tripwire WILL fail when this lands) — re-derive the one-direction safety gates in `full_peasant.py` / `large_scale_farmer.py` before shipping it
   - _At any time: Clay → 2 Food Scoring: 3/5/6/7 Clay → 1/2/3/4 bonus points_
   - `ONPLAY ATWILL E-CONVERT E-RETURNCOMP E-SCORE` — Returning the Pottery resolves once at play (ONPLAY anchors E-RETURNCOMP); Clay→2 Food is a deferrable ATWILL conversion; the bonus-point table is a plain E-SCORE rule.
 - ✅ **D61 Bale of Straw**
@@ -1386,7 +1386,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 181 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 234 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26; same drift caveat as the minors line — the live registry holds 240 occupations.)*
+**420 occupations** — ✅ 180 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 235 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26; same drift caveat as the minors line — the live registry holds 239 occupations.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -1851,7 +1851,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B151 Little Peasant** · [4+]
   - _You immediately get 1 stone. As long as you live in a wooden house with exactly 2 rooms, actions spaces—excluding Meeting Place—are not considered occupied for you._
   - `ONPLAY E-GOODS PASSIVE L-OCCUPY` — On-play +1 stone; while in wood house with exactly 2 rooms, spaces (except Meeting Place) treated as unoccupied — continuous L-OCCUPY.
-- ✅ **B152 Junior Artist** · ruling 81 (jump variants; food-on-hand gate + post-payment predicate) · [4+]
+- ⬜ **B152 Junior Artist** · [4+] · UN-IMPLEMENTED 2026-07-26 (ruling 82: the plain food-on-hand gate made rules-legal moves unplayable — never acceptable; module + tests archived under archive/deferred_cards/; re-implementation on the food-payment PRESERVE seam awaits the user's go-ahead)
   - _Each time after you use the "Day Laborer" action space, you can pay 1 food to use an unoccupied "Traveling Players" or "Lessons" action space with the same person._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-FOODCOST E-GRANTACT E-WORKERMANIP` — After Day Laborer, pay food to use a second space with the SAME already-placed person — grants a whole action (E-GRANTACT) via worker reuse (E-WORKERMANIP); target must be UNOCCUPIED, so L-OCCUPY is wrong.
 - ⬜ **B153 Housemaster** · [4+]

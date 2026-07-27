@@ -145,6 +145,25 @@ def register_food_payment_resume(resume_kind: str, apply_fn: Callable) -> None:
     FOOD_PAYMENT_RESUMES[resume_kind] = apply_fn
 
 
+# Per-resume-kind PRESERVE checks on the food-payment frame (ruling 82, 2026-07-26):
+# a card whose raised fee funds an action with its OWN goods requirement (the
+# same-worker jump into Grain Utilization / the Major-Minor Improvement space)
+# registers `fn(post_bundle_state, idx) -> bool`. The frame's enumerator offers only
+# the liquidation bundles whose simulated post-state passes — so the player can
+# always raise the fee (a plain food-on-hand gate would make rules-legal moves
+# unplayable — never acceptable), but never via a bundle that cooks the very good
+# the destination needs. Eligibility probes existence via
+# `legality.raisable_food_preserving`. The play-occupation pair-gate is this idea's
+# older sibling; this registry is the generic form for card-grant resume kinds.
+FOOD_PAYMENT_PRESERVE_CHECKS: dict[str, Callable] = {}
+
+
+def register_food_payment_preserve(resume_kind: str, fn: Callable) -> None:
+    """Register a per-bundle preserve predicate for `resume_kind`'s food frame
+    (called at card-module import)."""
+    FOOD_PAYMENT_PRESERVE_CHECKS[resume_kind] = fn
+
+
 # ---------------------------------------------------------------------------
 # Occupation-cost food sources (Paper Maker — PAY_FOOD_PLOW_CARDS.md / FOOD_PAYMENT_DESIGN.md)
 # ---------------------------------------------------------------------------

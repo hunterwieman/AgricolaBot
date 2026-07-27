@@ -58,7 +58,11 @@ deferred seam, deliberately not attempted.
 """
 from __future__ import annotations
 
-from agricola.cards.specs import register_food_payment_resume, register_occupation
+from agricola.cards.specs import (
+    register_food_payment_preserve,
+    register_food_payment_resume,
+    register_occupation,
+)
 from agricola.cards.triggers import register
 from agricola.cards.worker_moves import relocate_and_use
 from agricola.helpers import buildable_fences
@@ -67,6 +71,7 @@ from agricola.legality import (
     _can_bake_bread,
     _can_sow,
     _liquidatable_to,
+    raisable_food_preserving,
 )
 from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
@@ -89,6 +94,44 @@ def _dest_action_legal(state: GameState, idx: int, dest: str) -> bool:
     return buildable_fences(p) >= 1 and _any_legal_pasture_commit(state, p)
 
 
+def _preserve_gu(post: GameState, idx: int) -> bool:
+    """The Grain-Utilization preserve check (ruling 82): after a fee-raising
+    liquidation bundle, the destination's own action must still be usable — the
+    engine's GU predicate on the POST-BUNDLE state, so a bundle that cooks the last
+    sowable crop is withheld while any preserving bundle stays offered. Reuses the
+    same predicate as the trigger-time gate, so sow-extending cards (a Potter
+    Ceramics-style clay sow, if implemented) compose automatically. The 1-food fee
+    itself needs no simulation here: food is not an input to sow or bake."""
+    return _dest_action_legal(post, idx, "grain_utilization")
+
+
+def _fee_payable(state: GameState, idx: int, dest: str) -> bool:
+    """Can the 1-food fee be paid — by ANY legal route — without stranding `dest`?
+
+    Direct (food on hand): always destination-safe — the fee is food-only, and
+    neither destination consumes food (GU: crops/baker; Fencing: wood + pieces).
+
+    Raised by liquidation, per direction:
+    - dest == "fencing": structurally safe TODAY — work-phase liquidation draws only
+      on crops and animals (the wood-eating span converters are harvest-window-scoped
+      and never active during a placement), while Fencing costs wood + fence pieces:
+      disjoint pools, so `_liquidatable_to` existence is the whole check. CAVEAT for
+      future cards: if an ANYTIME converter with building-resource input ever lands
+      (the Clay Carrier family), this disjointness breaks and the direction needs the
+      preserve check too.
+    - dest == "grain_utilization": the raise can cook the very crop GU needs, so a
+      bundle exists-and-is-offered only if its post-state keeps GU usable
+      (`raisable_food_preserving` + the frame's preserve filter — ruling 82; a plain
+      food-on-hand gate would make rules-legal moves unplayable, never acceptable)."""
+    p = state.players[idx]
+    if p.resources.food >= _FOOD_COST:
+        return True
+    if dest == "fencing":
+        return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+    return raisable_food_preserving(
+        state, idx, _FOOD_COST, Cost(), _preserve_gu)
+
+
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:            # once per window (enumerator's filter, kept as belt)
         return False
@@ -105,9 +148,9 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     # time — the destination must hold zero workers (of any player).
     if any(w != 0 for w in sp.workers):
         return False
-    if not _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST)):
+    if not _dest_action_legal(state, idx, dest):   # never a dead-end
         return False
-    return _dest_action_legal(state, idx, dest)  # never a dead-end (checked last: priciest)
+    return _fee_payable(state, idx, dest)
 
 
 def _pay_and_jump(state: GameState, idx: int) -> GameState:
@@ -131,15 +174,25 @@ def _pay_and_jump(state: GameState, idx: int) -> GameState:
 
 def _apply(state: GameState, idx: int) -> GameState:
     """Pay 1 food and jump. With the food on hand, do it directly; otherwise push a
-    raise-only PendingFoodPayment and defer the pay-and-jump to its resume (which
-    debits the raised food). The only cost is the 1 food, so nothing is reserved."""
+    raise-only PendingFoodPayment — its resume_kind carries the DESTINATION, so the
+    frame's preserve filter (registered for the Grain-Utilization direction only)
+    offers exactly the bundles that keep the destination usable (ruling 82). The
+    only cost is the 1 food, so nothing is reserved."""
     if state.players[idx].resources.food >= _FOOD_COST:
         return _pay_and_jump(state, idx)
+    dest = _OTHER[state.pending_stack[-1].space_id]
     return push(state, PendingFoodPayment(
-        player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID, reserved=Cost(),
+        player_idx=idx, food_needed=_FOOD_COST,
+        resume_kind=f"{CARD_ID}:{dest}", reserved=Cost(),
     ))
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("after_action_space", CARD_ID, _eligible, _apply)
-register_food_payment_resume(CARD_ID, _pay_and_jump)
+# The resume re-reads the source off the host below, so one fn serves both
+# direction-keyed resume kinds; the preserve check registers for the
+# Grain-Utilization direction only (the Fencing direction is structurally safe —
+# see _fee_payable).
+register_food_payment_resume(f"{CARD_ID}:grain_utilization", _pay_and_jump)
+register_food_payment_resume(f"{CARD_ID}:fencing", _pay_and_jump)
+register_food_payment_preserve(f"{CARD_ID}:grain_utilization", _preserve_gu)

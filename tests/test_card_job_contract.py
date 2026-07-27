@@ -251,3 +251,32 @@ def test_henpecked_husband_record_follows_the_jump():
     s = _drive_chain(s)
     p = _p0(s)
     assert p.card_state.get("henpecked_husband") == (s.round_number, "lessons")
+
+
+# ---------------------------------------------------------------------------
+# The marker activates occupancy-READING cards (ruled 2026-07-26)
+# ---------------------------------------------------------------------------
+
+def test_marker_counts_for_turnip_farmer():
+    """Turnip Farmer (3+): "at the start of the returning home phase, if both the
+    'Day Laborer' and 'Grain Seeds' action spaces are occupied, you get 1 veg."
+    Ruled 2026-07-26: Job Contract's "considered occupied" Day Laborer marker
+    activates occupancy-reading cards exactly as a worker would — so a chain
+    (marker on Day Laborer, person on Lessons) plus a worker on Grain Seeds pays
+    the veg, though no worker stands on Day Laborer."""
+    s = _setup(extra_occupations=frozenset({"turnip_farmer"}))
+    s = _drain(_drive_chain(_day_laborer_after_window(s)))
+    assert get_space(s.board, "day_laborer").workers == (0, 0)   # marker, no worker
+    assert s.current_player == 1
+    s = step(s, PlaceWorker(space="grain_seeds"))                # opponent occupies GS
+    veg_before = _p0(s).resources.veg
+    # P0's second worker; then the round runs out into returning home.
+    s = step(s, PlaceWorker(space="forest"))
+    s = _drain(s)
+    guard = 0
+    while s.round_number == 1 and guard < 60:
+        acts = legal_actions(s)
+        assert acts
+        s = step(s, Stop() if Stop() in acts else acts[0])
+        guard += 1
+    assert _p0(s).resources.veg == veg_before + 1

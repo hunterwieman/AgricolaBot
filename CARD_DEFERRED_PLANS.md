@@ -19,6 +19,42 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Ruling 82 (2026-07-26) — NEVER make a rules-legal move unplayable; the food-payment preserve seam
+
+1. **An implementation must never make a rules-legal move unplayable** (now
+   CARD_AUTHORING_GUIDE.md §0.4, a hard rule). The canonical violation: a "pay N food"
+   cost gated on food-on-hand — in Agricola the at-any-time conversions are legal
+   payment routes, so the plain gate deletes options. The user: "this is never
+   acceptable." Consequences executed same day: **Junior Artist B152 UN-IMPLEMENTED**
+   (module + tests archived; built on the plain gate; re-implementation on the preserve
+   seam awaits the user's go-ahead); **Canal Boatman** and **Sheep Inspector** corrected
+   to the raise shape (Sheep Inspector's cost sheep RESERVED from cooking; its dynamic
+   target stashed in CardStore across the raise); a 17-module survey of remaining
+   `food >= N` gates recorded for a classification pass (each is either a payable COST —
+   defect — or a read CONDITION — fine).
+2. **The preserve seam** (the ruling-75 pair-gate generalized):
+   `register_food_payment_preserve(resume_kind, fn)` + `legality.raisable_food_preserving`
+   + the frame-side `_filter_preserve_check_bundles` over the shared
+   `_apply_liquidation_bundle` simulation. A fee whose destination has its own goods
+   requirement is offered iff SOME bundle preserves the destination, and the frame
+   offers exactly those bundles. Full Peasant (jump INTO Grain Utilization) and
+   Large-Scale Farmer (INTO the Major/Minor Improvement space; its fee is debited
+   inside the check, since food-costing minors exist) are the consumers; LSF's earlier
+   all-bundles-must-pass form was itself a legal-move deletion and was corrected.
+3. **One-direction sufficiency** (user, confirmed with the sharpened reason): the
+   reverse jumps (INTO Fencing / INTO Farm Expansion) need no preserve check TODAY
+   because work-phase liquidation consumes only crops/animals while those destinations
+   cost wood/reed + pieces — disjoint pools. **The invariant is pinned by an executable
+   tripwire**, `tests/test_liquidation_disjointness.py`, which MUST fail when **Large
+   Pottery D60** ("At any time: Clay → 2 Food") or any anytime building-resource
+   converter lands — its ledger entry carries the matching ⚠ REVISIT.
+4. **Job Contract's marker extends to occupancy-READING cards** (the user's answer to
+   ruling 81.3's flagged question): "considered occupied" activates Turnip Farmer and
+   its kin exactly as a worker would. `legality.space_occupied` is now THE definition
+   of board-space occupancy for reading cards (Turnip Farmer / Pub Owner / Bohemian
+   swept onto it; Iron Hoe's "if YOU occupy" is per-player occupancy, a different
+   quantity the marker does not currently attribute to — boundary-commented in place).
+
 ## Ruling 81 (2026-07-26) — the same-worker jump mechanism, Job Contract's bookkeeping, Child Ombudsman's instant
 
 1. **The jump is an after-window trigger that nests the destination's space frame.** For

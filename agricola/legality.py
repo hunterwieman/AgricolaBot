@@ -175,6 +175,22 @@ def register_space_block(fn: Callable) -> None:
     SPACE_BLOCK_EXTENSIONS.append(fn)
 
 
+def space_occupied(state: GameState, space_id: str) -> bool:
+    """Is this board space OCCUPIED — a worker standing on it, or a card marker
+    making it "considered occupied" (Job Contract's Day Laborer)?
+
+    THE single definition for every card that READS occupancy (user ruling
+    2026-07-26, extending ruling 81 item 3: Job Contract's marker activates
+    occupancy-reading cards — Turnip Farmer's "Day Laborer and Grain Seeds
+    occupied" — exactly as a worker would, not just placement legality). An
+    occupancy-conditioned card must consult this, never the raw `workers` tuple,
+    so future marker cards compose without a per-card sweep."""
+    if any(get_space(state.board, space_id).workers):
+        return True
+    return bool(SPACE_BLOCK_EXTENSIONS) and any(
+        blocked(state, space_id) for blocked in SPACE_BLOCK_EXTENSIONS)
+
+
 # Cards may waive the SPARE-ROOM gate on a room-gated "Wish for Children" growth
 # (user-approved extension, 2026-07-14). Basic Wish normally requires
 # `people_total < rooms`; a registered override lets its owner take that growth
@@ -3367,23 +3383,21 @@ def _with_player(state: GameState, idx: int, p: PlayerState) -> GameState:
         p if i == idx else state.players[i] for i in range(len(state.players))))
 
 
-def _post_liquidation_variant_state(
+def _apply_liquidation_bundle(
     state: GameState, idx: int, commit: CommitFoodPayment,
-    cid: str, variant: str, base_pay: Resources,
-):
-    """Simulate one liquidation bundle + the re-run debit for a play-variant occupation,
-    mirroring `_execute_food_payment` → `_resume` → `_execute_play_occupation` exactly:
-    apply the bundle (goods consumed at `cooking_rates`, named converters fired and
-    budget-marked, food banked), fire the animal-cook reactions the executor would
-    (`note_animal_cook`), re-derive the variant surcharge from variants_fn on the
-    post-bundle state (as the re-run executor does), and debit base_pay + surcharge.
+) -> GameState:
+    """Simulate one liquidation bundle, mirroring `_execute_food_payment` exactly:
+    goods consumed at `cooking_rates`, named span converters fired (their crop/
+    building-resource inputs debited, their once-per-harvest budget marked), the
+    animal-cook reactions fired, the produced food banked. The state a food-payment
+    RESUME will run on, before the resumed action's own debit.
 
-    Returns `(post_state, total_debited)` — the state the variant's on_play would run
-    on — or None when variants_fn no longer offers the chosen variant on the
-    post-bundle state (the re-run's surcharge lookup would fail; the bundle must be
-    withheld)."""
+    The single simulation behind every bundle-level gate: the play-occupation
+    pair-gate (`_post_liquidation_variant_state`) and the generalized PRESERVE
+    checks (`_filter_preserve_check_bundles` / `raisable_food_preserving` — the
+    same-worker jump cards, whose fee raise must not cook what the destination
+    action needs; ruling 82)."""
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-    from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
     from agricola.resolution import note_animal_cook
 
     sR, bR, cR, vR = cooking_rates(state, idx)
@@ -3412,6 +3426,27 @@ def _post_liquidation_variant_state(
     post = _with_player(state, idx, p)
     if commit.sheep + commit.boar + commit.cattle > 0:
         post = note_animal_cook(post, idx)
+    return post
+
+
+def _post_liquidation_variant_state(
+    state: GameState, idx: int, commit: CommitFoodPayment,
+    cid: str, variant: str, base_pay: Resources,
+):
+    """Simulate one liquidation bundle + the re-run debit for a play-variant occupation,
+    mirroring `_execute_food_payment` → `_resume` → `_execute_play_occupation` exactly:
+    apply the bundle (goods consumed at `cooking_rates`, named converters fired and
+    budget-marked, food banked), fire the animal-cook reactions the executor would
+    (`note_animal_cook`), re-derive the variant surcharge from variants_fn on the
+    post-bundle state (as the re-run executor does), and debit base_pay + surcharge.
+
+    Returns `(post_state, total_debited)` — the state the variant's on_play would run
+    on — or None when variants_fn no longer offers the chosen variant on the
+    post-bundle state (the re-run's surcharge lookup would fail; the bundle must be
+    withheld)."""
+    from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
+
+    post = _apply_liquidation_bundle(state, idx, commit)
     variants = dict(PLAY_OCCUPATION_VARIANTS[cid](post, idx))
     if variant not in variants:
         return None
@@ -3592,7 +3627,49 @@ def _enumerate_pending_food_payment(
         f"PendingFoodPayment frontier empty: food_needed={top.food_needed} "
         f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
     )
-    return _filter_variant_pair_bundles(state, top, commits)
+    commits = _filter_variant_pair_bundles(state, top, commits)
+    return _filter_preserve_check_bundles(state, top, commits)
+
+
+def _filter_preserve_check_bundles(
+    state: GameState, top: PendingFoodPayment, commits: list,
+) -> list:
+    """The generalized bundle gate (ruling 82): when the frame's `resume_kind` has a
+    registered PRESERVE check, keep only the liquidation bundles whose simulated
+    post-bundle state passes it — a bundle that cooks the very good the resumed
+    action's destination needs (the jump into Grain Utilization cooking the last
+    sowable crop) is withheld, while every preserving way to raise the fee stays
+    offered. Frames without a registered check pass through untouched (the Family
+    game and every other card: one dict miss). Asserted non-empty: eligibility
+    offered the trigger only after `raisable_food_preserving` found a surviving
+    bundle, so emptiness is a gate↔frontier mismatch."""
+    from agricola.cards.specs import FOOD_PAYMENT_PRESERVE_CHECKS
+    fn = FOOD_PAYMENT_PRESERVE_CHECKS.get(top.resume_kind)
+    if fn is None:
+        return commits
+    idx = top.player_idx
+    kept = [c for c in commits
+            if fn(_apply_liquidation_bundle(state, idx, c), idx)]
+    assert kept, (
+        f"preserve check emptied the food-payment frontier: "
+        f"resume_kind={top.resume_kind} — gate↔frontier mismatch"
+    )
+    return kept
+
+
+def raisable_food_preserving(
+    state: GameState, idx: int, food_needed: int, reserved: Cost, preserve_fn,
+) -> bool:
+    """The eligibility-side probe for a preserve-checked food raise (ruling 82): can
+    the player raise `food_needed` via SOME liquidation bundle whose post-bundle
+    state passes `preserve_fn(post, idx)`? Callers handle the food-on-hand direct
+    path themselves (its post-state is just the fee debit, no bundle). Mirrors the
+    frame exactly — same `_food_payment_commits`, same `_apply_liquidation_bundle` —
+    so the probe and the frame can never disagree about which bundles exist."""
+    for c in _food_payment_commits(state, idx, food_needed, reserved):
+        if preserve_fn(_apply_liquidation_bundle(state, idx, c), idx):
+            return True
+    return False
 
 
 # (_enumerate_pending_preparation is GONE — the preparation ladder, ruling 54,

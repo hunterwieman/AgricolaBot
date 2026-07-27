@@ -221,6 +221,40 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-26 ruling-82 correction pass: the never-make-a-legal-move-unplayable rule,
+  the food-payment PRESERVE seam, Junior Artist UN-implemented, and the marker
+  occupancy-reader extension (same day as the jump batch below, superseding parts of it).**
+  The user ruled the plain food-on-hand gate a defect class — a "pay N food" cost is
+  payable by ANY legal route, the at-any-time conversions included, so gating on held food
+  DELETES rules-legal moves ("never acceptable"; now the hard rule
+  CARD_AUTHORING_GUIDE.md §0.4). Executed: (1) **the preserve seam** — the ruling-75
+  pair-gate generalized: `specs.register_food_payment_preserve(resume_kind, fn)`,
+  `legality.raisable_food_preserving` (the eligibility probe), the frame-side
+  `_filter_preserve_check_bundles`, all over the newly-factored
+  `legality._apply_liquidation_bundle` (ONE simulation shared with the pair-gate, so probe
+  and frame can never disagree). A fee whose destination has its own goods requirement is
+  offered iff SOME liquidation bundle preserves the destination, and the frame offers
+  exactly those bundles. (2) **Full Peasant** (INTO-Grain-Utilization preserve check;
+  direction-keyed resume kinds) and **Large-Scale Farmer** (INTO-Major-Improvement check
+  with the fee debited inside it — food-costing minors exist; its all-bundles-must-pass
+  form was itself a legal-move deletion, corrected to exists+filter) rebuilt on the seam;
+  the reverse directions are structurally safe today (work-phase liquidation consumes only
+  crops/animals — disjoint from wood/reed costs), an invariant PINNED by the executable
+  tripwire `tests/test_liquidation_disjointness.py`, which MUST fail when **Large Pottery
+  D60** ("At any time: Clay → 2 Food") or any anytime building-resource converter lands
+  (its ledger entry carries the ⚠ REVISIT). (3) **Junior Artist B152 UN-IMPLEMENTED**
+  (module + tests archived under `archive/deferred_cards/`; it was built on the plain gate
+  with a sanctioned-in-prompt fallback — the driver's error; re-implementation on the
+  preserve seam awaits the user's go-ahead). (4) **Canal Boatman** and **Sheep Inspector**
+  corrected to the raise shape (Canal Boatman: per-variant resume kinds; Sheep Inspector:
+  the cost's sheep RESERVED from cooking via `_liquidatable_to`'s `reserved_animals`, its
+  dynamic target stashed in CardStore across the raise); a 17-module `food >= N` survey is
+  recorded in ruling 82 for a classification pass (cost vs condition). (5) **Job
+  Contract's marker extends to occupancy-READING cards** (the user's answer to the flagged
+  question): `legality.space_occupied` is now THE occupancy definition for reading cards —
+  Turnip Farmer (integration-tested against the marker), Pub Owner, Bohemian swept onto
+  it; Iron Hoe's per-player "if YOU occupy" boundary-commented. Census after: **239
+  occupations + 333 minors = 572**.
 - **The 2026-07-26 same-worker-jump batch landed: all five jump cards on the new
   `initiate_space_use` seam (ruling 81; full suite green, C++ gates untouched).** The core:
   `engine.initiate_space_use` (the space-use dispatch factored out of the placement path —

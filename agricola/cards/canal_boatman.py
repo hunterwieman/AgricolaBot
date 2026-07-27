@@ -69,14 +69,19 @@ CARD_ENGINE_IMPLEMENTATION.md §2 and CARD_AUTHORING_GUIDE.md.
 from __future__ import annotations
 
 from agricola.cards.card_spaces import place_card_space_worker
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import (
+    register_food_payment_resume,
+    register_occupation,
+)
 from agricola.cards.triggers import (
     register,
     register_action_space_hook,
     register_play_variant_trigger,
 )
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "canal_boatman"
@@ -105,23 +110,30 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     # the two named spaces and the owner's own use (the hook is own-use, so
     # the host only exists on the owner's turn — the player check is
     # belt-and-braces, the Sheep Inspector shape). Firing needs the 1-food
-    # payment and a person at home to park ("place ANOTHER person on this
-    # card" — the acting person is already on the space, so anyone home
-    # qualifies). Never offer a dead-end.
+    # payment — payable by ANY legal route, food on hand OR raised by the
+    # at-any-time conversions (ruling 82: a plain food-on-hand gate makes
+    # rules-legal moves unplayable, never acceptable; this card shipped with
+    # that defect and was corrected 2026-07-26) — and a person at home to park
+    # ("place ANOTHER person on this card" — the acting person is already on
+    # the space, so anyone home qualifies). Never offer a dead-end.
     top = state.pending_stack[-1]
     if getattr(top, "space_id", None) not in _SPACES:
         return False
     if getattr(top, "player_idx", None) != idx:
         return False
     p = state.players[idx]
-    return p.resources.food >= 1 and p.people_home >= 1
+    if p.people_home < 1:
+        return False
+    return _liquidatable_to(state, idx, p, Resources(food=1))
 
 
-def _apply(state: GameState, idx: int, variant: str) -> GameState:
-    """Fire one park: pay 1 food, move a person from home onto this card
+def _park(state: GameState, idx: int, variant: str) -> GameState:
+    """Debit the 1 food and park: move a person from home onto this card
     (people_home -1 + the on-card worker marker — the card_spaces occupancy
     bookkeeping; the marker is swept and the person returns home at the
-    round's returning-home reset), and grant the chosen reward."""
+    round's returning-home reset), and grant the chosen reward. Reached
+    directly (food on hand) and as the post-food-payment resume (the
+    raise-only frame leaves the raised food in supply to debit)."""
     p = state.players[idx]
     p = fast_replace(
         p,
@@ -139,6 +151,20 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
         p if i == idx else state.players[i] for i in range(len(state.players))))
 
 
+def _apply(state: GameState, idx: int, variant: str) -> GameState:
+    """Fire one park. With the food on hand, park directly; otherwise push the
+    raise-only PendingFoodPayment — the reward variant is STATIC, so it rides
+    the resume_kind itself ("canal_boatman:<variant>", one registered resume
+    per reward route), and the park needs no preserve check (its only inputs
+    are the food and a person at home, neither consumed by a raise bundle)."""
+    if state.players[idx].resources.food >= 1:
+        return _park(state, idx, variant)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=1,
+        resume_kind=f"{CARD_ID}:{variant}", reserved=Cost(),
+    ))
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 # The after-window trigger (ruling 74, 2026-07-21: user-authorized
 # after_action_space deviation from the before-default).
@@ -147,3 +173,8 @@ register_play_variant_trigger(CARD_ID, _variants)
 # Fishing / Reed Bank are true-atomic: without this hook no host frame is ever
 # pushed and the trigger can never surface. Own-use only ("you use").
 register_action_space_hook(CARD_ID, _SPACES)
+# One resume per (static) reward route: the raise-only food frame's resume_kind
+# carries the chosen variant (ruling 82's corrected payment shape).
+for _v in _REWARDS:
+    register_food_payment_resume(
+        f"{CARD_ID}:{_v}", (lambda v: lambda state, idx: _park(state, idx, v))(_v))

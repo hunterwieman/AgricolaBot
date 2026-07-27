@@ -93,21 +93,24 @@ game; no Family surface changes.
 """
 from __future__ import annotations
 
-from agricola.cards.specs import register_food_payment_resume, register_occupation
+from agricola.cards.specs import (
+    register_food_payment_preserve,
+    register_food_payment_resume,
+    register_occupation,
+)
 from agricola.cards.triggers import owns_improvement_decline_income, register
 from agricola.cards.worker_moves import relocate_and_use
-from agricola.helpers import cooking_rates
 from agricola.legality import (
     _can_afford_any_major_improvement,
     _can_build_room,
     _can_build_stable,
-    _food_payment_commits,
     _liquidatable_to,
     playable_minors,
+    raisable_food_preserving,
 )
 from agricola.pending import PendingFoodPayment, PendingMajorMinorImprovement, push
 from agricola.replace import fast_replace
-from agricola.resources import Animals, Cost, Resources
+from agricola.resources import Cost, Resources
 from agricola.state import GameState, get_space
 
 CARD_ID = "large_scale_farmer"
@@ -142,34 +145,13 @@ def _dest_legal(state: GameState, idx: int, dest: str) -> bool:
             or owns_improvement_decline_income(state, idx))
 
 
-def _post_payment_state(state: GameState, idx: int, commit) -> GameState:
-    """The state the destination will see after the liquidation bundle `commit`
-    (a CommitFoodPayment) and the 1-food fee: mirrors `_execute_food_payment`'s
-    raise math (base goods at `cooking_rates`, named converters' 6-tuple input +
-    premium food), then the resume's debit. Used only to gate eligibility —
-    never applied."""
-    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-
-    sR, bR, cR, vR = cooking_rates(state, idx)
-    produced = (commit.grain + commit.veg * vR + commit.sheep * sR
-                + commit.boar * bR + commit.cattle * cR)
-    conv_cost = Resources()
-    conv_food = 0
-    for cid in commit.conversions:
-        inp, food_out = HARVEST_CONVERSIONS[cid].frontier_fire
-        conv_cost = conv_cost + Resources(
-            grain=inp[0], veg=inp[1], wood=inp[2],
-            clay=inp[3], reed=inp[4], stone=inp[5])
-        conv_food += food_out
-    p = state.players[idx]
-    p = fast_replace(
-        p,
-        resources=(p.resources
-                   - Resources(grain=commit.grain, veg=commit.veg) - conv_cost
-                   + Resources(food=produced + conv_food - _FOOD_COST)),
-        animals=p.animals - Animals(commit.sheep, commit.boar, commit.cattle),
-    )
-    return _update_player(state, idx, p)
+def _preserve_mi(post_bundle: GameState, idx: int) -> bool:
+    """The Major-Improvement-direction preserve check (ruling 82): after a
+    fee-raising liquidation bundle, the destination must still be usable ON THE
+    POST-FEE state — the fee itself matters here, because a food-costing minor can
+    be the only thing making the space usable. Evaluated per bundle by the frame's
+    enumerator (only preserving bundles are offered) and by the eligibility probe."""
+    return _dest_legal(_debit_food(post_bundle, idx), idx, "major_improvement")
 
 
 def _jump_ok(state: GameState, idx: int, source: str) -> bool:
@@ -187,12 +169,21 @@ def _jump_ok(state: GameState, idx: int, source: str) -> bool:
         # Direct debit is the only payment route with food on hand — check the
         # destination on the exact post-fee state.
         return _dest_legal(_debit_food(state, idx), idx, dest)
-    if not _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST)):
-        return False
-    bundles = _food_payment_commits(state, idx, _FOOD_COST, Cost())
-    return bool(bundles) and all(
-        _dest_legal(_post_payment_state(state, idx, c), idx, dest)
-        for c in bundles)
+    if dest == "farm_expansion":
+        # Structurally safe TODAY (ruling 82's one-direction sufficiency): a
+        # work-phase raise consumes only crops/animals (the building-resource span
+        # converters are harvest-window-scoped, never active at a placement), while
+        # Farm Expansion costs wood/reed + pieces — disjoint pools, so bare raise
+        # EXISTENCE is the whole check. CAVEAT: if an ANYTIME converter with
+        # building-resource input ever lands (the Clay Carrier family), this
+        # disjointness breaks and the direction needs the preserve check too.
+        return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+    # major_improvement: SOME bundle must leave the destination usable after the
+    # fee (ruling 82 — the frame then offers exactly those bundles, so the player
+    # can always raise the fee but never into a stranded destination; the old
+    # all-bundles-must-pass form wrongly withheld the jump whenever ANY bundle
+    # failed, deleting a rules-legal line of play).
+    return raisable_food_preserving(state, idx, _FOOD_COST, Cost(), _preserve_mi)
 
 
 def _eligible_farm_expansion(state: GameState, idx: int, triggers_resolved) -> bool:
@@ -238,13 +229,19 @@ def _pay_and_jump(state: GameState, idx: int) -> GameState:
 
 def _apply(state: GameState, idx: int) -> GameState:
     """Pay 1 food and jump. With the food on hand, do it directly; otherwise push
-    a raise-only PendingFoodPayment and defer to its resume. The only cost is the
-    1 food, so nothing is reserved."""
+    a raise-only PendingFoodPayment whose resume_kind carries the DESTINATION, so
+    the frame's preserve filter (registered for the Major-Improvement direction
+    only — ruling 82) offers exactly the destination-preserving bundles. The only
+    cost is the 1 food, so nothing is reserved."""
     if state.players[idx].resources.food >= _FOOD_COST:
         return _pay_and_jump(state, idx)
+    top = state.pending_stack[-1]
+    source = ("major_improvement"
+              if isinstance(top, PendingMajorMinorImprovement)
+              else top.space_id)
     return push(state, PendingFoodPayment(
-        player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID,
-        reserved=Cost(),
+        player_idx=idx, food_needed=_FOOD_COST,
+        resume_kind=f"{CARD_ID}:{_OTHER[source]}", reserved=Cost(),
     ))
 
 
@@ -254,4 +251,10 @@ register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 # per-event eligibility carries each side's own gate.
 register("after_action_space", CARD_ID, _eligible_farm_expansion, _apply)
 register("after_major_minor_improvement", CARD_ID, _eligible_major_improvement, _apply)
-register_food_payment_resume(CARD_ID, _pay_and_jump)
+# The resume re-reads the source off the host below, so one fn serves both
+# direction-keyed resume kinds; the preserve check registers for the
+# Major-Improvement direction only (the Farm-Expansion direction is structurally
+# safe — see _jump_ok).
+register_food_payment_resume(f"{CARD_ID}:major_improvement", _pay_and_jump)
+register_food_payment_resume(f"{CARD_ID}:farm_expansion", _pay_and_jump)
+register_food_payment_preserve(f"{CARD_ID}:major_improvement", _preserve_mi)

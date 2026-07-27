@@ -322,7 +322,8 @@ def test_liquidation_pays_the_fee():
     assert _offered(cs)
     cs = step(cs, _FIRE)
     top = cs.pending_stack[-1]
-    assert isinstance(top, PendingFoodPayment) and top.resume_kind == CARD_ID
+    assert isinstance(top, PendingFoodPayment)
+    assert top.resume_kind == f"{CARD_ID}:major_improvement"   # direction-keyed (ruling 82)
 
     bundles = legal_actions(cs)
     assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
@@ -398,3 +399,39 @@ def test_hand_only_is_inert():
                     res=Resources(wood=5, reed=2, clay=2, food=1))
     cs = _fe_after_window(cs)
     assert not _offered(cs)
+
+
+# ---------------------------------------------------------------------------
+# Ruling 82 — SOME preserving bundle suffices; the frame filters to exactly those
+# ---------------------------------------------------------------------------
+
+def test_exists_a_preserving_bundle_offers_and_filters():
+    """The EXISTENCE flip ruling 82 makes: the Major Improvement space is usable
+    only via a 1-GRAIN minor (Market Stall in hand; no goods for any major, and
+    the owned cooker is a Cooking Hearth so no return-route build exists). Fuel =
+    that grain + 1 sheep. Bundles: cook the grain (strands the
+    destination ✗) or cook the sheep (preserves ✓). The old all-bundles gate
+    withheld the jump entirely — deleting a legal line; now it is offered, and the
+    food frame offers ONLY the sheep bundle."""
+    from agricola.actions import CommitFoodPayment
+    from tests.factories import with_majors
+    cs, cp = _state(res=Resources(wood=5, reed=2, grain=1, food=0))
+    p = cs.players[cp]
+    p = fast_replace(p, animals=fast_replace(p.animals, sheep=1),
+                     hand_minors=frozenset({"market_stall"}))
+    cs = fast_replace(cs, players=tuple(
+        p if i == cp else cs.players[i] for i in range(2)))
+    # A COOKING HEARTH (major #2), not a Fireplace: it cooks the sheep but —
+    # unlike an owned Fireplace — funds no return-route major build, so the
+    # destination genuinely hinges on the grain-costing minor.
+    cs = with_majors(cs, owner_by_idx={2: cp})
+    cs = _fe_after_window(cs)
+    assert _offered(cs), "some preserving bundle exists -> the jump must be offered"
+    cs = step(cs, _FIRE)
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    bundles = [a for a in legal_actions(cs) if isinstance(a, CommitFoodPayment)]
+    assert bundles
+    assert all(b.grain == 0 for b in bundles), (
+        "a bundle cooking the destination's only funding grain must be withheld")
+    assert any(b.sheep == 1 for b in bundles)

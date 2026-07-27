@@ -1078,6 +1078,9 @@ from agricola.cards import child_ombudsman  # noqa: F401
 #     (SPACE_BLOCK_EXTENSIONS) + the return-clears-both convention. ---
 from agricola.cards import job_contract  # noqa: F401
 from agricola.cards import swagman  # noqa: F401
-from agricola.cards import junior_artist  # noqa: F401
+# junior_artist (B152) UN-IMPLEMENTED 2026-07-26 (ruling 82): its plain
+# food-on-hand gate made rules-legal moves unplayable — never acceptable; the
+# module is archived (archive/deferred_cards/), and re-implementation on the
+# preserve seam awaits the user's go-ahead.
 from agricola.cards import large_scale_farmer  # noqa: F401
 from agricola.cards import full_peasant  # noqa: F401

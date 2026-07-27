@@ -88,15 +88,20 @@ from agricola.cards.card_spaces import (
     card_space_worker_count,
     return_card_space_worker,
 )
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import (
+    register_food_payment_resume,
+    register_occupation,
+)
 from agricola.cards.triggers import (
     register,
     register_action_space_hook,
     register_play_variant_trigger,
 )
 from agricola.constants import SPACE_IDS
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Animals, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.state import GameState, get_space, with_space
 
 CARD_ID = "sheep_inspector"
@@ -162,16 +167,51 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if getattr(top, "player_idx", None) != idx:
         return False
     p = state.players[idx]
+    # The 2 food is payable by ANY legal route — on hand OR raised by the
+    # at-any-time conversions (ruling 82: a plain food-on-hand gate makes
+    # rules-legal moves unplayable; corrected 2026-07-26). The cost's own sheep
+    # is RESERVED from the raise (cooking it to fund the fee would double-spend
+    # it — the `reserved_animals` seam exists for exactly this).
     return (
         CARD_ID not in p.used_this_round
         and p.animals.sheep >= 1
-        and p.resources.food >= 2
+        and _liquidatable_to(state, idx, p, Resources(food=2),
+                             reserved_animals=Animals(sheep=1))
         and bool(_variants(state, idx))
     )
 
 
 def _apply(state: GameState, idx: int, variant: str) -> GameState:
-    """Fire one return: pay 1 sheep + 2 food, latch the round, and bring the
+    """Fire one return. With the 2 food on hand, pay-and-return directly;
+    otherwise stash the chosen target in CardStore (the variant is DYNAMIC — a
+    space or card id — so it cannot ride a static resume_kind) and push the
+    raise-only PendingFoodPayment with the cost's sheep reserved; the resume
+    pops the stash and runs the same pay-and-return."""
+    if state.players[idx].resources.food >= 2:
+        return _pay_and_return(state, idx, variant)
+    p = state.players[idx]
+    p = fast_replace(p, card_state=p.card_state.set(CARD_ID, variant))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=2, resume_kind=CARD_ID,
+        reserved=Cost(animals=Animals(sheep=1)),
+    ))
+
+
+def _resume(state: GameState, idx: int) -> GameState:
+    """The post-raise continuation: pop the stashed target and pay-and-return."""
+    p = state.players[idx]
+    variant = p.card_state.get(CARD_ID)
+    assert variant is not None, "sheep_inspector resume without a stashed target"
+    p = fast_replace(p, card_state=p.card_state.remove(CARD_ID))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+    return _pay_and_return(state, idx, variant)
+
+
+def _pay_and_return(state: GameState, idx: int, variant: str) -> GameState:
+    """Pay 1 sheep + 2 food, latch the round, and bring the
     chosen person home. Two target kinds share the payment (both are the Tea
     Time return idiom — person home, marker off, the vacated space OPEN,
     occupancy being solely worker presence):
@@ -232,3 +272,4 @@ register_play_variant_trigger(CARD_ID, _variants)
 # "a person action" = every space: hook the whole canonical list (atomic spaces
 # are hosted only when hooked; non-atomic ids in the hook set are harmless).
 register_action_space_hook(CARD_ID, SPACE_IDS)
+register_food_payment_resume(CARD_ID, _resume)

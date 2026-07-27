@@ -35,7 +35,11 @@ CARD_ID = "bohemian"
 def _eligible(state: GameState, idx: int) -> bool:
     # "at least one Lessons space unoccupied" — the single 2-player Lessons space
     # holds no worker of either player.
-    return sum(get_space(state.board, "lessons").workers) == 0
+    # Unoccupancy via THE definition (legality.space_occupied): a card marker
+    # making Lessons "considered occupied" (ruled 2026-07-26) would correctly
+    # withhold the payout, exactly as a worker would.
+    from agricola.legality import space_occupied
+    return not space_occupied(state, "lessons")
 
 
 def _apply(state: GameState, idx: int) -> GameState:

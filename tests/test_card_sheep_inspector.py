@@ -237,8 +237,38 @@ def test_not_offered_without_a_sheep():
     assert _si_triggers(legal_actions(s)) == set()
 
 
-def test_not_offered_with_one_food():
+def test_one_food_plus_convertible_grain_is_offered_and_raise_completes():
+    # Ruling 82 (2026-07-26): the 2 food is payable by ANY legal route. The flow's
+    # second placement is Grain Seeds, so at its after-window the player holds
+    # 1 food + the just-taken grain — 2 food is reachable via the 1:1 grain
+    # conversion, and the return MUST be offered (the old plain food-on-hand gate
+    # wrongly withheld exactly this). Fire it, commit the grain bundle at the
+    # raise-only frame, and the resume pays 1 sheep + 2 food and returns the
+    # Forest person home.
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
     s = _state(sheep=2, food=1)
+    s = _to_second_after_window(s)
+    fires = _si_triggers(legal_actions(s))
+    assert "forest" in fires
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="forest"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.reserved.animals.sheep == 1        # the cost's sheep is never fuel
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles and all(b.sheep == 0 for b in bundles)
+    s = step(s, bundles[0])
+    p = s.players[0]
+    assert p.animals.sheep == 1                   # cost paid: 1 of 2 sheep
+    assert p.resources.food == 0                  # 1 + 1 raised - 2 paid
+    assert get_space(s.board, "forest").workers[0] == 0   # the person came home
+
+
+def test_not_offered_when_two_food_is_unreachable():
+    # 0 food; the only sheep is the cost's own (reserved from cooking, and no
+    # cooking improvement exists anyway); the Grain Seeds take leaves 1 grain =
+    # 1 food — still short of 2. Unreachable by every route -> not offered.
+    s = _state(sheep=1, food=0)
     s = _to_second_after_window(s)
     assert _si_triggers(legal_actions(s)) == set()
 

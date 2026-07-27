@@ -68,7 +68,11 @@ def _eligible(state: GameState, idx: int) -> bool:
     """"...each work phase in which the Forest, Clay Pit, and Reed Bank accumulation
     spaces are all occupied": every one of the three holds >= 1 worker. Read at
     `end_of_work`, where the board is still fully placed."""
-    return all(sum(get_space(state.board, s).workers) > 0 for s in _SPACES)
+    # Occupancy via THE definition (legality.space_occupied): card markers that
+    # make a space "considered occupied" count (ruled 2026-07-26; none can land
+    # on these three spaces today).
+    from agricola.legality import space_occupied
+    return all(space_occupied(state, s) for s in _SPACES)
 
 
 def _apply(state: GameState, idx: int) -> GameState:
