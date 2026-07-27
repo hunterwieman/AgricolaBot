@@ -221,6 +221,38 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-26 same-worker-jump batch landed: all five jump cards on the new
+  `initiate_space_use` seam (ruling 81; full suite green, C++ gates untouched).** The core:
+  `engine.initiate_space_use` (the space-use dispatch factored out of the placement path —
+  a pure refactor Family-side) + `cards/worker_moves.py` (`relocate_and_use`: move the
+  acting worker's marker, fire the `WORKER_RELOCATED_HOOKS`, run the destination's full
+  action — the destination's frames stack above the source's after-window host and the walk
+  returns to it, the ruled shape) + the `WORKER_RETURNED_HOOKS` convention (every
+  return-a-worker-home effect notifies — Sheep Inspector/Tea Time/Henpecked Husband's
+  return sites now do) + `legality.SPACE_BLOCK_EXTENSIONS` (a workerless space "considered
+  occupied" — Job Contract's Day Laborer marker) + Henpecked Husband's record now FOLLOWS a
+  jumped worker (the relocated hook). The cards: **Job Contract C23** (2p-dealt — the
+  chained Day Laborer→Lessons use: one physical worker on Lessons, a CardStore-round marker
+  blocking Day Laborer, a mid-round return of the chained person frees BOTH spaces per
+  ruling 81.3, re-chaining after a return allowed, marker dies with its round);
+  **Swagman A129** [3+] (Farm Expansion ↔ Grain Seeds, pierces destination occupancy,
+  once/turn errata via `used_this_turn` — the latch that stops the jump-back chain);
+  **Full Peasant B130** [3+] (Grain Utilization ↔ Fencing, other-unoccupied read at trigger
+  time per ruling 81.2, 1 food via the Plow Hero raise-resume shape, + a ratified
+  destination-`revealed` conjunct — both spaces are stage-1 round cards, a jump must not
+  use a space not yet in the game); **Large-Scale Farmer B150** [4+] (Farm Expansion ↔
+  Major Improvement; the major side registers on `after_major_minor_improvement` gated on
+  the composite's `"space:major_improvement"` provenance — House Redevelopment and card
+  grants never offer it; raise path conservatively requires the destination to survive
+  EVERY payment bundle, a flagged-open exactness gap needing a per-card bundle filter);
+  **Junior Artist B152** [4+] (Day Laborer → unoccupied Traveling Players/Lessons variants;
+  food-on-hand gate — the Canal Boatman shape — because an interactive raise can strand the
+  exit-less Lessons play, + the destination predicate evaluated on the post-payment state,
+  the stranding-guard discipline; Traveling Players existence-guarded, absent at 2p).
+  Deliberately NOT built: the Steam Machine × jump "last space" interaction (the
+  commit-on-fire seam, deferred) and the occupancy-READER scope of Job Contract's marker
+  (legality-only per ruling 81.3; Turnip Farmer-class readers are 3+, flagged for that
+  pass). Census after: **240 occupations + 333 minors = 573**.
 - **The 2026-07-26 same-worker-jump groundwork + Child Ombudsman D92 (ruling 81; card-only,
   gates untouched).** Ruling 81 banks the jump-family mechanism ahead of its build: the
   same-worker second use (Swagman A129, Full Peasant B130, Large-Scale Farmer B150, Junior

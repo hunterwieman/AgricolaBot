@@ -1072,3 +1072,12 @@ from agricola.cards import delayed_wayfarer  # noqa: F401
 # Child Ombudsman (D92) — after-any-action no-space growth grant, −2/use (ruling 81.4);
 # NOT a worker-movement card despite the "with that person" phrasing.
 from agricola.cards import child_ombudsman  # noqa: F401
+
+# --- The same-worker JUMP family (ruling 81): worker_moves.relocate_and_use +
+#     engine.initiate_space_use; Job Contract adds the "considered occupied" marker
+#     (SPACE_BLOCK_EXTENSIONS) + the return-clears-both convention. ---
+from agricola.cards import job_contract  # noqa: F401
+from agricola.cards import swagman  # noqa: F401
+from agricola.cards import junior_artist  # noqa: F401
+from agricola.cards import large_scale_farmer  # noqa: F401
+from agricola.cards import full_peasant  # noqa: F401

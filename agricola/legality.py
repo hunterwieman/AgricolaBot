@@ -158,6 +158,23 @@ def register_occupancy_override(fn: Callable) -> None:
     OCCUPANCY_OVERRIDE_EXTENSIONS.append(fn)
 
 
+# The inverse extension: a card can make a WORKERLESS space count as occupied for
+# placement legality. Sole consumer today: Job Contract (C23) — after its chained
+# Day Laborer -> Lessons use, "both spaces are considered occupied" while only ONE
+# physical worker exists (the person stands on Lessons; Day Laborer holds a
+# suggestion MARKER, not a worker — ruling 81 item 3, 2026-07-26). The marker is a
+# legality fact only: it never enters the worker tuples, so nothing that counts or
+# returns PEOPLE can see a phantom (the double-credit hazard the ruling names).
+# Empty in the Family game -> the fast path pays one truthiness test.
+SPACE_BLOCK_EXTENSIONS: list[Callable] = []
+
+
+def register_space_block(fn: Callable) -> None:
+    """Add a card-supplied predicate that BLOCKS placement on a space that holds
+    no worker (fn(state, space_id) -> bool; True = blocked)."""
+    SPACE_BLOCK_EXTENSIONS.append(fn)
+
+
 # Cards may waive the SPARE-ROOM gate on a room-gated "Wish for Children" growth
 # (user-approved extension, 2026-07-14). Basic Wish normally requires
 # `people_total < rooms`; a registered override lets its owner take that growth
@@ -383,6 +400,11 @@ def _is_available(state: GameState, space: str) -> bool:
     if not sp.revealed:
         return False
     if sp.workers == (0, 0):
+        # A workerless space can still be "considered occupied" by a card marker
+        # (Job Contract's Day Laborer — ruling 81 item 3). Empty registry → free.
+        if SPACE_BLOCK_EXTENSIONS and any(
+                blocked(state, space) for blocked in SPACE_BLOCK_EXTENSIONS):
+            return False
         return True
     for override in OCCUPANCY_OVERRIDE_EXTENSIONS:
         if override(state, space):

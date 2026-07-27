@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 281 implemented · 🚫 12 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 125 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26. ⚠ KNOWN DRIFT: the live registry holds 332 minors — ~50 implemented cards from past batches were never flipped to ✅ here; the LIVE REGISTRY is the truth (CLAUDE.md census command), and the per-entry flips need a hygiene pass.)*
+**420 minors** — ✅ 282 implemented · 🚫 12 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 124 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26. ⚠ KNOWN DRIFT: the live registry holds 333 minors — ~50 implemented cards from past batches were never flipped to ✅ here; the LIVE REGISTRY is the truth (CLAUDE.md census command), and the per-entry flips need a hygiene pass.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -605,7 +605,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C22 Basket Chair** · cost: 1 Reed
   - _When you play this card, you can immediately move the first person you placed this work phase to this card. If you do, immediately afterward, you can place another person.  [CLARIFICATION: If the first person placed added a newborn (usually via an Family Growth action,) the newborn also moves to this card.]_
   - `ONPLAY E-WORKERMANIP E-EXTRAPLACE ST-PLACELOG` — Move your first-placed worker (+newborn) to the card, then place another.
-- ⬜ **C23 Job Contract** · prereq: No Occupations
+- ✅ **C23 Job Contract** · ruling 81.3 (chain; one worker, marker-blocked Day Laborer; return frees both) · prereq: No Occupations
   - _If both are unoccupied, you can use the "Day Laborer" and the adjacent "Lessons" action space with a single person (in that order). Afterward, both spaces are considered occupied.  [CLARIFICATION: Recommendation: occupy Day Laborer with a suggestion marker and Lessons with your person.]_
   - `PASSIVE E-WORKERMANIP L-GEOMBOARD` — Use Day Laborer + adjacent Lessons with one person, in order.
 - ✅ **C24 Bed in the Grain Field** · prereq: 1 Grain Field
@@ -1386,7 +1386,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 177 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 238 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26; same drift caveat as the minors line — the live registry holds 236 occupations.)*
+**420 occupations** — ✅ 181 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 234 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26; same drift caveat as the minors line — the live registry holds 240 occupations.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -1527,7 +1527,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A128 Riparian Builder** · [3+]
   - _Each time another player uses the "Reed Bank" accumulation space, you can build a room: if you build a clay/stone room, you get a discount of 1 clay/2 stone._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTSUB E-COSTMOD` — 'Each time another player uses [space]' takes the settled T-BEFORE default (no 'after' wording); optional granted build-room sub-action (E-GRANTSUB) with a material discount (E-COSTMOD) on an opponent's action (A-OPP).
-- ⬜ **A129 Swagman** · [3+]
+- ✅ **A129 Swagman** · ruling 81 (after-window jump trigger; once/turn errata latch) · [3+]
   - _Immediately after each time you use the "Farm Expansion" or "Grain Seeds" action space, you can use the respective other space with the same person (even if it is occupied).  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-GRANTACT E-WORKERMANIP L-OCCUPY ST-PLACELOG` — 'Immediately after' own-space hook granting the paired space's whole action (E-GRANTACT) by moving the same person there — the canonical 'use two spaces with one person' E-WORKERMANIP, not E-NOPLACE (the action is taken by the placed person); errata caps it per turn; needs which space the person is on (ST-PLACELOG) and occupied-space legality (L-OCCUPY).
 - ⬜ **A130 Mummy's Boy** · [3+]
@@ -1785,7 +1785,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B129 Seatmate** · [3+]
   - _You can use the action space on round space 13 even if it is occupied by one or more people of the players to your immediate left and right._
   - `PASSIVE L-OCCUPY` — Kept L-GEOMBOARD: 'the action space on round space 13' references a specific round-space number, a board-position dependency.
-- ⬜ **B130 Full Peasant** · [3+]
+- ✅ **B130 Full Peasant** · ruling 81 (jump; other-unoccupied at trigger time; Plow Hero food shape) · [3+]
   - _Each time after you use the "Grain Utilization" or "Fencing" action space while the other is unoccupied, you can pay 1 food to use the other space with the same person.  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-FOODCOST E-GRANTACT E-NOPLACE E-WORKERMANIP ST-PLACELOG` — Using the other space IS taking another action space's whole action, so E-GRANTACT applies alongside E-WORKERMANIP (the 'use two spaces with one person' exemplar); errata caps it once per turn; the food payment is E-FOODCOST; needs to know where the worker was placed (ST-PLACELOG).
 - ⬜ **B131 Equipper** · [3+]
@@ -1845,13 +1845,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B149 Open Air Farmer** · [4+]
   - _When you play this card, you remove exactly 3 stables in your supply from play to build a pasture covering 2 farmyard spaces. You only need to pay a total of 2 wood for fences  [CLARIFICATION: You may not build those stables later.]_
   - `ONPLAY E-PIECECOST E-RETURNCOMP E-GRANTSUB E-FREEFENCE E-COSTMOD` — Build a 2-space pasture from 3 returned stables -- ordinary fencing, no geometry code needed (confirmed).
-- ⬜ **B150 Large-Scale Farmer** · [4+]
+- ✅ **B150 Large-Scale Farmer** · ruling 81 (jump; dual-event with the composite's space provenance) · [4+]
   - _Each time after you use the "Farm Expansion" or "Major Improvement" action space while the other is unoccupied, you can pay 1 food to use that other space with the same person.  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
   - `HOOK S-SPACE T-AFTER F-TRIG A-OWN CAP-TURN E-FOODCOST E-GRANTACT E-WORKERMANIP ST-PLACELOG` — After using Farm Expansion/Major Improvement, pay 1 food to jump the same person to the other (unoccupied) space; grants that space's action (E-GRANTACT) reusing one worker (E-WORKERMANIP, needs ST-PLACELOG), once per turn per errata; named-space condition not L-GEOMBOARD/L-OCCUPY.
 - ⬜ **B151 Little Peasant** · [4+]
   - _You immediately get 1 stone. As long as you live in a wooden house with exactly 2 rooms, actions spaces—excluding Meeting Place—are not considered occupied for you._
   - `ONPLAY E-GOODS PASSIVE L-OCCUPY` — On-play +1 stone; while in wood house with exactly 2 rooms, spaces (except Meeting Place) treated as unoccupied — continuous L-OCCUPY.
-- ⬜ **B152 Junior Artist** · [4+]
+- ✅ **B152 Junior Artist** · ruling 81 (jump variants; food-on-hand gate + post-payment predicate) · [4+]
   - _Each time after you use the "Day Laborer" action space, you can pay 1 food to use an unoccupied "Traveling Players" or "Lessons" action space with the same person._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-FOODCOST E-GRANTACT E-WORKERMANIP` — After Day Laborer, pay food to use a second space with the SAME already-placed person — grants a whole action (E-GRANTACT) via worker reuse (E-WORKERMANIP); target must be UNOCCUPIED, so L-OCCUPY is wrong.
 - ⬜ **B153 Housemaster** · [4+]

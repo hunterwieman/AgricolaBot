@@ -54,9 +54,12 @@ def _on_play(state: GameState, idx: int) -> GameState:
                          fast_replace(sp, workers=workers)))
     p = state.players[idx]
     p = fast_replace(p, people_home=p.people_home + 1)
-    return fast_replace(
+    state = fast_replace(
         state,
         players=tuple(p if i == idx else state.players[i] for i in range(2)))
+    # Convention (worker_moves.py): every return-a-worker-home effect notifies.
+    from agricola.cards.worker_moves import notify_worker_returned
+    return notify_worker_returned(state, idx, _SPACE)
 
 
 register_minor(

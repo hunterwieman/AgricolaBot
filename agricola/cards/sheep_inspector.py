@@ -213,10 +213,15 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     )
     sp = get_space(state.board, space_id)
     workers = tuple(n - 1 if i == idx else n for i, n in enumerate(sp.workers))
-    return fast_replace(
+    state = fast_replace(
         state,
         board=with_space(state.board, space_id, fast_replace(sp, workers=workers)),
     )
+    # Convention (worker_moves.py): every return-a-worker-home effect notifies, so
+    # cards with state tied to that worker's presence react (Job Contract's
+    # "considered occupied" marker clears when its chained person comes home).
+    from agricola.cards.worker_moves import notify_worker_returned
+    return notify_worker_returned(state, idx, space_id)
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect

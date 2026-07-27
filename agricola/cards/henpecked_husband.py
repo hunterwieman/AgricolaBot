@@ -177,8 +177,29 @@ def _return_apply(state: GameState, idx: int) -> GameState:
         board=with_space(state.board, first_space,
                          fast_replace(sp, workers=workers)))
     p = state.players[idx]
-    return _update_player(state, idx, fast_replace(
+    state = _update_player(state, idx, fast_replace(
         p, people_home=p.people_home + 1))
+    # Convention (worker_moves.py): every return-a-worker-home effect notifies.
+    from agricola.cards.worker_moves import notify_worker_returned
+    return notify_worker_returned(state, idx, first_space)
+
+
+def _record_follows_relocation(state: GameState, idx: int, from_space: str,
+                               to_space: str) -> GameState:
+    """A same-worker JUMP (ruling 81) moved a placed worker. If it was the worker
+    this card's record points at — "the first person you placed", stored as the
+    space it stood on — the record follows the PERSON to its new space (the printed
+    effect targets the person, wherever it now stands; a stale space would return
+    the wrong worker or silently no-fire)."""
+    rec = state.players[idx].card_state.get(CARD_ID)
+    if rec is None:
+        return state
+    rec_round, rec_space = rec
+    if rec_round != state.round_number or rec_space != from_space:
+        return state
+    p = state.players[idx]
+    return _update_player(state, idx, fast_replace(
+        p, card_state=p.card_state.set(CARD_ID, (rec_round, to_space))))
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
@@ -188,3 +209,6 @@ register_auto("before_action_space", CARD_ID, _record_eligible, _record_apply)
 register_action_space_hook(CARD_ID, SPACE_IDS)
 # The return: mandatory, at the named Build Rooms action's after-flip.
 register_auto("after_build_rooms", CARD_ID, _return_eligible, _return_apply)
+# The record follows the person through a same-worker jump (ruling 81).
+from agricola.cards.worker_moves import register_worker_relocated  # noqa: E402
+register_worker_relocated(CARD_ID, _record_follows_relocation)

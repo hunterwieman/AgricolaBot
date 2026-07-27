@@ -409,6 +409,21 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     # Cross-cutting bookkeeping: workers, people_home.
     state = _apply_worker_placement(state, action.space)
 
+    return initiate_space_use(state, action.space)
+
+
+def initiate_space_use(state: GameState, space_id: str) -> GameState:
+    """Run a board space's action for the current player — the space-use dispatch,
+    WITHOUT any placement bookkeeping (no worker-marker/people_home/ordinal change).
+
+    Two callers: `_apply_place_worker` (after `_apply_worker_placement` did the
+    bookkeeping) and the same-worker JUMP cards (ruling 81 — Swagman/Full Peasant/
+    Large-Scale Farmer/Junior Artist/Job Contract), whose after-window trigger moves
+    the acting worker to a second space and then runs that space's action here: the
+    destination's frames stack above the source's after-window host, resolve
+    completely, and the walk returns to the source. Factoring this out of the
+    placement path is what lets a card initiate a full space use mid-turn.
+    """
     # Card-mode Meeting Place is a non-atomic, SELF-HOSTING space: its handler pushes
     # a PendingMeetingPlace frame that fires before_/after_action_space on its own
     # lifecycle (before at push, after at the Proceed flip). It must therefore NOT
@@ -418,24 +433,24 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     # soft-locks the turn (an infinite Proceed<->Stop cycle) the moment any card hooks
     # the space. Dispatch it directly here, ahead of should_host_space. (Family
     # Meeting Place stays atomic — _resolve_meeting_place via ATOMIC_HANDLERS below.)
-    if action.space == "meeting_place" and state.mode is GameMode.CARDS:
+    if space_id == "meeting_place" and state.mode is GameMode.CARDS:
         return _initiate_meeting_place_cards(state)
 
-    if action.space in ATOMIC_HANDLERS:
+    if space_id in ATOMIC_HANDLERS:
         # Card game (II.2): if a card could fire on this atomic space, HOST it
         # with a generic PendingActionSpace frame (before-phase) and fire any
         # before-automatic-effects, instead of running the atomic effect now —
         # the effect runs later at Proceed. Family game: should_host_space is
         # always False (empty hook indexes) → today's atomic fast path, unchanged.
         ap = state.current_player
-        if should_host_space(state, action.space, ap):
+        if should_host_space(state, space_id, ap):
             state = push(state, PendingActionSpace(
-                player_idx=ap, initiated_by_id=f"space:{action.space}"))
+                player_idx=ap, initiated_by_id=f"space:{space_id}"))
             return apply_auto_effects(state, "before_action_space", ap)
-        return ATOMIC_HANDLERS[action.space](state)
+        return ATOMIC_HANDLERS[space_id](state)
 
-    if action.space in NONATOMIC_HANDLERS:
-        return NONATOMIC_HANDLERS[action.space](state)
+    if space_id in NONATOMIC_HANDLERS:
+        return NONATOMIC_HANDLERS[space_id](state)
 
     # Defensive backstop: every space in SPACE_IDS now has a handler (atomic or
     # non-atomic) in both game modes — `lessons` (card-game occupation play)
@@ -443,7 +458,7 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     # earlier at the SPACE_INDEX lookup in `_apply_worker_placement`. Kept to
     # guard a future space added to SPACE_IDS without a registered handler.
     raise NotImplementedError(
-        f"No handler registered for space {action.space!r}"
+        f"No handler registered for space {space_id!r}"
     )
 
 
