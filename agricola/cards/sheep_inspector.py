@@ -167,6 +167,14 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if getattr(top, "player_idx", None) != idx:
         return False
     p = state.players[idx]
+    # A use already committed as the phase's LAST (a fired Steam Machine —
+    # PlayerState.last_use_committed) forecloses the return: home workers must
+    # be placed, so returning one would force a later placement contradicting
+    # the commitment (the ruled Telegram-arc principle — the same foreclosure
+    # as the loaner offers). The other order stays fully open: returning FIRST
+    # raises people_home, which blocks the last-use readers by their own gate.
+    if p.last_use_committed:
+        return False
     # The 2 food is payable by ANY legal route — on hand OR raised by the
     # at-any-time conversions (ruling 82: a plain food-on-hand gate makes
     # rules-legal moves unplayable; corrected 2026-07-26). The cost's own sheep

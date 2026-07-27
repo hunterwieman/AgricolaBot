@@ -127,15 +127,24 @@ def _apply_worker_placement(state: GameState, space_id: str) -> GameState:
     # 2. Decrement active player's people_home. In the card game this act of placing
     #    also mints the round's next placement number (ruling 79 — the PHYSICAL ordinal:
     #    "the Nth person you place" counts acts of placing, so the tick lives at this
-    #    chokepoint and nowhere near returns/newborns). Mode-gated so the Family game
-    #    holds the counter at 0 — the field is canonical-skipped and the C++ twin never
-    #    sees it. The wish handlers add the newborn's board worker OUTSIDE this function,
-    #    so a birth never ticks ("Newborns are not placed").
+    #    chokepoint and nowhere near returns/newborns) and appends the minted worker to
+    #    the standing-worker ledger (PlayerState.standing_workers — which numbered
+    #    worker stands where; appended BEFORE the space's card windows fire, so a
+    #    use-instant ordinal reader finds the just-placed number at the space).
+    #    Mode-gated so the Family game holds both at their defaults — the fields are
+    #    canonical-skipped and the C++ twin never sees them. The wish handlers add the
+    #    newborn's board worker OUTSIDE this function, so a birth never ticks or
+    #    enters the ledger ("Newborns are not placed").
     p = state.players[ap]
-    state = _update_player(state, ap, fast_replace(
-        p, people_home=p.people_home - 1,
-        placements_this_round=p.placements_this_round
-        + (1 if state.mode is GameMode.CARDS else 0)))
+    if state.mode is GameMode.CARDS:
+        state = _update_player(state, ap, fast_replace(
+            p, people_home=p.people_home - 1,
+            placements_this_round=p.placements_this_round + 1,
+            standing_workers=p.standing_workers
+            + ((p.placements_this_round + 1, space_id),)))
+    else:
+        state = _update_player(state, ap, fast_replace(
+            p, people_home=p.people_home - 1))
 
     return state
 

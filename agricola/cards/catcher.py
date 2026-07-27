@@ -15,20 +15,13 @@ person you are placing this round — your 1st person needs exactly 5, your 2nd 
 4, your 3rd exactly 3, and your 4th/5th person never fire. It is EXACTLY-equal (==),
 not at-least.
 
-"Which person am I placing this round?" is derived without new state, similar to how Plow
-Hero derives "first person you place in a round": a round starts with every worker at
-home (`people_home == people_total`), each placement decrements `people_home` by one, and
-the `before_action_space` trigger fires AFTER `_apply_worker_placement` has already
-decremented `people_home` for the placement now resolving.
-
-The number of WORKERS placed this round (including this one) is `(people_total − newborns)
-− people_home`. The `− newborns` term is load-bearing: a Wish-for-Children placement bumps
-`people_total` (and `newborns`) for the newborn but does NOT bump `people_home` (the newborn
-is parked on the wish space and is not an available worker until next round's preparation
-resets `people_home = people_total`). So `people_total − people_home` alone would over-count
-by 1 for every placement after a same-round birth; subtracting `newborns` cancels exactly the
-slots that grew `people_total` without consuming a `people_home` worker. (newborns is cleared
-at each round start, so it only ever reflects THIS round's births.)
+"Which person am I placing?" is the ACTING person's ordinal, read via
+helpers.acting_placement_number (the standing-worker ledger's number at the acting
+space — ruling 79): the just-minted number at an ordinary placement, the moved
+worker's PRESERVED number at a relocated use (Straw Hat's end-of-work move onto
+one of these spaces — ruling 79 item 4: a relocation counts as placing that
+person). The old derived expression `(people_total − newborns) − people_home`
+is retired with the rest of its family.
 
 The five building resource accumulation spaces (BUILDING_RESOURCE_ACCUMULATION_SPACES)
 hold only building resources on `accumulated` (a Resources), never `accumulated_amount` (0 here),
@@ -41,7 +34,7 @@ from __future__ import annotations
 from agricola.constants import BUILDING_RESOURCE_ACCUMULATION_SPACES
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
-from agricola.helpers import placements_this_round
+from agricola.helpers import acting_placement_number
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, get_space
@@ -57,10 +50,12 @@ def _eligible(state: GameState, idx: int) -> bool:
     sid = state.pending_stack[-1].space_id
     if sid not in BUILDING_RESOURCE_ACCUMULATION_SPACES:
         return False
-    # before_action_space fires AFTER people_home was decremented for this placement, so
-    # this is the ordinal OF this placement (see helpers.placements_this_round for the
-    # newborn and loaner terms; the module docstring for the derivation).
-    n_placed = placements_this_round(state.players[idx])
+    # The ACTING person's ordinal (helpers.acting_placement_number — the standing-
+    # worker ledger's number at this space): the just-minted number at an ordinary
+    # placement, the moved worker's PRESERVED number at a relocated use (Straw
+    # Hat's end-of-work move onto an accumulation space — ruling 79 item 4:
+    # a relocation counts as placing that person).
+    n_placed = acting_placement_number(state, idx)
     required = REQUIRED_BY_PERSON.get(n_placed)
     if required is None:                       # 4th / 5th person never fires
         return False

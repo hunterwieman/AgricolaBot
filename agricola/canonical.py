@@ -130,6 +130,17 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # only in CARDS mode, so it is Family-constant 0: omitting it keeps the Family JSON
     # byte-identical and needs no C++ change.
     "placements_this_round",
+    # Card-only last-use-commitment latch (Steam Machine's fire; see
+    # PlayerState.last_use_committed). Only ever set in CARDS mode, so it is
+    # Family-constant False: omitting it keeps the Family JSON byte-identical
+    # and needs no C++ change.
+    "last_use_committed",
+    # Card-only standing-worker identity ledger — (placement_number, location) pairs for
+    # the player's numbered board workers (ruling 79 items 2/3: relocations preserve a
+    # worker's number, returns anonymize; see PlayerState.standing_workers). Appended
+    # only in CARDS mode, so it is Family-constant (): omitting it keeps the Family
+    # JSON byte-identical and needs no C++ change.
+    "standing_workers",
     # PendingPlow multi-shot grant fields (Swing/Turnwrest/Wheel Plow): Family-constant
     # defaults (every Family plow is single-shot), so omitting them keeps the Family JSON
     # byte-identical and needs no C++ change.

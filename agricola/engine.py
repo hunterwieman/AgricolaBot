@@ -493,11 +493,15 @@ def _apply_place_card_space_worker(state: GameState, action: PlaceWorker) -> Gam
     ap = state.current_player
     p = state.players[ap]
     # A card-space placement is an act of placing, so it mints the round's next
-    # placement number (ruling 79 — the PHYSICAL ordinal). No mode gate needed:
+    # placement number (ruling 79 — the PHYSICAL ordinal) and enters the
+    # standing-worker ledger at location "card:<id>". No mode gate needed:
     # card spaces exist only in CARDS mode (empty registry in Family).
     p = place_card_space_worker(
         fast_replace(p, people_home=p.people_home - 1,
-                     placements_this_round=p.placements_this_round + 1), card_id)
+                     placements_this_round=p.placements_this_round + 1,
+                     standing_workers=p.standing_workers
+                     + ((p.placements_this_round + 1, f"card:{card_id}"),)),
+        card_id)
     state = fast_replace(state, players=tuple(
         p if i == ap else state.players[i] for i in range(len(state.players))))
     state = push(state, PendingActionSpace(
@@ -1426,7 +1430,9 @@ def _return_home_reset(state: GameState) -> GameState:
         fast_replace(p, people_home=p.people_total,
                      workers_in_supply=p.workers_in_supply + p.temp_workers_active,
                      temp_workers_active=0,
-                     placements_this_round=0)   # the ordinal counter is per-round
+                     placements_this_round=0,   # the ordinal counter is per-round
+                     last_use_committed=False,  # the last-use latch is per-round
+                     standing_workers=())       # every marker just left the board
         for p in state.players
     )
     state = fast_replace(state, players=new_players, board=new_board)

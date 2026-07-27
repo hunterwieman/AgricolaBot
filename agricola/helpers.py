@@ -138,13 +138,21 @@ def activate_temp_worker(state: GameState, idx: int, *,
 
 
 def placements_this_round(player: PlayerState) -> int:
-    """The 1-based ordinal of the placement now resolving — "the Nth person you place
-    this round" — under the PHYSICAL interpretation (ruling 79, 2026-07-26).
+    """How many acts of placing this player has made this round — the MINT counter
+    of the PHYSICAL ordinal (ruling 79, 2026-07-26).
 
-    THE single read point for that number; every ordinal-reading card consumes it here
-    (Wheel Plow, Plow Hero, Fir Cutter, Henpecked Husband, Catcher, Skillful Renovator).
-    Valid at a `before_`/`after_action_space` host, where the placement bookkeeping has
-    already run, so the value IS the acting placement's minted number.
+    Two kinds of reader, two helpers:
+
+    - COUNT-style reads ("have I placed yet?", "record when the counter hits 1")
+      consume this counter directly — Motivator's first-turn gate, Henpecked
+      Husband's mint-time recorder.
+    - USE-instant ordinal reads ("…with your Nth person" at a space's windows —
+      Wheel Plow, Plow Hero, Fir Cutter, Catcher, Skillful Renovator) go through
+      `acting_placement_number`, which resolves the ACTING worker's number via the
+      standing-worker ledger. Inside an ordinary placement turn the two agree (the
+      just-placed worker's number IS the counter value); they diverge at a
+      RELOCATED use (Straw Hat's end-of-work move — the moved worker keeps its
+      possibly-lower number while the counter holds the round's total mints).
 
     The semantics (`PlayerState.placements_this_round` carries the count):
 
@@ -170,6 +178,55 @@ def placements_this_round(player: PlayerState) -> int:
     currently deployed", which under-reads after any return.
     """
     return player.placements_this_round
+
+
+def standing_worker_number(player: PlayerState, location: str):
+    """The placement number of `player`'s numbered worker standing at `location`
+    (a board space_id or "card:<id>"), or None — a read of the
+    `PlayerState.standing_workers` ledger. ≤1 numbered worker per location by
+    invariant: the only same-player multi-marker case, a wish space's
+    parent+newborn, holds one NUMBERED worker (newborns mint nothing)."""
+    nums = [n for n, loc in player.standing_workers if loc == location]
+    assert len(nums) <= 1, (
+        f"two numbered workers of one player at {location!r}: {nums}")
+    return nums[0] if nums else None
+
+
+def acting_placement_number(state: GameState, idx: int) -> int:
+    """The ordinal a "…your Nth person" reader sees at a USE instant — the number
+    of the worker ACTING at the nearest space frame on the stack.
+
+    Why not the mint counter: ruling 79 items 3/4 — an on-board relocation
+    preserves the worker's number and "counts as placing" it, so a place/use-
+    triggered ordinal card firing at a relocated use (Straw Hat's end-of-work
+    move onto, say, a Catcher space) must read the MOVED worker's preserved
+    number, which can be lower than `placements_this_round` (the round's total
+    mints). At every ordinary placement — and at the same-worker jump, which
+    runs inside the minting turn — the two values are equal, so migrating a
+    reader here changes nothing outside relocation instants.
+
+    Resolution: walk the pending stack top-down for player `idx`'s nearest frame
+    that names a space (a host's `space_id`, else "space:" provenance) and return
+    the standing-worker ledger's number there — the placement chokepoints append
+    the entry BEFORE the space's windows fire, so the entry always exists when a
+    window reader runs. Fallbacks (both return the mint counter, which is correct
+    there): a space frame with no ledger entry (any Family read — the ledger is
+    card-only), or no space frame at all (a card-granted sub-action mid-turn,
+    where the acting worker is the turn's placed worker)."""
+    for f in reversed(state.pending_stack):
+        if getattr(f, "player_idx", None) != idx:
+            continue
+        sid = getattr(f, "space_id", None)
+        if sid is None:
+            ib = getattr(f, "initiated_by_id", None) or ""
+            if ib.startswith("space:"):
+                sid = ib[len("space:"):]
+        if sid is not None:
+            n = standing_worker_number(state.players[idx], sid)
+            if n is not None:
+                return n
+            break
+    return state.players[idx].placements_this_round
 
 
 def fences_built(farmyard: Farmyard) -> int:

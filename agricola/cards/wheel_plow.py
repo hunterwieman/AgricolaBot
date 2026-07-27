@@ -26,17 +26,17 @@ on Cultivation it is declinable, but the same guard is loss-less there (spending
 once-per-game grant where the FREE base plow could plow the cell is dominated, and no card
 rewards declining the base PLOW — Lazy Sowman A94 rewards declining the SOW, untouched here).
 
-"First person you place in a round" is read without new state: the before_action_space
-trigger fires after the placing worker has been decremented from `people_home`, so exactly
-one worker placed ⟺ `people_home == people_total − 1` (see Plow Hero for the full
-derivation, including the newborn/Wish interaction). Both spaces are non-atomic (always
+"First person you place in a round" is the ACTING person's ordinal, read via
+helpers.acting_placement_number (the standing-worker ledger's number at the acting
+space — ruling 79): the just-minted number at an ordinary placement, the moved
+worker's preserved number at a relocated use. Both spaces are non-atomic (always
 hosted), so no `register_action_space_hook` is needed.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
-from agricola.helpers import placements_this_round
+from agricola.helpers import acting_placement_number
 from agricola.legality import _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.replace import fast_replace
@@ -53,12 +53,15 @@ def _used(state: GameState, idx: int) -> bool:
 
 
 def _is_first_placement_this_round(state: GameState, idx: int) -> bool:
-    """True iff the placement now being resolved is the player's first this round (the
-    before_action_space trigger fires after the placing worker was debited), read from
-    the shared ordinal definition — see helpers.placements_this_round and the note in
-    Plow Hero on why the old `people_home == people_total − 1` shortcut is wrong once a
-    LOANER can be placed."""
-    return placements_this_round(state.players[idx]) == 1
+    """True iff the use now being resolved is by the player's FIRST-placed person
+    of the round — the acting worker's number (helpers.acting_placement_number:
+    the standing-worker ledger's number at the acting space). At an ordinary
+    placement that IS the just-minted counter value; at a RELOCATED use (Straw
+    Hat's end-of-work move — ruling 79 item 4: a relocation counts as placing)
+    it is the moved worker's PRESERVED number, which the mint counter no longer
+    holds. See the note in Plow Hero on why the older
+    `people_home == people_total − 1` shortcut broke on LOANER placements."""
+    return acting_placement_number(state, idx) == 1
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:

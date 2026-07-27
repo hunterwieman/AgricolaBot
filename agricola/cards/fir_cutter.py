@@ -26,18 +26,14 @@ The three animal accumulation spaces are NON-ATOMIC and self-hosting:
 PendingCattleMarket host frame, so there is NO `register_action_space_hook` —
 eligibility just filters the host frame's `space_id`.
 
-"Which person am I placing this round?" is derived without new state, exactly
-as Catcher does it: a round starts with every worker home
-(`people_home == people_total`), each placement decrements `people_home` by
-one, and by the after window `people_home` has already been decremented for the
-placement now resolving — so `(people_total − newborns) − people_home` is the
-1-based ordinal of THIS placement among the owner's workers this round. The
-`− newborns` term is load-bearing: a same-round Wish-for-Children birth bumps
-`people_total` (and `newborns`) without consuming a `people_home` worker (the
-newborn is parked on the wish space until next round's preparation), so
-`people_total − people_home` alone would over-count by 1 per same-round birth;
-subtracting `newborns` cancels exactly those slots. (`newborns` is cleared at
-each round start, so it only ever reflects THIS round's births.)
+"With your Nth person" is the ACTING person's ordinal, read via
+helpers.acting_placement_number exactly as Catcher does it (the standing-worker
+ledger's number at the market — ruling 79): the just-minted number at an
+ordinary placement, the moved worker's PRESERVED number at a relocated use
+(Straw Hat's end-of-work move onto a market — ruling 79 item 4: a relocation
+counts as using the space with that person). The old derived expression
+`(people_total − newborns) − people_home` is retired with the rest of its
+family.
 
 The grant is choiceless income with no downside, so it is a mandatory
 automatic effect (`register_auto`), not a declinable trigger. It fires only on
@@ -47,7 +43,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
-from agricola.helpers import placements_this_round
+from agricola.helpers import acting_placement_number
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -71,10 +67,12 @@ def _grant_on_play(state: GameState, idx: int) -> GameState:
 
 
 def _wood_amount(state: GameState, idx: int) -> int:
-    """Wood owed for this placement: keyed to the 1-based ordinal of the worker
-    the owner placed this round (already-decremented `people_home`; same-round
-    newborns subtracted — see the module docstring)."""
-    n_placed = placements_this_round(state.players[idx])
+    """Wood owed for this use: keyed to the ACTING person's 1-based ordinal
+    ("with your Nth person" — helpers.acting_placement_number, the standing-
+    worker ledger's number at the market). The just-minted number at an ordinary
+    placement; the moved worker's PRESERVED number at a relocated use (Straw
+    Hat's end-of-work move onto a market — ruling 79 item 4)."""
+    n_placed = acting_placement_number(state, idx)
     return WOOD_BY_PERSON.get(n_placed, 0)
 
 

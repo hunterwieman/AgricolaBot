@@ -221,6 +221,75 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-27 standing-worker ledger + Straw Hat E10 (ruling 83) — the relocation
+  family opens.** The ruling-79 identity ledger deferred to "the relocation batch" is
+  BUILT: `PlayerState.standing_workers` holds (minted number, location) pairs — appended
+  at the three placement chokepoints (`_apply_worker_placement`, the card-space path,
+  Canal Boatman's park), location-rewritten by `worker_moves._move_board_worker` (a
+  relocation PRESERVES the number — ruling 79 item 3), dropped at
+  `notify_worker_returned` (a return ANONYMIZES — item 2), cleared at the
+  returning-home reset; card-only, hashed + canonical-skipped, Family byte-identical,
+  C++ untouched. The use-instant ordinal readers (**Catcher, Wheel Plow, Plow Hero,
+  Fir Cutter**) migrated from the mint counter to `helpers.acting_placement_number` —
+  the acting worker's standing number at the nearest space frame: equal to the counter
+  at every ordinary placement and at the same-worker jump, the moved worker's PRESERVED
+  (possibly lower) number at a relocated use, which is what makes "a relocation counts
+  as placing that person" (ruling 79 item 4) read the right N. Skillful Renovator
+  deliberately stays on the counter (its printed effect is a COUNT — "the number of
+  people you placed that round"). **Straw Hat E10** is the first end-of-work
+  relocation, an optional trigger on the ladder's existing `end_of_work` rung (rounds
+  3/6, the Apiary/Sundial shape) with play-variants: "food" (+1 food — UNCONDITIONAL,
+  ruling 83 item 1) plus one per legal destination (strict `space_occupied` read
+  composed BEFORE the destination's own placement predicate on a current-player probe;
+  fire = `relocate_and_use`, the destination resolving as a full use above the window
+  host, the ladder resuming after). The Steam Machine coupling rides the latch both
+  ways (ruling 83 item 3): `last_use_committed` set → the relocation variants are
+  suppressed (food only); unset → Steam Machine's own trigger surfaces at an
+  accumulation-space destination with no Straw Hat code. Census after: **239
+  occupations + 334 minors = 573**. Still open in the relocation family: Archway D51
+  (blocked on the card-action-space infrastructure — 9 sibling cards to design
+  against, plus the Archway × last-use open question), the standing-number readers
+  (Second Spouse, Midwife, Mummy's Boy — 3+/4+), and Henpecked Husband's stored-space →
+  ledger migration.
+- **The 2026-07-27 last-use-commitment latch landed (the Steam Machine × loaner-offer
+  foreclosure — the commit-on-fire item, closed).** Steam Machine's "the last action space
+  you use" was gated on `people_home == 0`, which an *unanswered supply-loaner offer*
+  falsifies: the player could fire the bake and then still accept a Telegram / Work Permit /
+  Delayed Wayfarer loaner, retroactively making the fired-on use not the last. Ruled
+  resolution (the Telegram-arc principle: passing up the final placement opportunity
+  declines the loaner for the entire round): **firing commits the use as the phase's last
+  and implicitly declines every optional loaner offer for the round.** Shipped as
+  `PlayerState.last_use_committed` — set in Steam Machine's fire, read by its own
+  eligibility (a committed last use falsifies any later use's "last" claim — this is also
+  what will keep the fire once-per-phase when a relocation effect creates a second
+  `people_home == 0` use), and consulted centrally at `turn_offers.pending_turn_start_offer`,
+  the single offer chokepoint — which is why it is a LATCH and not a decline-outstanding
+  call: Delayed Wayfarer's offer only *arises* at the all-players-placed boundary, later
+  than the fire instant, so there is nothing outstanding to decline at fire time. Cleared
+  at the returning-home reset (never outlives its round); canonical default-skip; Family
+  byte-identical, C++ untouched. The accepted-loaner order is untouched and exact: an
+  activated loaner sits in `people_home`, so declining the bake, taking the loaner, and
+  firing on the loaner's own accumulation placement all remain playable (pinned). An
+  840-card survey grounds the scope: **Market Master E131** is the catalog's only other
+  own-last-placement instant (it sets the same latch when built; 3+, neither of its spaces
+  on the 2p board); every MANDATORY future placement mechanism (returned workers, delayed
+  placements — Tea Time, Tea House, Oyster Eater) routes through `people_home`, which
+  already blocks the fire, so the mandatory direction needs no code; future latch
+  consumers when built: **Straw Hat**'s move-and-use branch (user ruling this session:
+  a committed last use forecloses the move, forcing its "get 1 food" branch, which uses
+  no space — SHIPPED same day, consulting), **Adoptive Parents**' newborn activation (an
+  optional future placement living outside `people_home`), Market Master. OPEN at
+  Archway's build: whether its `after_work` relocation counts as a work-phase use for
+  "the last action space you use" (lean no — the rung sits after the phase; recorded in
+  CARD_DEFERRED_PLANS.md). Follow-up same day (flagging Market Master): **Sheep
+  Inspector joined the foreclosure set** — its return shares the fire's after-window and
+  a returned home worker must be re-placed, falsifying the commitment, so its
+  eligibility now consults the latch (the reverse order was already exact via
+  `people_home`; both orders pinned); and the **same-window sibling rule** is recorded
+  for Market Master's build (both last-use readers can fire in ONE window — Steam
+  Machine's blind latch read must then be scoped to other-window commitments). All three
+  pending builds (Market Master / Adoptive Parents / Archway) are pinned executably by
+  `tests/test_last_use_commitment_tripwire.py`.
 - **The 2026-07-26 ruling-82 correction pass: the never-make-a-legal-move-unplayable rule,
   the food-payment PRESERVE seam, Junior Artist UN-implemented, and the marker
   occupancy-reader extension (same day as the jump batch below, superseding parts of it).**
@@ -291,7 +360,8 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   offers already shipped: Steam Machine firing on the last family worker's
   accumulation-space window while a Telegram / Delayed Wayfarer loaner offer is still
   outstanding should implicitly DECLINE the loaner (the user's ruled principle from the
-  Telegram arc) — nothing enforces that yet; the foreclosure seam is the open item and the occupancy-READER scope of Job Contract's marker
+  Telegram arc) — CLOSED 2026-07-27: enforced by the `last_use_committed` latch (see that
+  entry above). Remaining open from this batch: the occupancy-READER scope of Job Contract's marker
   (legality-only per ruling 81.3; Turnip Farmer-class readers are 3+, flagged for that
   pass). Census after: **240 occupations + 333 minors = 573**.
 - **The 2026-07-26 same-worker-jump groundwork + Child Ombudsman D92 (ruling 81; card-only,

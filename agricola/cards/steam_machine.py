@@ -13,13 +13,34 @@ use" wording (the same exception Carpenter's Axe / Wood Cutter ride), so the gra
 fires once the space's own pickup has already resolved — Bake Bread is offered in the
 space host's after-phase.
 
-"THE LAST ACTION SPACE YOU USE" — `people_home == 0`. `people_home` is decremented at
-placement (`_apply_worker_placement`) BEFORE the after-phase fires, and the engine's
-work-phase-complete signal is exactly `all(p.people_home == 0)`. So at the
-after_action_space moment, the placing player's `people_home == 0` is precisely "this
-was your last placement this work phase." (In the 2-player Family-derived card game,
-family size is fixed and no in-scope card grants extra workers, so the mapping is
-exact; a future extra-worker card would need to revisit this.)
+"THE LAST ACTION SPACE YOU USE" — `people_home == 0` + the last-use latch.
+`people_home` is decremented at placement (`_apply_worker_placement`) BEFORE the
+after-phase fires, so at the after_action_space moment `people_home == 0` means "no
+worker at home can place after this one." That is exact for every mechanism routed
+through people_home — returned workers (Tea Time), delayed placements, and an
+ACCEPTED loaner (helpers.activate_temp_worker puts the meeple in people_home, so the
+gate simply waits for the true last placement, which may be the loaner's — and the
+bake is then correctly offered there). What people_home cannot see is an optional
+future use living OUTSIDE it: an unanswered supply-loaner OFFER (Telegram / Work
+Permit, and Delayed Wayfarer's offer, which only arises at the all-players-placed
+boundary — later than this fire). Ruled resolution (the Telegram-arc principle):
+firing this card COMMITS "this was my last use of the work phase" and implicitly
+DECLINES every such offer for the round — `_apply` sets
+`PlayerState.last_use_committed`, which `turn_offers.pending_turn_start_offer`
+consults at its single chokepoint. Eligibility reads the same latch: once a use has
+been committed as last, any later use's "last" claim is false — which is also what
+keeps this once-per-phase when a relocation effect creates a second
+people_home == 0 use. The consulting parties (each blocks its own contradiction):
+Straw Hat's relocation variants (its "get 1 food" branch is unaffected) and Sheep
+Inspector's return — the return shares this trigger's after-window, and a returned
+home worker MUST be re-placed, which would falsify the commitment; the reverse
+order needs nothing (a return first raises people_home, blocking this gate). A
+MANDATORY future placement needs no handling: every catalog mechanism of that kind
+lives in people_home, which already blocks the fire. ON MARKET MASTER'S BUILD (the
+other own-last-placement instant): both cards can fire in the SAME window
+(Traveling Players is an accumulation space), so this eligibility's blind latch
+read must then be scoped to other-window commitments — the executable flag is
+tests/test_last_use_commitment_tripwire.py.
 
 "ACCUMULATION SPACE" — the 9 goods-accumulating spaces, read at eligibility
 through the category accessor `helpers.accumulation_spaces(state)` (the one
@@ -56,6 +77,7 @@ from agricola.legality import _can_bake_bread
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_action_space_hook
 from agricola.pending import PendingBakeBread, push
+from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.resolution import ATOMIC_HANDLERS
 from agricola.state import GameState
@@ -81,12 +103,23 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     # workers (people_home decremented at placement, before this after-phase fires).
     if p.people_home != 0:
         return False
+    # An earlier use was already committed as the phase's last — this one's "last"
+    # claim is false (and this is what keeps the fire once-per-phase when a
+    # relocation creates a second people_home == 0 use).
+    if p.last_use_committed:
+        return False
     # Never grant a dead-end Bake Bread.
     return _can_bake_bread(state, p)
 
 
 def _apply(state: GameState, idx: int) -> GameState:
-    """Grant the optional Bake Bread sub-action (the existing primitive)."""
+    """Commit this use as the phase's last (implicitly declining any outstanding or
+    later-arising loaner offer for the round — see the module docstring), then grant
+    the optional Bake Bread sub-action (the existing primitive)."""
+    p = state.players[idx]
+    state = fast_replace(state, players=tuple(
+        fast_replace(p, last_use_committed=True) if i == idx else state.players[i]
+        for i in range(len(state.players))))
     return push(state, PendingBakeBread(
         player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
 

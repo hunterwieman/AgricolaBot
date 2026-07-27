@@ -611,7 +611,11 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C24 Bed in the Grain Field** · prereq: 1 Grain Field
   - _At the start of the next harvest, you get a "Family Growth" action if you have room for the newborn.  [CLARIFICATION: Only works in the next harvest after it is played.  The newborn must be fed.]_
   - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-GROWTH CAP-GAME ST-STORE` — One-time deferred Family Growth at the start of the next harvest (HOOK S-HSTART, CAP-GAME); must remember it is pending for that one harvest (ST-STORE). E-PEOPLE redundant with E-GROWTH.
-- ✅ **C25 Steam Machine** · cost: 2 Wood
+- ✅ **C25 Steam Machine** · cost: 2 Wood · 2026-07-27: fire now COMMITS the use as the
+  phase's last (`PlayerState.last_use_committed`), implicitly declining every optional
+  loaner offer for the round (Telegram / Work Permit / Delayed Wayfarer — the ruled
+  Telegram-arc principle); eligibility reads the latch (once-per-phase once relocations
+  exist). Straw Hat's move / Adoptive Parents / Market Master consult or set it when built.
   - _Each work phase, if the last action space you use is an accumulation space, you can immediately afterward take a "Bake Bread" action._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — Bake Bread is a primitive sub-action per the taxonomy (E-GRANTSUB explicitly lists bake bread), so E-GRANTSUB not E-GRANTACT; 'immediately afterward' = T-AFTER on the space use. ST-PLACELOG is unneeded: the hook fires at the space use itself, and 'last' is computable from workers remaining — no persistent per-worker log.
 - ✅ **C26 Flail** · cost: 1 Wood
@@ -1076,7 +1080,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E9 Bartering Hut** · passing
   - _Up to two times: Immediately spend any 2/3/4 building resources for 1 sheep/wild boar/cattle from the general supply._
   - `ONPLAY E-CONVERT E-ANIMALS` — 'Immediately spend... up to two times' is an on-play resource-for-animal exchange (convert + animals to accommodate); the card data has no passing flag, so E-PASSING is an invention.
-- ⬜ **E10 Straw Hat** · cost: 1 Reed
+- ✅ **E10 Straw Hat** · cost: 1 Reed
   - _At the end of the work phases of rounds 3 and 6, you can move your person from the "Farmland" action space to an unoccupied action space and take that action, or get 1 food._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-WORKERMANIP E-GRANTACT E-GOODS ST-PLACELOG` — At end of work phase rounds 3&6, move person from Farmland to unoccupied space and take that action, or 1 food; needs placement log.
 - ✅ **E11 Petting Zoo** · cost: 1 Wood
@@ -2555,6 +2559,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT E-COSTMOD` — Each time you use a Wish for Children space (before), you may play 1 additional improvement (a whole play-improvement action = E-GRANTACT) at cost less 1 resource (E-COSTMOD); playing a card is a full action, not a primitive sub-action.
 - ⬜ **E131 Market Master** · [3+]
   - _Immediately after each time you place your last person in a round on the "Traveling Players" accumulation space, you can play 1 occupation for an occupation cost of 1 food.  [ERRATA: ERRATA: in 3-player games this applies to “Resource Market” instead.]_
+  - ⚠ ON BUILD (2026-07-27): the last-use-commitment contract — its FIRE must SET
+    `PlayerState.last_use_committed` (Steam Machine's semantics: implicitly declines every
+    loaner offer / return / relocation for the round), AND the same-window sibling rule:
+    Traveling Players is an accumulation space, so it and Steam Machine can both fire in
+    ONE after-window — Steam Machine's blind `not last_use_committed` eligibility read must
+    then be scoped to other-window commitments (e.g. latch set AND no latch-setter in this
+    frame's `triggers_resolved`). Executable flag: `tests/test_last_use_commitment_tripwire.py`.
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT E-FOODCOST` — 'Immediately after each time you place ... on Traveling Players' = T-AFTER S-SPACE hook granting an optional play-occupation action for 1 food (E-FOODCOST). The 1-food price is the grant's own cost parameter, not a build/renovation/improvement cost change, so no E-COSTMOD; 'last person' is a supply-count read at the triggering event itself, so no ST-PLACELOG.
 - ⬜ **E132 Veggie Lover** · [3+]
   - _In each harvest, you can use this card to exchange a pair of 1 grain and 1 vegetable into 6 food. During scoring, you can exchange 1/2/3 pairs of 1 grain and 1 vegetable for 2/4/6 bonus points.  [CLARIFICATION: If crops are exchanged for bonus points, they do not count in the normal scoring.]_

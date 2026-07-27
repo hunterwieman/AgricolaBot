@@ -1084,3 +1084,9 @@ from agricola.cards import swagman  # noqa: F401
 # preserve seam awaits the user's go-ahead.
 from agricola.cards import large_scale_farmer  # noqa: F401
 from agricola.cards import full_peasant  # noqa: F401
+# --- The relocation family (rulings 79/83): the standing-worker ledger
+#     (PlayerState.standing_workers) + worker_moves._move_board_worker's
+#     preserve-the-number rewrite; Straw Hat is the first end-of-work
+#     relocation (Archway's after_work sibling awaits the card-action-space
+#     infrastructure). ---
+from agricola.cards import straw_hat  # noqa: F401

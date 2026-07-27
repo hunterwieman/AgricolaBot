@@ -78,7 +78,19 @@ def pending_turn_start_offer(state: GameState, idx: int):
     reaches here. At most one offer is surfaced per boundary; if two ever became eligible
     at once, the second is surfaced at the next boundary (the first one's resolver latches
     it off), so both are still offered before the player places.
+
+    A player who has COMMITTED their last work-phase use (`last_use_committed` — set by
+    firing a last-use-conditioned effect, Steam Machine today) is owed no offer: a loaner
+    placement would contradict the commitment, so every offer is implicitly declined for
+    the round (the user's ruled Telegram-arc principle). The consult lives HERE, at the
+    single chokepoint, so it also suppresses offers that only become eligible at a LATER
+    boundary (Delayed Wayfarer's all-players-placed offer arises after Steam Machine's
+    fire instant — a decline-what's-outstanding call at fire time would miss it). The
+    latch clears at the returning-home reset, so it never outlives its round; whether a
+    foreclosed offer exists in a later round is each card's own predicate.
     """
+    if state.players[idx].last_use_committed:
+        return None
     for card_id, (eligible, options) in TURN_START_OFFERS.items():
         if eligible(state, idx):
             return PendingCardChoice(

@@ -19,6 +19,87 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Open question (2026-07-27) — Archway × "the last action space you use" (needed at Archway's build)
+
+Steam Machine's condition quantifies over uses "each work phase". Archway D51's relocation
+("Immediately before the returning home phase, they can use an unoccupied action space with
+the person from this card") sits on the `after_work` rung — after `end_of_work`, whose
+rung-mate is Informant B117's "After each work phase...". If that instant is AFTER the work
+phase, an Archway use neither counts toward "the last action space you use" nor is foreclosed
+by a fired Steam Machine — they simply don't interact (the implementer's lean). If the user
+instead rules the work phase extends until returning home begins, Archway's use-branch joins
+the `last_use_committed` consumers exactly like Straw Hat's move (which IS in scope:
+`end_of_work` is ruled *during* the work phase, so a committed last use forecloses Straw
+Hat's move-and-take-that-action branch and forces its "get 1 food" branch — user, 2026-07-27).
+Also joining the latch when built: **Adoptive Parents A92** (a payable newborn activation is
+an optional future placement living outside `people_home`) and **Market Master E131** (the
+catalog's only other own-last-placement instant — its fire SETS the latch too). All three
+builds are pinned executably by `tests/test_last_use_commitment_tripwire.py` (the Large
+Pottery pattern): each test fails at the card's registration and carries its contract.
+
+Two refinements found 2026-07-27 while flagging Market Master:
+
+1. **The same-window sibling rule.** Traveling Players is an accumulation space, so Market
+   Master and Steam Machine can both legitimately fire in the SAME after-window — both
+   conditions ride the same last placement, and nothing makes them exclusive. Steam
+   Machine's current eligibility read (`not last_use_committed`) is blind and would wrongly
+   block whichever sibling fires second; correct today (nothing else sets the latch), it
+   must be scoped to OTHER-window commitments when Market Master lands (e.g. latch set AND
+   no latch-setting card in this frame's `triggers_resolved`).
+2. **Sheep Inspector joined the foreclosure set (fixed same day).** Its return shares the
+   last placement's after-window; post-commitment, a returned home worker would HAVE to be
+   re-placed (placements are mandatory), falsifying the committed last use — so its
+   eligibility now consults the latch. The reverse order (return first, then no bake) was
+   already correct via `people_home`. Both orders pinned in `tests/test_card_steam_machine.py`.
+
+## Ruling 83 (2026-07-27) — Straw Hat: the unconditional food branch, inherited jump readings, the Steam Machine commitment both ways
+
+Settles **Straw Hat E10** ("At the end of the work phases of rounds 3 and 6, you can move
+your person from the 'Farmland' action space to an unoccupied action space and take that
+action, or get 1 food.") — the first end-of-work relocation — and banks the Archway
+confirmations ahead of its build:
+
+1. **The 1-food branch is UNCONDITIONAL.** Offered at the end of work of rounds 3 and 6
+   with or without a person on Farmland; only the relocation branch needs the person.
+2. **The relocation inherits the jump-family destination readings** (ruling 81)
+   wholesale: "unoccupied" is a strict occupancy READ at the fire time
+   (`legality.space_occupied` — a worker or a "considered occupied" marker blocks; an
+   occupancy-exemption card never un-occupies); the destination's own action must be
+   legal per the same per-space placement predicate a normal placement uses; the
+   destination resolves as a FULL use (its card windows fire); and the moved person
+   keeps its number and the move counts as "placing" for place-triggered readers
+   without minting (ruling 79 items 3/4).
+3. **Steam Machine cuts both ways** (user, verbatim): "If steam machine has already
+   fired, then straw hat's re-location is no longer available, and the player must
+   choose the 1 food option. If steam machine has not yet fired, straw hat has the
+   option to fire it if they go on an accumulation space." Engine form: the shared
+   last-use-commitment latch (`PlayerState.last_use_committed`) — a set latch
+   suppresses the relocation variants (the food stays); an unset latch needs no Straw
+   Hat code, because Steam Machine's own `after_action_space` eligibility
+   (accumulation space + `people_home == 0` + latch unset + can bake) holds naturally
+   at the relocated destination.
+4. **Archway confirmations, recorded for its build** (blocked on the card-action-space
+   infrastructure; the sibling shapes to design against are Chapel A39, Forest Inn B42,
+   Pioneering Spirit D23, Alchemists Lab E81, Collector C104, Forest Owner C162,
+   Hardworking Man D127, Elder Baker E161): the parked person's relocation is optional
+   — declined, or destination-less, the person simply goes home at the reset; "an
+   action space for all" means normal occupancy, either player may place there; and
+   the relocation right belongs to the player who used the space, not the card's
+   owner. (Archway × Steam Machine is the open question above.)
+
+Engine form — **the standing-worker ledger is BUILT** (the ruling-79 "relocation batch"
+deferral): `PlayerState.standing_workers` holds (minted number, location) pairs —
+appended at the three placement chokepoints, location-rewritten by
+`worker_moves._move_board_worker` (a relocation preserves the number), dropped at
+`worker_moves.notify_worker_returned` (a return anonymizes), cleared at the
+returning-home reset. The use-instant ordinal readers (Catcher, Wheel Plow, Plow Hero,
+Fir Cutter) migrated from the mint counter to `helpers.acting_placement_number` — the
+acting worker's standing number at the nearest space frame: equal to the counter at
+every ordinary placement and at the same-worker jump, the moved worker's preserved
+(possibly lower) number at a relocated use. **Skillful Renovator deliberately stays on
+the counter**: its printed effect reads "a number of wood equal to the number of people
+you placed that round" — a COUNT, not the acting person's ordinal.
+
 ## Ruling 82 (2026-07-26) — NEVER make a rules-legal move unplayable; the food-payment preserve seam
 
 1. **An implementation must never make a rules-legal move unplayable** (now
@@ -119,12 +200,14 @@ helper reads it. The old derived expression `(people_total − newborns) − peo
 temp_workers_active` is retired (it silently mis-read every return scenario — it computed
 "workers currently deployed", an interpretation nobody chose).
 
-Deferred to the relocation batch, recorded here so it isn't lost: the standing-worker
-number map ("which minted number stands on which space") — consumers are the relocation
-primitive, the standing-number readers (Second Spouse, Midwife, Mummy's Boy — all 3+/4+),
-and Henpecked Husband's migration from its stored-space record to find-the-worker (its
-"unless it is on the Meeting Place" exemption then reads the worker's location at fire
-time). Job Contract (all-counts) is the 2p-dealt card that makes the migration matter.
+The standing-worker number map deferred here is **BUILT** (ruling 83, 2026-07-27 —
+`PlayerState.standing_workers`, maintained at the placement/move/return/reset
+chokepoints; the use-instant ordinal readers migrated to
+`helpers.acting_placement_number`). Unblocked but NOT yet migrated: the standing-number
+readers (Second Spouse, Midwife, Mummy's Boy — all 3+/4+), and Henpecked Husband's
+migration from its stored-space record to find-the-worker (its "unless it is on the
+Meeting Place" exemption then reads the worker's location at fire time; Job Contract,
+all-counts, is the 2p-dealt card that makes that migration matter).
 
 ## Ruling 80 (2026-07-26, refined same day) — "even if" removes an obstacle; the unit is the person-GROUP
 

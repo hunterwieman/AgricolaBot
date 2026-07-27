@@ -386,6 +386,55 @@ class PlayerState:
     # default-skip + hashed below, C++ untouched. Reset at the returning-home reset.
     placements_this_round: int = 0
 
+    # Card-only: this player has COMMITTED that they will use no further action space
+    # this work phase — set when they fire an effect conditioned on "the last action
+    # space you use" / "your last person" (Steam Machine today; Market Master when
+    # built), whose fire asserts last-ness while optional future uses are still
+    # possible. The user's ruled principle (Telegram arc, 2026-07): passing up the
+    # final placement opportunity declines the loaner option FOR THE ENTIRE ROUND —
+    # so the commitment is round-scoped and firing such an effect implicitly declines
+    # every optional future use. Consumers: turn_offers.pending_turn_start_offer
+    # (suppresses loaner offers — including ones that would only ARISE later, e.g.
+    # Delayed Wayfarer's all-placed-boundary offer, which is why this is a latch and
+    # not a decline-outstanding call), steam_machine's own eligibility (a committed
+    # last use makes any later "last use" claim false — this is also what enforces
+    # once-per-phase once relocations like Straw Hat can create a second
+    # people_home==0 use), and — when built — Straw Hat's move-and-use branch /
+    # Adoptive Parents' newborn activation. Mechanisms routed through people_home
+    # (returned/delayed/consecutive normal people) need no consult: people_home > 0
+    # already blocks the last-use readers. Cleared at the returning-home reset so the
+    # commitment never outlives its round; whether a foreclosed offer exists in a
+    # LATER round is each card's own predicate (today all three offers are
+    # single-target-round, so foreclosure spends them — the ruled "declines for the
+    # entire round" is their whole lifetime). Family-constant False → hashed below +
+    # canonical _DEFAULT_SKIP_FIELDS; C++ untouched.
+    last_use_committed: bool = False
+
+    # Card-only: WHERE this player's NUMBERED standing workers are — a tuple of
+    # (placement_number, location) pairs, ascending by number; a location is a board
+    # space_id or "card:<id>" (a worker parked on a card — Canal Boatman's park, a
+    # card action space). The identity ledger behind ruling 79's PHYSICAL ordinal:
+    # `placements_this_round` records how many numbers this round has MINTED; this
+    # records which numbered workers still STAND where. STORED because identity is
+    # unobservable from counts: an on-board relocation preserves the worker's number
+    # (ruling 79 item 3 — the jump family, Straw Hat, Archway), so after any move
+    # the number standing on a space cannot be recovered from the board's per-space
+    # worker counts. Maintained at exactly the sites that move physical markers:
+    # the placement chokepoints append the just-minted number
+    # (resolution._apply_worker_placement, engine._apply_place_card_space_worker,
+    # Canal Boatman's park), worker_moves._move_board_worker rewrites the moved
+    # entry's location, worker_moves.notify_worker_returned drops the returned
+    # entry (returning home ANONYMIZES — ruling 79 item 2), and the returning-home
+    # reset clears. Newborns / no-space growth never enter (they mint nothing —
+    # "Newborns are not placed"), so a wish space's parent+newborn pair holds ONE
+    # entry. Readers: helpers.acting_placement_number (the ordinal a use-instant
+    # reader sees — the standing number at the acting space, which diverges from
+    # the mint counter at a relocated use), and — when built — the standing-number
+    # cards (Second Spouse, Midwife, Mummy's Boy) and Henpecked Husband's
+    # find-the-worker migration. Family-constant () → hashed below + canonical
+    # _DEFAULT_SKIP_FIELDS; C++ untouched.
+    standing_workers: tuple = ()
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -405,7 +454,9 @@ class PlayerState:
                       self.fences_in_supply, self.workers_in_supply,
                       self.animals_need_accommodation,
                       self.temp_workers_active,
-                      self.placements_this_round))
+                      self.placements_this_round,
+                      self.last_use_committed,
+                      self.standing_workers))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

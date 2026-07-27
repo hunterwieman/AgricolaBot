@@ -63,10 +63,34 @@ def register_worker_returned(card_id: str, fn: Callable) -> None:
 
 def notify_worker_returned(state: GameState, idx: int, space_id: str) -> GameState:
     """Every return-a-worker-home effect calls this with the vacated space. Each
-    registered fn self-gates on its own card's ownership/state."""
+    registered fn self-gates on its own card's ownership/state.
+
+    Also the chokepoint where a returned worker leaves the standing-worker ledger:
+    returning home ANONYMIZES (ruling 79 item 2 — the number is voided; re-placing
+    mints fresh), so the entry at the vacated location is dropped here. The
+    single-chokepoint convention is what keeps the ledger correct for every future
+    return effect with no per-card bookkeeping."""
+    state = _drop_standing_worker(state, idx, space_id)
     for _card_id, fn in WORKER_RETURNED_HOOKS:
         state = fn(state, idx, space_id)
     return state
+
+
+def _drop_standing_worker(state: GameState, idx: int, location: str) -> GameState:
+    """Remove player `idx`'s standing-worker ledger entry at `location` (a return
+    home voided its number). No-op when no entry exists (every Family call — the
+    ledger is card-only and empty there); ≤1 entry by invariant (the only
+    multi-marker case, a wish space's parent+newborn, holds one NUMBERED worker)."""
+    p = state.players[idx]
+    matches = [e for e in p.standing_workers if e[1] == location]
+    if not matches:
+        return state
+    assert len(matches) == 1, (
+        f"two numbered workers of player {idx} at {location!r}: {matches}")
+    p = fast_replace(p, standing_workers=tuple(
+        e for e in p.standing_workers if e != matches[0]))
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
 
 
 def _move_board_worker(state: GameState, idx: int, from_space: str,
@@ -75,7 +99,12 @@ def _move_board_worker(state: GameState, idx: int, from_space: str,
     `to_space`. The vacated source re-opens (occupancy is solely worker presence —
     the Tea Time ruling); the destination gains the worker even if occupied (a
     jump card that requires an unoccupied destination enforces that in its own
-    eligibility — Swagman explicitly pierces)."""
+    eligibility — Swagman explicitly pierces).
+
+    The mover's standing-worker ledger entry is rewritten to the destination —
+    an on-board relocation PRESERVES the worker's number (ruling 79 item 3), and
+    this chokepoint is what makes that true for every relocation effect (the
+    jump family, Straw Hat, Archway) with no per-card bookkeeping."""
     src = get_space(state.board, from_space)
     assert src.workers[idx] >= 1, (
         f"no worker of player {idx} on {from_space!r} to move")
@@ -90,8 +119,24 @@ def _move_board_worker(state: GameState, idx: int, from_space: str,
         src, workers=_bump(src.workers, idx, -1))
     spaces[SPACE_INDEX[to_space]] = fast_replace(
         dst, workers=_bump(dst.workers, idx, +1))
-    return fast_replace(state, board=fast_replace(
+    state = fast_replace(state, board=fast_replace(
         state.board, action_spaces=tuple(spaces)))
+
+    # Rewrite the ledger entry's location; the number is untouched (numbers stay
+    # ascending, so the tuple order is preserved). ≤1 entry by invariant; 0 only
+    # for an unnumbered marker (a wish space's newborn — no relocation source
+    # today; harmless no-op if one ever moves).
+    p = state.players[idx]
+    matches = [e for e in p.standing_workers if e[1] == from_space]
+    if matches:
+        assert len(matches) == 1, (
+            f"two numbered workers of player {idx} at {from_space!r}: {matches}")
+        num = matches[0][0]
+        p = fast_replace(p, standing_workers=tuple(
+            (n, to_space if n == num else loc) for n, loc in p.standing_workers))
+        state = fast_replace(state, players=tuple(
+            p if i == idx else state.players[i] for i in range(len(state.players))))
+    return state
 
 
 def relocate_and_use(state: GameState, idx: int, from_space: str,
