@@ -350,6 +350,42 @@ class PlayerState:
     # the boundary check is a single bool, never a can_accommodate scan.
     animals_need_accommodation: bool = False
 
+    # Card-only: LOANER meeples this player has in play this round — supply meeples acting as
+    # workers WITHOUT joining the family (Motivator E93, Telegram A22, and the rest of the
+    # supply-loaner family). Taken from `workers_in_supply` when activated and returned to it at
+    # the returning-home reset, so a loaner is never fed (it is back in supply before any
+    # harvest), never scored, and never a family member — while it is out it occupies a physical
+    # meeple, which is exactly why "Family Growth to a 5th person" is blocked (the existing
+    # `workers_in_supply > 0` gate needs no change).
+    #
+    # STORED, not derived. The tempting derivation `people_home + markers - people_total` is
+    # UNSOUND, for two verified reasons: (1) nine cards grant family growth with no action space
+    # (PendingFamilyGrowth(place_on_space=False) — Heart of Stone, Autumn Mother, Family Friendly
+    # Home, ...), which raises people_total/newborns while placing NO marker, and `newborns` does
+    # not distinguish those from wish-space newborns, so the term is unrecoverable — Family
+    # Friendly Home fires on before_build_rooms, i.e. mid-WORK; and (2) Lodger's round-9 eviction
+    # drops people_total without clearing the evicted meeple's board marker. Written at exactly
+    # two sites (loaner activation, the returning-home restore), so it depends on no other card's
+    # bookkeeping. Family-constant 0 → added to __hash__ below + canonical's
+    # _DEFAULT_SKIP_FIELDS, so the Family game stays byte-identical and C++ is untouched.
+    temp_workers_active: int = 0
+
+    # Card-only: how many acts of PLACING a worker this player has made this round — the
+    # "Nth person you place" ordinal the ordinal-reading cards consume (Wheel Plow, Plow
+    # Hero, Catcher, Fir Cutter, Henpecked Husband, Skillful Renovator). Ruling 79
+    # (2026-07-26, the "PHYSICAL" interpretation): each placement from home or supply mints
+    # the next number; a worker RETURNED home (Tea Time, Sheep Inspector) is anonymized —
+    # re-placing it mints a fresh number; an on-board RELOCATION preserves the worker's
+    # number and mints nothing. STORED, not derived: the old derived expression
+    # `(people_total − newborns) − people_home + temp_workers_active` computes "workers
+    # currently deployed", which under-reads after any return — and ticking only on real
+    # placements makes the newborn/no-space-growth correction problems structurally
+    # impossible (births never tick). Ticked at the placement chokepoints
+    # (resolution._apply_worker_placement, engine._apply_place_card_space_worker, Canal
+    # Boatman's park) in CARDS mode only, so the Family game holds it at 0 — canonical
+    # default-skip + hashed below, C++ untouched. Reset at the returning-home reset.
+    placements_this_round: int = 0
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -367,7 +403,9 @@ class PlayerState:
                       self.used_this_turn, self.used_this_round,
                       self.fired_once, self.card_state,
                       self.fences_in_supply, self.workers_in_supply,
-                      self.animals_need_accommodation))
+                      self.animals_need_accommodation,
+                      self.temp_workers_active,
+                      self.placements_this_round))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

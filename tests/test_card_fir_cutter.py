@@ -60,8 +60,12 @@ def _own(state, idx):
 
 
 def _with_people(state, idx, *, total, home, newborns=0):
+    # Faking "k workers already out" is faking k acts of placing, so the stamped
+    # people counts carry the coherent placement-act counter (ruling 79 — the
+    # ordinal cards read the stored counter, not the people fields).
     p = fast_replace(state.players[idx], people_total=total, people_home=home,
-                     newborns=newborns)
+                     newborns=newborns,
+                     placements_this_round=(total - newborns) - home)
     return fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(2)))
 

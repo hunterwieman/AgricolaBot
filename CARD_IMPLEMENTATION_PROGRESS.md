@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 281 implemented · 🚫 10 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 128 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-21 — the line had gone stale during the tier batches.)*
+**420 minors** — ✅ 281 implemented · 🚫 12 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 125 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26. ⚠ KNOWN DRIFT: the live registry holds 332 minors — ~50 implemented cards from past batches were never flipped to ✅ here; the LIVE REGISTRY is the truth (CLAUDE.md census command), and the per-entry flips need a hygiene pass.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -89,7 +89,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A21 Family Friendly Home** · prereq: 1 Occupation *(name corrected 2026-07-20 — the data JSON's "Family Friend Home" was wrong; implemented 2026-07-20, ruling 69: the rooms>people measure is BEFORE the action — `before_build_rooms` food auto + optional growth trigger, food unconditional on the condition; named-action gate on `build_rooms_action` [user-confirmed 2026-07-20])*
   - _Each time you take a "Build Rooms" action while having more rooms than people already, you also get a "Family Growth" action and 1 food.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS E-GRANTSUB E-GROWTH` — 'Each time you take a Build Rooms action' → default T-BEFORE (no 'immediately after' wording), and the rooms-vs-people condition is checked with 'already' at initiation; grants an optional Family Growth (E-GRANTSUB + E-GROWTH, exactly 1 per clarification) plus 1 food (E-GOODS).
-- ⬜ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
+- ✅ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
   - _Add 1 to the current round for each fence in your supply and mark the corresponding round space. In that round only, you can place a person from your supply.  [CLARIFICATION: The person is returned to your supply in the “returning home” phase.]_
   - `ONPLAY E-EXTRAPLACE E-PEOPLE E-FOODCOST ST-STORE` — On-play marks a computed future round (ST-STORE) in which you place a person FROM SUPPLY that returns to supply at round end — a temporary worker (E-PEOPLE) giving an additional placement (E-EXTRAPLACE); the 2-Food play cost is E-FOODCOST per the cost ruling; nothing is placed on round spaces as goods, so no E-SCHED.
 - ✅ **A23 Stone Company** · cost: 2 Clay,1 Reed
@@ -620,7 +620,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C27 Blueprint** · cost: 1 Food
   - _You can build the major improvements "Joinery", "Pottery", and "Basketmaker's Workshop" even when taking a "Minor Improvement" action. They each cost you 1 stone less._
   - `PASSIVE L-EXT E-COSTMOD` — Lets three named majors be built via Minor Improvement action (extended legality) and reduces their stone cost.
-- ✅ **C28 Teacher's Desk** · cost: 1 Wood · prereq: 1 Occupation
+- 🚫 **C28 Teacher's Desk** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time you use the "Major Improvement" or "House Redevelopment" action space, you can also play 1 occupation at an occupation cost of 1 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — 'Each time you use [space]' = HOOK T-BEFORE S-SPACE, optional grant (F-TRIG); playing a card is listed as a primitive sub-action (S-SUB seam), so granting 'play 1 occupation' is E-GRANTSUB, not a whole-space E-GRANTACT; the 1-food occupation cost is E-FOODCOST. No L-EXT needed -- the grant itself is the legality.
 - ✅ **C29 Beer Table** · cost: 2 Wood · prereq: No Grain in Your Supply
@@ -629,7 +629,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C30 Half-Timbered House** · cost: 1 Wood,1 Clay,2 Stone,1 Reed
   - _During scoring, you get 1 bonus point for each stone room you have. You can only use one card to get bonus points for your stone house._
   - `PASSIVE E-SCORE E-SCOREGRP` — Pure scoring rule (E-SCORE) with the mutually-exclusive stone-house clause (E-SCOREGRP). The taxonomy requires >=1 ACTIVATION and forbids HOOK/S-BEFORESCORE for scoring rules, so PASSIVE (a standing rule, computed at scoring) is the correct activation — labelA supplied none.
-- ⬜ **C31 Writing Chamber** · cost: 2 Wood
+- 🚫 **C31 Writing Chamber** · cost: 2 Wood
   - _During scoring, you get a number of bonus points equal to the total of negative points you have, to a maximum of 7 bonus points.  [CLARIFICATION: Negative point examples: printed card values, beggars, negative categories, negative bonuses.]_
   - `PASSIVE E-SCORE` — Pure end-game scoring rule (bonus = negative points, capped 7) -- E-SCORE, computed at scoring from the score breakdown, so no ST-STORE; PASSIVE supplies the required >=1 ACTIVATION for a standing scoring rule.
 - ✅ **C32 Abort Oriel** · cost: 2 Clay · prereq: see below
@@ -857,7 +857,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - 🚫 **D21 Recruitment** · cost: 1 Food · prereq: No People Left in the House
   - _Provided you have room in your house, each time you get a "Minor Improvement" action, you can take a "Family Growth" action instead.  [ERRATA: ERRATA: From Round 5 onwards (this is already the case in other language printings.)]_
   - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE E-GROWTH E-GRANTSUB E-FOODCOST` — Union of both labels: replaces a granted Minor Improvement action with Family Growth (E-SUBSTITUTE + E-GROWTH; family growth is a listed grantable sub-action -> E-GRANTSUB), and the 1-Food play cost is E-FOODCOST per the ruling.
-- ⬜ **D22 Work Permit** · cost: 1 Food · prereq: At Least 1 Building Resource in Your Supply
+- ✅ **D22 Work Permit** · cost: 1 Food · prereq: At Least 1 Building Resource in Your Supply
   - _Add 1 to the current round for each building resource you have and place 1 person from your supply on the corresponding round space. In that round, you can use the person._
   - `ONPLAY E-SCHED E-EXTRAPLACE` — Schedules an extra person onto a count-derived round space -- scheduling + extra placement, not board geometry -> L-GEOMBOARD removed.
 - ⬜ **D23 Pioneering Spirit**
@@ -1386,7 +1386,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 152 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 263 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 177 implemented · 🚫 3 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 238 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-26; same drift caveat as the minors line — the live registry holds 236 occupations.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -2181,9 +2181,9 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D91 Plowman** · [1+]
   - _Add 4, 7, and 10 to the current round and place a field tile on each corresponding round space. At the start of these rounds, you can plow the field for 1 food._
   - `ONPLAY E-SCHED HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Plowman: schedule field tiles onto rounds +4/+7/+10 (E-SCHED); at the START of those rounds optionally plow for 1 food -> T-BEFORE (user ruling).
-- ⬜ **D92 Child Ombudsman** · [1+]
+- ✅ **D92 Child Ombudsman** · [1+] · ruling 81.4 (2026-07-26: "end of each person action" = after_action_space, NOT S-TURNEND; no per-round latch — fires per person action; no-space growth, −2/use CardStore counter)
   - _From round 5 on, if you have room in your house, at the end of each person action, you can take a "Family Growth" action with that person. If you do, you get 2 negative points._
-  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB E-GROWTH E-SCORE ST-COUNTER` — Optional Family Growth at the end of each person action ('from round 5' is a plain state read); each use accrues 2 negative points, so the card must keep a running use count over the game — ST-COUNTER (labelB) is needed.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-GROWTH E-SCORE ST-COUNTER` — Optional no-space Family Growth in the after window of each own person action; each use accrues 2 negative points via a running CardStore count. (Original classification said S-TURNEND; ruling 81.4 fixed the instant to the after_action_space window.)
 - ✅ **D93 Sheep Inspector** · [1+] · ruling 74 (after_action_space return; newborns excluded)
   - _Once per work phase, after you complete a person action, you can pay 1 sheep and 2 food to return another person you placed home._
   - `HOOK S-TURNEND T-AFTER F-TRIG A-OWN CAP-ROUND E-FOODCOST E-WORKERMANIP ST-PLACELOG` — After completing a person action, once per work phase, pay 1 sheep + 2 food to return another placed worker home to reuse it — worker manipulation needing to know which space that worker was on; food cost payable via conversion. Once-per-work-phase = CAP-ROUND.
@@ -2439,7 +2439,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E92 Field Doctor** · [1+]
   - _Once this game, if you live in a house with exactly 2 rooms surrounded by 4 field tiles, you can use any "Family Growth" action space even without room.  [CLARIFICATION: Should be “Wish for Children” action space.]_
   - `PASSIVE CAP-GAME E-GROWTH L-EXT L-GEOMFARM ST-STORE` — Nothing fires when the 2-rooms-surrounded-by-4-fields condition becomes true — the card is a once-per-game legality extension (use Wish for Children even without room) exercised at the player's placement, so LATCH/ST-LATCH is wrong; it's a passive rule change gated on farm geometry (L-GEOMFARM), needing only a used-flag (ST-STORE). E-GROWTH noted: growth even without room.
-- ⬜ **E93 Motivator** · [1+]
+- ✅ **E93 Motivator** · [1+]
   - _On your first turn each round, if you have no unused farmyard spaces, you can place a person from your supply._
   - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-EXTRAPLACE E-PEOPLE` — Fires on YOUR first turn each round — a turn/placement event, not the start of the round (other players may act first), so S-SPACE with a first-turn-of-round condition, not S-SOR. Optional extra placement (E-EXTRAPLACE) of a person from supply acting as a worker (E-PEOPLE); the first-turn and no-unused-spaces conditions are plain state reads.
 - ⬜ **E94 Prophet** · [1+]
@@ -2535,7 +2535,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E124 Mayor Candidate** · [1+]
   - _You immediately get 2 wood and 2 stone. During scoring, you get 1 negative point for each wood and each stone in your supply. You can no longer discard wood or stone._
   - `ONPLAY E-GOODS E-SCORE PASSIVE` — Immediate +2 wood +2 stone (ONPLAY/E-GOODS); negative-point end-game scoring rule (E-SCORE); 'can no longer discard wood/stone' is a continuous rule change (PASSIVE). Not L-EXT — that is for extending legality/currency, not a discard prohibition.
-- ⬜ **E125 Delayed Wayfarer** · [1+]
+- ✅ **E125 Delayed Wayfarer** · [1+]
   - _When you play this card, you immediately get 1 building resource of your choice and, once all people have been placed this round, you can place a person from your supply._
   - `ONPLAY E-GOODS HOOK T-AFTER S-TURNEND F-TRIG A-OWN CAP-GAME E-EXTRAPLACE` — On-play resource gain, plus a one-time delayed placement: 'once all people have been placed this round' is the end of the work phase (S-TURNEND, not returning-home S-ROUNDEND), 'this round' ties it to the play round so it fires once (CAP-GAME). You ARE placing a person, so E-NOPLACE is wrong.
 - ✅ **E126 Tax Collector** · [1+]

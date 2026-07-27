@@ -1262,6 +1262,14 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
         "people_total": p.people_total,
         "people_home": p.people_home,
         "newborns": p.newborns,
+        # The meeple SUPPLY pile, and how many of those meeples are out on loan this
+        # round (the supply-loaner cards — Motivator, Telegram, Work Permit). Both are
+        # public. `workers_in_supply` is what gates Family Growth, so without it on the
+        # wire a player cannot see WHY growing is unavailable — nor read the tradeoff a
+        # loaner offer is asking them to make. `temp_workers_active` explains where a
+        # missing supply meeple went.
+        "workers_in_supply": p.workers_in_supply,
+        "temp_workers_active": p.temp_workers_active,
         "begging_markers": p.begging_markers,
         "interim_score": total,
         "resources": _resources_to_dict(p.resources),
@@ -1364,13 +1372,26 @@ def _pending_to_dict(state: GameState) -> list:
 
 
 def _card_choice_display(state: GameState, action: CommitCardChoice) -> str:
-    """Label a CommitCardChoice by the option it picks (e.g. "Choose: grain"),
-    read off the top PendingCardChoice frame's `options`, instead of the raw repr."""
+    """Label a CommitCardChoice by the option it picks, read off the top
+    PendingCardChoice frame's `options` instead of the raw repr.
+
+    A card may register human labels for its options (cards/display.py); when it has,
+    the label is prefixed with the card's display name, so an offer reads
+    "Motivator: Place an extra person from your supply" rather than "Choose: take".
+    Cards without labels keep the plain "Choose: <option>" form, which is fine where
+    the option value is already the answer (Childless's "grain" / "veg")."""
+    from agricola.cards.display import card_choice_option_label
+
     top = state.pending_stack[-1] if state.pending_stack else None
     opts = getattr(top, "options", ())
-    if 0 <= action.index < len(opts):
-        return f"Choose: {opts[action.index]}"
-    return _web_action_display(action)
+    if not (0 <= action.index < len(opts)):
+        return _web_action_display(action)
+    option = opts[action.index]
+    card_id = (getattr(top, "initiated_by_id", "") or "").split(":", 1)[-1]
+    label = card_choice_option_label(card_id, option)
+    if label is not None:
+        return f"{_card_info(card_id)['name']}: {label}"
+    return f"Choose: {option}"
 
 
 def _action_group_key(action: Action, engine_index: int) -> str:

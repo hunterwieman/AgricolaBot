@@ -136,6 +136,27 @@ with the reason, never let "this is hard" quietly become "this is done." If you 
 whether what you have is complete or a papered-over partial, that uncertainty is itself the
 signal to flag it and ask (§0).
 
+### 0.3 Rules first, then representation — and the code is not the rulebook
+
+CLAUDE.md's Foundations open with the two-track discipline — the **rules track** (what the game
+permits: a player's options, restrictions, and information) and the **representation track**
+(how the code models it: which actions are enumerated, what is pruned, what is stored versus
+derived) — and the rule that they are taken **in order**. Two consequences bite card work
+specifically:
+
+- **Never infer a rule from an implementation.** Another card's module tells you what its
+  author built — a prune, a shortcut, a convenience, possibly an approximation. It is not
+  evidence of what the rules require. This is the mechanism by which one approximation becomes
+  the next card's precedent, and it is why §0.1 forbids self-ratifying docstrings and requires a
+  **dated user ruling** for any deviation. Read the printed text (§1 Step 1) and cite a ruling —
+  never a sibling module.
+- **A representation choice is not a rules deviation.** Once the printed behavior is pinned,
+  *how* you model it — which options you enumerate, what you prune as dominated, whether state
+  is stored or derived, how a decision splits into plies — is an engineering decision made on
+  engine criteria, and it needs no ruling. **Deferring (§0) is for rules uncertainty.**
+  Conversely, never dress an engine preference as a rules constraint: when two faithful designs
+  differ only in encoding, say so plainly and choose on the merits.
+
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
 

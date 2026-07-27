@@ -25,6 +25,7 @@ from agricola.constants import (
     FIREPLACE_INDICES,
     MAJOR_IMPROVEMENT_COSTS,
     CellType,
+    GameMode,
     HouseMaterial,
 )
 from agricola.fences import (
@@ -123,9 +124,18 @@ def _apply_worker_placement(state: GameState, space_id: str) -> GameState:
     )
     state = _update_space(state, space_id, workers=new_workers)
 
-    # 2. Decrement active player's people_home
+    # 2. Decrement active player's people_home. In the card game this act of placing
+    #    also mints the round's next placement number (ruling 79 — the PHYSICAL ordinal:
+    #    "the Nth person you place" counts acts of placing, so the tick lives at this
+    #    chokepoint and nowhere near returns/newborns). Mode-gated so the Family game
+    #    holds the counter at 0 — the field is canonical-skipped and the C++ twin never
+    #    sees it. The wish handlers add the newborn's board worker OUTSIDE this function,
+    #    so a birth never ticks ("Newborns are not placed").
     p = state.players[ap]
-    state = _update_player(state, ap, fast_replace(p, people_home=p.people_home - 1))
+    state = _update_player(state, ap, fast_replace(
+        p, people_home=p.people_home - 1,
+        placements_this_round=p.placements_this_round
+        + (1 if state.mode is GameMode.CARDS else 0)))
 
     return state
 

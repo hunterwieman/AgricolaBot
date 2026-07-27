@@ -1098,11 +1098,20 @@
       'Boar ',   { bold: a.boar },   ', ',
       'Cattle ', { bold: a.cattle },
     ]));
-    summaryEl.appendChild(buildRow('People', [
+    // People. `Supply` is the meeple pile a Family Growth draws from — shown because it
+    // is what makes growth legal or not, and a supply-loaner card (Motivator, Telegram,
+    // Work Permit) spends from it: at Supply 0 you cannot grow. `On loan` appears only
+    // while such a meeple is out working, which is where a missing supply meeple went.
+    const peopleParts = [
       'Home ',     { bold: p.people_home }, ', ',
       'Newborns ', { bold: p.newborns },    ', ',
-      'Total ',    { bold: p.people_total },
-    ]));
+      'Total ',    { bold: p.people_total }, ', ',
+      'Supply ',   { bold: p.workers_in_supply },
+    ];
+    if (p.temp_workers_active > 0) {
+      peopleParts.push(', ', 'On loan ', { bold: p.temp_workers_active });
+    }
+    summaryEl.appendChild(buildRow('People', peopleParts));
     summaryEl.appendChild(buildFooterLine(p));
     // Forward-looking: goods/benefits this player is owed at the start of future
     // rounds (the Well's per-round food, etc.). Public info, so shown for both

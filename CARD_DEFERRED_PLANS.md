@@ -19,6 +19,110 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Ruling 81 (2026-07-26) — the same-worker jump mechanism, Job Contract's bookkeeping, Child Ombudsman's instant
+
+1. **The jump is an after-window trigger that nests the destination's space frame.** For
+   the same-worker second-use cards (Swagman A129, Full Peasant B130, Large-Scale Farmer
+   B150, Junior Artist B152, Job Contract C23): the jump is fired as a trigger in the
+   SOURCE space's `after_action_space` window — so it may be taken before other
+   after-window triggers; firing pushes the DESTINATION's action-space frame onto the
+   stack; the destination resolves completely (its host, sub-decisions, and its own card
+   events); the walk then returns to the source's after-window for any remaining
+   triggers. The user endorses this not merely as how the code would work but as **the
+   most faithful implementation of the cards**.
+2. **Full Peasant's "while the other is unoccupied" is checked at that trigger time**
+   (the after-window of the first space's use).
+3. **Job Contract: legality sees two occupied spaces; physically there is ONE worker.**
+   After the chained use, both Day Laborer and Lessons are treated as occupied for
+   placement legality (per the printed "Afterward, both spaces are considered occupied";
+   physically: the person stands on Lessons, a marker on Day Laborer). If a return effect
+   (e.g. Sheep Inspector) returns that person home, BOTH spaces become unoccupied. The
+   both-occupied bookkeeping must not double-credit a person at the returning-home reset —
+   carry the accounting on `PlayerState` or on Job Contract's CardStore.
+4. **Child Ombudsman (D92) fires at `after_action_space`** ("at the end of each person
+   action") and can fire multiple times per TURN when a turn contains multiple person
+   actions (e.g. Job Contract's chained Day Laborer → Lessons). It is NOT a member of the
+   jump family — nothing moves; it is a granted no-space Family Growth (the Stork's Nest
+   shape at a different instant); it entered the family lists as a sweep artifact of its
+   "with that person" phrasing.
+
+## Ruling 79 (2026-07-26) — the placement-ordinal interpretation ("PHYSICAL")
+
+Settles what "the Nth person you place" / "your Nth person" means for the ordinal-reading
+cards (Wheel Plow, Plow Hero, Catcher, Fir Cutter, Henpecked Husband, Skillful Renovator,
+and the unbuilt Building Expert / Market Master / Godly Spouse / Midwife / Second Spouse
+family), chosen after a five-way stress test against the return cards (Tea Time, Sheep
+Inspector) and the future relocation family (Straw Hat, Archway, Job Contract, the 3+
+"same person uses a second space" cards):
+
+1. **Each act of placing a worker from home or from the meeple supply mints the round's
+   next number** — your first placement is 1, the second 2, and so on. The ordinal a card
+   reads is the acting placement's minted number.
+2. **Returning home anonymizes.** A worker sent home mid-round (Tea Time, Sheep Inspector,
+   Henpecked Husband's return) loses its number; placing it again is a NEW act and mints a
+   fresh number. A card referring to a voided number's person (Henpecked Husband's "return
+   the first person you placed") finds nothing and does nothing.
+3. **An on-board relocation preserves.** A worker moved between spaces without going home
+   (Straw Hat, Archway, Job Contract) keeps its number — the physical token is continuously
+   observable, so its identity survives.
+4. **A relocation counts as "placing a person"** for cards triggered on placing (Catcher's
+   "each time you place your Nth person…"), even though it mints no number — the cleanest
+   reading of the cards as written, accepted even where awkward or unintended. One number
+   can therefore be "placed" twice (unreachable with Straw Hat/Archway, whose sources are
+   never reward spaces; reachable via the 3+ relocation family).
+5. **Numbers may exceed 5** (a re-placement after a return at full family is act 6+;
+   off-table for the tiered cards, harmless). **Newborns never mint** — "Newborns are not
+   placed" (Skillful Renovator's clarification); a newborn's wish-space marker, and any
+   no-space growth, is not a placement act.
+6. Loaner placements mint normally (they place through the ordinary pipeline; the earlier
+   loaner-advances-the-ordinal ruling of 2026-07-24 falls out automatically).
+
+Engine form: a card-only per-player counter `placements_this_round`, ticked at the
+placement chokepoints in Cards mode only, reset at the returning-home reset; the shared
+helper reads it. The old derived expression `(people_total − newborns) − people_home +
+temp_workers_active` is retired (it silently mis-read every return scenario — it computed
+"workers currently deployed", an interpretation nobody chose).
+
+Deferred to the relocation batch, recorded here so it isn't lost: the standing-worker
+number map ("which minted number stands on which space") — consumers are the relocation
+primitive, the standing-number readers (Second Spouse, Midwife, Mummy's Boy — all 3+/4+),
+and Henpecked Husband's migration from its stored-space record to find-the-worker (its
+"unless it is on the Meeting Place" exemption then reads the worker's location at fire
+time). Job Contract (all-counts) is the 2p-dealt card that makes the migration matter.
+
+## Ruling 80 (2026-07-26, refined same day) — "even if" removes an obstacle; the unit is the person-GROUP
+
+Card text of the form "you can use [space] **even if** X" strikes X from the list of
+factors making that use illegal; it does **not** make the use legal outright. Every other
+obstacle still applies.
+
+**The refinement (same day): on a Wish space, the obstacle-unit is the placed person AND
+ITS ASSOCIATED NEWBORN, as one group.** Not obvious from the rules, but the only
+interpretation under which these cards make sense — every completed wish use leaves
+parent+newborn on the space, so a per-MEEPLE reading would kill the override in the
+ordinary case it exists for. Sleeping Corner's text reads as "…even if it is occupied by
+one other player's person **(and the associated newborn)**"; the other cards carry the
+analogous silent clarification. *(An earlier same-day per-meeple statement of the
+corollary — "illegal at 2+ placed workers" — was superseded by this refinement before any
+of it shipped; "2+ people" in Sleeping Corner's printed clarification counts GROUPS.)*
+
+- **Sleeping Corner / Sheep Rug**: the override pierces exactly ONE other player's
+  person-group (parent+newborn included); a second GROUP — another player's separate
+  placement, the 3+/4p shape — still blocks.
+- **Second Spouse** ("…even if it is occupied by the first person another player
+  placed", clarified "not if any second, third, etc. people occupy it"): same — the
+  newborn is not a "second person"; a second group is.
+- **Forest School is a DIFFERENT shape** ("you can consider the 'Lessons' action spaces
+  not occupied" — no person qualifier): occupancy is voided WHOLESALE. Ruled same day:
+  any number of workers is looked through, **the owner's own earlier worker included** —
+  the owner may use Lessons twice in a round, and "you could go on a lessons space with
+  many people already on it".
+
+Implementation notes (user directives, same date): the occupancy-override predicates must
+generalize to 4 players — count workers and owners generically, never assume "the
+opponent" is a single seat. On a wish space, groups == players-with-workers (each player
+places there at most once), so the group count needs no per-worker identity.
+
 ## Ruling 74 (2026-07-21) — the 24-occupation triage batch
 
 A triage of 24 unimplemented occupations (Bed Maker → Braid Maker) was walked with the user;

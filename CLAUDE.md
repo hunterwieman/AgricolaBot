@@ -47,8 +47,44 @@ engine → agent → NN pipeline before card complexity was added.
 ## Foundations
 
 These apply across every phase and should be internalized before working anywhere in the
-codebase. They divide into *ways of thinking about Agricola* — which shape almost every
-modeling decision — and *engineering invariants*, which the code's correctness depends on.
+codebase. They open with the **two-track discipline** that frames everything after it, then
+divide into *ways of thinking about Agricola* — which shape almost every modeling decision —
+and *engineering invariants*, which the code's correctness depends on.
+
+### Two tracks: the rules, then the representation
+
+Design reasoning here runs on two tracks, and they must be taken in order.
+
+1. **The rules track — what the game permits.** The actions available to a player, the
+   restrictions on them, and the information they hold when they choose. The authority is the
+   printed card text and the rulebook, adjudicated by the project owner.
+2. **The representation track — how the code models that.** Which actions are enumerated, what
+   is pruned as dominated, what is stored versus derived, how a decision is decomposed into
+   plies.
+
+**Understand the rules fully before writing any representation.** A representation is an answer
+to a question posed in rules space; you cannot write a correct answer to a question you have
+not yet pinned down. When a new card, rule, or bug arrives, resolve it in rules space first —
+what may the player do, under what restrictions, knowing what — and only then ask how to model
+it. Most confusion in this project traces to skipping that order.
+
+**The existing code is not an authority on the rules.** It is an artifact of the representation
+track: it may encode a prune, a convenience, a derived shortcut, or an outright approximation.
+Reading it tells you what the engine currently does — never what the game requires. Inferring a
+rule from the code, or from another card's implementation, is how an approximation becomes
+precedent; printed text plus a ruling are the only sources.
+
+**Once the rules are settled, representation choices are decided on engine grounds** — never
+re-argued as rules questions. The legitimate moves are equivalent re-encoding (the same
+options, stored or sequenced differently), dominance pruning (removing options that are never
+strategically correct), decomposition (a sequence of small commits rather than one wide
+choice), and derivation (recompute rather than store). The Foundations principles that follow
+are those criteria in detail.
+
+**Both failure directions are real.** Arguing a representation preference as though it were a
+rules constraint is unfalsifiable and forecloses the better design for a fake reason. Bending a
+rule for representation convenience is the prohibited approximation — one you can justify is
+still one.
 
 ### Thinking about Agricola
 

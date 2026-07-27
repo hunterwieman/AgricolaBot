@@ -41,6 +41,7 @@ from __future__ import annotations
 from agricola.constants import BUILDING_RESOURCE_ACCUMULATION_SPACES
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.helpers import placements_this_round
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, get_space
@@ -56,12 +57,10 @@ def _eligible(state: GameState, idx: int) -> bool:
     sid = state.pending_stack[-1].space_id
     if sid not in BUILDING_RESOURCE_ACCUMULATION_SPACES:
         return False
-    p = state.players[idx]
-    # before_action_space fires AFTER people_home was decremented for this placement.
-    # (people_total − newborns) − people_home is the "Nth WORKER placed this round" index:
-    # subtracting same-round newborns cancels the people_total growth from a Wish-for-Children
-    # birth that did NOT consume a people_home worker (see the module docstring).
-    n_placed = (p.people_total - p.newborns) - p.people_home
+    # before_action_space fires AFTER people_home was decremented for this placement, so
+    # this is the ordinal OF this placement (see helpers.placements_this_round for the
+    # newborn and loaner terms; the module docstring for the derivation).
+    n_placed = placements_this_round(state.players[idx])
     required = REQUIRED_BY_PERSON.get(n_placed)
     if required is None:                       # 4th / 5th person never fires
         return False

@@ -47,6 +47,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
+from agricola.helpers import placements_this_round
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -73,8 +74,7 @@ def _wood_amount(state: GameState, idx: int) -> int:
     """Wood owed for this placement: keyed to the 1-based ordinal of the worker
     the owner placed this round (already-decremented `people_home`; same-round
     newborns subtracted — see the module docstring)."""
-    p = state.players[idx]
-    n_placed = (p.people_total - p.newborns) - p.people_home
+    n_placed = placements_this_round(state.players[idx])
     return WOOD_BY_PERSON.get(n_placed, 0)
 
 

@@ -145,6 +145,14 @@ from agricola.cards.round_end import (
     ROUND_END_STEPS,
     WORK_SEGMENT_END,
 )
+# Start-of-turn card offers (the supply-loaner family — Motivator E93). A leaf
+# module (imports only pending/state), so no load-order cycle; the registry is
+# empty in the Family game, making the boundary check one dict test.
+from agricola.cards.turn_offers import (
+    TURN_START_OFFERS,
+    has_outstanding_offer,
+    pending_turn_start_offer,
+)
 # The preparation ladder (ruling 54, 2026-07-14): the ordered step table walked
 # by _advance_preparation. Another leaf module — no load-order cycle.
 from agricola.cards.preparation import (
@@ -226,7 +234,18 @@ def step(state: GameState, action: Action) -> GameState:
     #    A PendingCardChoice resolution can empty the stack in WORK
     #    but is not a worker turn, so it must not alternate (the starting player must
     #    still take the round's first worker turn).
-    if state.phase == Phase.WORK and not state.pending_stack and not _resolving_prep:
+    #
+    #    ...EXCEPT when the player who just resolved that choice can no longer act.
+    #    A start-of-turn loaner offer (cards/turn_offers.py) is a PendingCardChoice
+    #    too, and a player who DECLINES one having already placed every household
+    #    worker is finished: holding the turn on them would hand the next prompt to a
+    #    player with no legal action. So the exemption is conditional on the current
+    #    player still having a placement coming — which is exactly what preserves
+    #    today's behavior for the boundary-one-shot case (there the alternation for
+    #    the placement already ran, so `current_player` is the incoming player, who
+    #    can act) and for an ACCEPTED offer (the loaner is now a worker at home).
+    if (state.phase == Phase.WORK and not state.pending_stack
+            and (not _resolving_prep or not _can_act(state, state.current_player))):
         state = _advance_current_player(state)
 
     # 3. Walk through system-driven transitions (phase changes) until the
@@ -458,8 +477,12 @@ def _apply_place_card_space_worker(state: GameState, action: PlaceWorker) -> Gam
     card_id = action.space.split(":", 1)[1]
     ap = state.current_player
     p = state.players[ap]
+    # A card-space placement is an act of placing, so it mints the round's next
+    # placement number (ruling 79 — the PHYSICAL ordinal). No mode gate needed:
+    # card spaces exist only in CARDS mode (empty registry in Family).
     p = place_card_space_worker(
-        fast_replace(p, people_home=p.people_home - 1), card_id)
+        fast_replace(p, people_home=p.people_home - 1,
+                     placements_this_round=p.placements_this_round + 1), card_id)
     state = fast_replace(state, players=tuple(
         p if i == ap else state.players[i] for i in range(len(state.players))))
     state = push(state, PendingActionSpace(
@@ -1060,9 +1083,23 @@ def _advance_current_player(state: GameState) -> GameState:
     num_players = len(state.players)
     for offset in range(1, num_players):
         candidate = (state.current_player + offset) % num_players
-        if state.players[candidate].people_home > 0:
+        if _can_act(state, candidate):
             return fast_replace(state, current_player=candidate)
     return state
+
+
+def _can_act(state: GameState, idx: int) -> bool:
+    """Does this player still have a placement turn coming — a worker at home, or an
+    unanswered card offer that could yet give them one?
+
+    The second half is the card-game widening the docstring above anticipated ("future
+    cards may allow placing with people_home == 0"): a LOANER card whose offer is still
+    open (Telegram, Work Permit) means this player may yet place, so they must not be
+    skipped by the alternation nor have the work phase end under them. Empty registry —
+    the whole Family game — short-circuits to the plain `people_home` test.
+    """
+    return (state.players[idx].people_home > 0
+            or has_outstanding_offer(state, idx))
 
 
 # ---------------------------------------------------------------------------
@@ -1225,7 +1262,10 @@ def _advance_until_decision(state: GameState) -> GameState:
         # round-end ladder's WORK segment runs (end_of_work + after_work,
         # rulings 49/50; a Family no-op).
         if state.phase == Phase.WORK:
-            if all(p.people_home == 0 for p in state.players):
+            # The work phase ends when nobody can still act — a worker at home, or an
+            # unanswered loaner offer that could yet produce one (_can_act). The offer
+            # half is card-only and O(1)-false on an empty registry.
+            if not any(_can_act(state, i) for i in range(len(state.players))):
                 state, paused = _advance_round_end(state)
                 if paused:
                     continue           # Case 1 returns the pushed frames
@@ -1238,6 +1278,19 @@ def _advance_until_decision(state: GameState) -> GameState:
             if pushed:
                 continue
             state = _fire_boundary_one_shots(state)   # resource/animal-count one-shots
+            # Start-of-turn card offers (cards/turn_offers.py — the supply-loaner
+            # family): a decision a card puts to the player at the moment they are
+            # handed a placement turn, before they place (Motivator's "on your first
+            # turn each round"). Pushed as a PendingCardChoice, so resolving it does
+            # NOT advance the player (step's alternation guard already exempts that
+            # frame) and the placement then runs through the untouched normal path.
+            # The offer's eligibility must go false once answered, or it re-pushes
+            # here forever — see turn_offers.py. Empty registry → one dict test.
+            if TURN_START_OFFERS:
+                offer = pending_turn_start_offer(state, state.current_player)
+                if offer is not None:
+                    state = push(state, offer)
+                    continue
             return state
 
         # Case 4: RETURN_HOME phase. The ladder's RETURN segment
@@ -1348,8 +1401,17 @@ def _return_home_reset(state: GameState) -> GameState:
     new_board = fast_replace(state.board, action_spaces=new_spaces)
 
     # 2. Return all people home. Newborns NOT cleared here.
+    #    Card game: LOANER meeples (helpers.activate_temp_worker — Motivator E93 and
+    #    the supply-loaner family) go back to the SUPPLY pile rather than home, which
+    #    is what makes them unfed and unscored and re-opens family growth next round.
+    #    `people_home = people_total` already drops any loaner still sitting at home,
+    #    so the only extra work is crediting the supply and clearing the count. Both
+    #    are no-ops at temp_workers_active == 0 → the Family game is byte-identical.
     new_players = tuple(
-        fast_replace(p, people_home=p.people_total)
+        fast_replace(p, people_home=p.people_total,
+                     workers_in_supply=p.workers_in_supply + p.temp_workers_active,
+                     temp_workers_active=0,
+                     placements_this_round=0)   # the ordinal counter is per-round
         for p in state.players
     )
     state = fast_replace(state, players=new_players, board=new_board)
@@ -1537,7 +1599,26 @@ def _advance_preparation(state: GameState, *, assume_revealed: bool = False,
             cur += 1
             continue
         if step_id == "__round_setup__":
-            state = fast_replace(state, round_number=state.round_number + 1)
+            # The round advances, and last round's newborns become plain adults.
+            #
+            # The newborn clear lives HERE, not at `__collect__` (rung 4), because a
+            # card window between the two can CREATE a newborn: Heart of Stone grants
+            # a family growth at the `reveal` window (rung 3), and a clear at rung 4
+            # wiped it one rung later — so that newborn was fed 2 food at the round's
+            # harvest instead of 1 (user ruling 2026-07-24: a Heart of Stone newborn
+            # IS a newborn and is fed 1 food). `_enter_new_round`'s old justification
+            # for a late clear — "nothing reads the field between the harvest and
+            # here" — stopped being true once a card could WRITE the field there.
+            # Rung 2 is the correct home: it is the moment the new round begins, and
+            # it precedes every card window of the new round. Family-identical (no
+            # Family card writes `newborns`, and nothing reads it between rungs 2
+            # and 4), so the C++ prep walk needs no re-port.
+            state = fast_replace(
+                state,
+                round_number=state.round_number + 1,
+                players=tuple(fast_replace(p, newborns=0) if p.newborns else p
+                              for p in state.players),
+            )
             cur += 1
             continue
         if step_id == "__replenish__":
@@ -1560,9 +1641,9 @@ def _enter_new_round(state: GameState) -> GameState:
     are taken). `round_number` already names the round being entered, so its
     0-based slot is `round_number - 1`.
 
-    - Last round's newborns become plain adults (`newborns=0` — they survived
-      through the harvest for the 1-food feeding discount; nothing reads the
-      field between the harvest and here).
+    - (Last round's newborns became plain adults at `__round_setup__`, rung 2 —
+      moved there 2026-07-24 so a newborn a rung-3 `reveal` card creates, Heart of
+      Stone's, is not wiped before its own harvest. See that branch.)
     - The per-round / per-turn used-sets clear (II.3; Family no-op).
     - The goods promised on this round's round space are collected
       (`future_resources` — the Well and the Category-8 schedule cards; may
@@ -1582,7 +1663,6 @@ def _enter_new_round(state: GameState) -> GameState:
                 + (Resources(),)
                 + p.future_resources[slot + 1:]
             ),
-            newborns=0,
         )
         for p in state.players
     )

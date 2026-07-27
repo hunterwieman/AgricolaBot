@@ -1061,3 +1061,14 @@ from agricola.cards import canal_boatman  # noqa: F401
 from agricola.cards import plow_builder  # noqa: F401
 # Confidant (B93) — the C5 hold released (ruling 74); play-occ variant + schedule + window grant
 from agricola.cards import confidant  # noqa: F401
+
+# --- The supply-loaner family (a meeple from SUPPLY works one round without joining
+#     the family): the start-of-turn offer seam (cards/turn_offers.py) +
+#     helpers.activate_temp_worker + PlayerState.temp_workers_active ---
+from agricola.cards import motivator  # noqa: F401
+from agricola.cards import telegram  # noqa: F401
+from agricola.cards import work_permit  # noqa: F401
+from agricola.cards import delayed_wayfarer  # noqa: F401
+# Child Ombudsman (D92) — after-any-action no-space growth grant, −2/use (ruling 81.4);
+# NOT a worker-movement card despite the "with that person" phrasing.
+from agricola.cards import child_ombudsman  # noqa: F401

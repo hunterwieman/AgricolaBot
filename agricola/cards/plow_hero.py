@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register
+from agricola.helpers import placements_this_round
 from agricola.legality import _can_plow_twice, _liquidatable_to
 from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
@@ -49,11 +50,13 @@ def _is_first_placement_this_round(state: GameState, idx: int) -> bool:
     """True iff the placement now being resolved is the player's first this round.
 
     The before_action_space trigger fires after the placing worker has already been
-    decremented from people_home, so exactly one worker placed ⟺
-    people_home == people_total − 1. (See module docstring for the full derivation,
-    including the newborn/Wish interaction.)"""
-    p = state.players[idx]
-    return p.people_home == p.people_total - 1
+    debited, so the shared ordinal (helpers.placements_this_round) is the ordinal OF
+    this placement, and "first person you place" is ordinal 1. This used to test
+    `people_home == people_total − 1` directly; that shortcut is value-identical while
+    no LOANER is out but reads FALSE on a loaner placement (a loaner debits
+    `workers_in_supply`, never `people_home`) and would then fire on the second person
+    instead — so the ordinal is read from the one shared definition."""
+    return placements_this_round(state.players[idx]) == 1
 
 
 def _pay_and_plow(state: GameState, idx: int) -> GameState:

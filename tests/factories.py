@@ -156,21 +156,37 @@ def with_people(state, player_idx, *, total=None, home=None, newborns=None, supp
     consistent with the 5-meeple, no-eviction invariant (`5 - total`) — so a test
     that sets `total=5` reaches the growth cap (`workers_in_supply == 0`), matching
     the pre-`workers_in_supply` behaviour where the cap read `people_total < 5`. Pass
-    `supply` explicitly to model a Lodger-style eviction (meeples removed from play)."""
+    `supply` explicitly to model a Lodger-style eviction (meeples removed from play).
+
+    In a CARDS-mode state, stamping people counts also stamps the coherent
+    placement-act counter (`placements_this_round = (total − newborns) − home`,
+    ruling 79): a test that fakes "k workers already out" is faking k acts of
+    placing, and the ordinal cards read the stored counter, not the people fields.
+    Family states are left untouched (the counter is card-only and must stay 0 for
+    byte-identity). A test needing a non-coherent counter (e.g. simulating a
+    mid-round return, where acts exceed workers out) stamps the field itself after."""
+    from agricola.constants import GameMode
     p = state.players[player_idx]
     new_total = total if total is not None else p.people_total
+    new_home = home if home is not None else p.people_home
+    new_newborns = newborns if newborns is not None else p.newborns
     if supply is not None:
         new_supply = supply
     elif total is not None:
         new_supply = 5 - new_total
     else:
         new_supply = p.workers_in_supply
+    if state.mode is GameMode.CARDS:
+        new_placements = max(0, (new_total - new_newborns) - new_home)
+    else:
+        new_placements = p.placements_this_round
     return _replace_player(state, player_idx, dataclasses.replace(
         p,
         people_total=new_total,
-        people_home=home if home is not None else p.people_home,
-        newborns=newborns if newborns is not None else p.newborns,
+        people_home=new_home,
+        newborns=new_newborns,
         workers_in_supply=new_supply,
+        placements_this_round=new_placements,
     ))
 
 

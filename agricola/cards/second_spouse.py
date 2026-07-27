@@ -42,9 +42,23 @@ TARGET_SPACE = "urgent_wish_for_children"
 
 
 def _occupancy_override(state: GameState, space_id: str) -> bool:
-    """The current player may place on the occupied "Urgent Wish for Children" space iff they
-    own Second Spouse, hold no worker there themselves, and exactly one OTHER player does
-    (count players, not workers)."""
+    """The current player may place on the occupied "Urgent Wish for Children" space
+    iff they own Second Spouse, hold no worker there themselves, and exactly one
+    placed person-GROUP stands there.
+
+    Ruling 80 as refined (user, 2026-07-26): the unit "even if it is occupied by the
+    first person another player placed" strikes is the placed person AND ITS
+    ASSOCIATED NEWBORN, as a group — the only interpretation under which the card
+    makes sense, since every completed wish use leaves parent+newborn on the space.
+    The clarification "but not if any second, third, etc. people occupy it" counts
+    GROUPS: a second separate placement (another player having placed here — the
+    3+/4p case) blocks; the first person's own newborn does not. Groups ==
+    players-with-workers on this space (each player places here at most once), so the
+    count below is exact for any seat count — 4p-generic, never assuming a single
+    opponent seat. The "first person another player placed" ordinal qualifier is
+    satisfied by the group count in every reachable state (the lone group IS that
+    player's placement); a per-worker ordinal read would need the standing-worker
+    number map (ruling 79's deferred relocation-batch work)."""
     if space_id != TARGET_SPACE:
         return False
     ap = state.current_player
@@ -53,8 +67,7 @@ def _occupancy_override(state: GameState, space_id: str) -> bool:
     workers = get_space(state.board, space_id).workers
     if workers[ap] != 0:
         return False
-    others_with_workers = sum(1 for i, w in enumerate(workers) if i != ap and w > 0)
-    return others_with_workers == 1
+    return sum(1 for i, w in enumerate(workers) if i != ap and w > 0) == 1
 
 
 # Pure occupancy-relaxer occupation: played via Lessons, but its on-play effect is a no-op.

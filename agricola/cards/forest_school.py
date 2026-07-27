@@ -64,19 +64,18 @@ CARD_ID = "forest_school"
 # ---------------------------------------------------------------------------
 
 def _occupancy_override(state: GameState, space_id: str) -> bool:
-    """The current player may place on an occupied "Lessons" space iff they own Forest
-    School, hold no worker there themselves, and exactly one OTHER player does (count
-    players, not workers — the 4-player-safe form)."""
+    """The current player may place on an occupied "Lessons" space iff they own
+    Forest School — occupancy is voided WHOLESALE. Unlike the one-group "even if"
+    cards (Sleeping Corner / Sheep Rug / Second Spouse — ruling 80), this text is
+    UNQUALIFIED — "you can consider the 'Lessons' action spaces not occupied" — so it
+    looks through ANY number of workers, the owner's OWN earlier worker included
+    (ruled by the user, 2026-07-26: no person limit; a Lessons space with many people
+    already on it is still usable, and the owner may use Lessons twice in a round).
+    4p note: the text says "spaceS"; multi-Lessons boards extend the space_id gate,
+    not this shape."""
     if space_id != "lessons":
         return False
-    ap = state.current_player
-    if CARD_ID not in state.players[ap].minor_improvements:
-        return False
-    workers = get_space(state.board, space_id).workers
-    if workers[ap] != 0:
-        return False
-    others_with_workers = sum(1 for i, w in enumerate(workers) if i != ap and w > 0)
-    return others_with_workers == 1
+    return CARD_ID in state.players[state.current_player].minor_improvements
 
 
 # ---------------------------------------------------------------------------

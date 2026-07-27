@@ -120,6 +120,16 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # Family-constant False (Family never grants animals decision-free), so omitting it
     # keeps the Family JSON byte-identical and needs no C++ change.
     "animals_need_accommodation",
+    # Card-only LOANER count — supply meeples acting as workers without joining the family
+    # (the Motivator/Telegram supply-loaner family). Family-constant 0 (no Family card can
+    # activate one), so omitting it keeps the Family JSON byte-identical and needs no C++
+    # change. See PlayerState.temp_workers_active for why it is stored, not derived.
+    "temp_workers_active",
+    # Card-only placement-act counter — "the Nth person you place this round" (ruling 79,
+    # the PHYSICAL ordinal interpretation; see PlayerState.placements_this_round). Ticked
+    # only in CARDS mode, so it is Family-constant 0: omitting it keeps the Family JSON
+    # byte-identical and needs no C++ change.
+    "placements_this_round",
     # PendingPlow multi-shot grant fields (Swing/Turnwrest/Wheel Plow): Family-constant
     # defaults (every Family plow is single-shot), so omitting them keeps the Family JSON
     # byte-identical and needs no C++ change.

@@ -49,8 +49,16 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 def _occupancy_override(state: GameState, space_id: str) -> bool:
     """The current player may place on an occupied "Wish for Children" space iff they
-    own Sheep Rug, hold no worker there themselves, and exactly one OTHER player does
-    (count players, not workers)."""
+    own Sheep Rug, hold no worker there themselves, and exactly one placed
+    person-GROUP stands there.
+
+    Ruling 80 as refined (user, 2026-07-26): the unit "even if it is occupied by
+    another player's person" strikes is the placed person AND ITS ASSOCIATED NEWBORN,
+    as a group — the only interpretation under which the card makes sense, since every
+    completed wish use leaves parent+newborn on the space. A second GROUP (another
+    player's separate placement — the 3+/4p case) still blocks. Groups ==
+    players-with-workers on a wish space (each player places here at most once), so
+    the count below is exact for any seat count — 4p-generic."""
     if space_id not in WISH_SPACES:
         return False
     ap = state.current_player
@@ -59,8 +67,7 @@ def _occupancy_override(state: GameState, space_id: str) -> bool:
     workers = get_space(state.board, space_id).workers
     if workers[ap] != 0:
         return False
-    others_with_workers = sum(1 for i, w in enumerate(workers) if i != ap and w > 0)
-    return others_with_workers == 1
+    return sum(1 for i, w in enumerate(workers) if i != ap and w > 0) == 1
 
 
 register_minor(

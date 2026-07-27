@@ -64,8 +64,22 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 def _occupancy_override(state: GameState, space_id: str) -> bool:
     """The current player may place on an occupied "Wish for Children" space iff they
-    own Sleeping Corner, hold no worker there themselves, and exactly one OTHER player
-    does (count players, not workers)."""
+    own Sleeping Corner, hold no worker there themselves, and exactly one placed
+    person-GROUP stands there.
+
+    Ruling 80 as refined (user, 2026-07-26): the unit "even if" strikes is the placed
+    person AND ITS ASSOCIATED NEWBORN, as a group — the text reads as "occupied by one
+    other player's person (and the associated newborn)". Not obvious from the rules,
+    but the only interpretation under which these cards make sense: every completed
+    wish use leaves parent+newborn on the space, so a per-MEEPLE count would make the
+    override dead in the ordinary case it exists for. The clarification's "not if
+    occupied by 2+ other player's people" therefore counts GROUPS — two separate
+    placements (two other players having placed here, the 3+/4p case) block.
+
+    On a wish space each player's workers come from at most one placement (the
+    own-worker gate above forecloses a second by the owner; other players' overrides
+    likewise self-gate), so groups == players-with-workers, and the count below is
+    exact for any seat count — 4p-generic, never assuming a single opponent seat."""
     if space_id not in WISH_SPACES:
         return False
     ap = state.current_player
@@ -74,8 +88,7 @@ def _occupancy_override(state: GameState, space_id: str) -> bool:
     workers = get_space(state.board, space_id).workers
     if workers[ap] != 0:
         return False
-    others_with_workers = sum(1 for i, w in enumerate(workers) if i != ap and w > 0)
-    return others_with_workers == 1
+    return sum(1 for i, w in enumerate(workers) if i != ap and w > 0) == 1
 
 
 register_minor(

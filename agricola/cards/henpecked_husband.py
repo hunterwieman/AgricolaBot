@@ -64,6 +64,7 @@ from __future__ import annotations
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.constants import SPACE_IDS
+from agricola.helpers import placements_this_round
 from agricola.pending import PendingBuildRooms
 from agricola.replace import fast_replace
 from agricola.state import GameState, get_space, with_space
@@ -81,13 +82,7 @@ _MEETING_PLACE = "meeting_place"
 _PERSONLESS_BUILD_CARDS: frozenset[str] = frozenset()
 
 
-def _placement_ordinal(p) -> int:
-    """The "Nth WORKER placed this round" index, including the placement now
-    resolving: ``(people_total − newborns) − people_home``. The ``− newborns``
-    term cancels the ``people_total`` growth of a same-round birth that did
-    not consume a ``people_home`` worker (the Catcher bug —
-    CARD_ENGINE_IMPLEMENTATION.md §6)."""
-    return (p.people_total - p.newborns) - p.people_home
+_placement_ordinal = placements_this_round   # the shared "Nth person you place" definition
 
 
 def _update_player(state: GameState, idx: int, p) -> GameState:

@@ -221,6 +221,102 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-26 same-worker-jump groundwork + Child Ombudsman D92 (ruling 81; card-only,
+  gates untouched).** Ruling 81 banks the jump-family mechanism ahead of its build: the
+  same-worker second use (Swagman A129, Full Peasant B130, Large-Scale Farmer B150, Junior
+  Artist B152, Job Contract C23) fires as a trigger in the SOURCE's `after_action_space`
+  window — takeable before other after-triggers — pushing the DESTINATION's space frame,
+  which resolves completely before the walk returns to the source's remaining
+  after-window (the user's ruled shape AND the most faithful implementation); Full
+  Peasant's "while the other is unoccupied" reads at that trigger time; Job Contract's
+  "afterward both are considered occupied" is legality-only — ONE physical worker (person
+  on Lessons, marker on Day Laborer), a return frees BOTH spaces, and the bookkeeping must
+  not double-credit a person at the reset. **Child Ombudsman** (D92 [1+]) turned out NOT to
+  be a jump card (a sweep artifact of its "with that person" phrasing — nothing moves) and
+  landed immediately on existing seams: an `after_action_space` trigger over the full
+  hooked space list ("at the end of each person action" — ruling 81.4, the Sheep Inspector
+  reading; NO per-round latch, it fires per person action) granting the no-space
+  `PendingFamilyGrowth` (room gate = the standard `_housing_capacity` growth gate, family
+  cap = the meeple supply), with a −2-per-use CardStore counter scored via
+  `register_scoring` and surfaced as a history-VP badge. Census: **236 occupations +
+  332 minors = 568**.
+- **The 2026-07-26 ordinal-and-even-if batch landed: rulings 79 + 80, the placement-act
+  counter, Delayed Wayfarer E125, and the occupancy-override corrections (full suite green,
+  C++ gates untouched).** Three parts. (1) **Ruling 79 — the "PHYSICAL" placement ordinal**
+  (full statement in CARD_DEFERRED_PLANS.md; the §6 ruling below is the digest): "the Nth
+  person you place" is act-minted — each placement from home/supply mints the round's next
+  number, a RETURN anonymizes (re-placing mints fresh; numbers can exceed 5), a RELOCATION
+  will preserve the number while still counting as "placing" for place-triggers. Engine
+  form: **`PlayerState.placements_this_round`** (card-only, canonical-skipped, hashed) ticked
+  at the placement chokepoints (`resolution._apply_worker_placement` mode-gated,
+  `engine._apply_place_card_space_worker`, Canal Boatman's park — the unique card carrying
+  its own tick), reset at the returning-home reset; `helpers.placements_this_round` is now a
+  thin accessor and the derived `(people_total − newborns) − people_home + …` expression is
+  RETIRED (it computed "workers currently deployed", wrong after any return — it silently
+  mis-read Tea Time / Sheep Inspector scenarios on six shipped cards). The six ordinal cards
+  read the counter unchanged at their call sites; `tests/test_placements_this_round.py`
+  drives the real Tea-Time return flows and pins the corrected behaviors (Fir Cutter pays
+  the act-3 tier on a re-placement; Plow Hero does NOT re-fire on a re-placed first worker;
+  Skillful Renovator pays 3 per its own clarification; Catcher matches act numbers). Test
+  helpers that fake "k workers already out" now stamp the coherent counter
+  (`tests/factories.with_people`, Cards-mode-gated). (2) **Delayed Wayfarer E125** — the
+  fourth and last buildable supply-loaner: on-play +1 building resource of choice
+  (`PendingCardChoice`, one shared resolver dispatched on disjoint option sets) and a
+  ONE-SHOT loaner offer at the **all-players-placed boundary** ("once all people have been
+  placed this round" = every player's workers; `_can_act`'s outstanding-offer clause holds
+  the work phase open and routes the turn to the owner). Ruled 2026-07-26: one-shot (the
+  play round only), and the loaner's placement happens INSIDE the work phase, visible to the
+  `end_of_work` readers — pinned by an Iron Hoe integration test (the bonus worker completes
+  the Grain-Seeds+Vegetable-Seeds pair). The supply-loaner family is now COMPLETE: 4 built
+  (Motivator, Telegram, Work Permit, Delayed Wayfarer), 3 excluded (Guest Room banned,
+  Walking Boots + Nightworker wontfix). (3) **Ruling 80 as refined — "even if" strikes one
+  obstacle, and on a Wish space the unit is the person-GROUP** (a placed person and its
+  associated newborn are one unit — the user's refinement, which SUPERSEDED the audit's
+  per-meeple reading before it shipped): **Sleeping Corner, Sheep Rug, Second Spouse** keep
+  their pierce through an opponent's parent+newborn pair (the audit's proposed
+  `sum(workers) == 1` was wrong and was reverted); what blocks is a second GROUP — another
+  player's separate placement, the 3+/4p shape — pinned by new 3-seat tests, with the
+  predicates seat-generic per the user's 4p directive (groups == players-with-workers on a
+  wish space, since each player places there at most once). **Forest School** ("consider
+  the Lessons spaces not occupied" — UNQUALIFIED, a different shape) voids occupancy
+  wholesale: ruled to look through ANY workers including the owner's own (the owner may use
+  Lessons twice in a round). Imitator conforms as-is; Seatmate and Rock Beater are
+  unimplemented. Census after: **235 occupations + 332 minors = 567**.
+- **The 2026-07-24 supply-loaner mechanism landed: Motivator E93 + the start-of-turn offer
+  seam, all card-only/Family-inert (full suite 6891 + the 139 C++ gates green untouched).**
+  A **loaner** is a meeple taken from a player's SUPPLY that works for one round without
+  ever joining the family (user rulings 2026-07-21 / 07-24): placed like a worker, returned
+  to supply at returning-home, never fed, never scored — and while it is out it occupies a
+  physical meeple, so Family Growth to a 5th person is blocked. That blocking needs **no new
+  legality code**: the wish gate already reads `workers_in_supply`, so declining the offer to
+  keep growth open — sometimes strictly optimal — falls out of the existing rule. Pieces:
+  (1) **`PlayerState.temp_workers_active`** (canonical-skipped, hashed) — the loaner count,
+  **stored, not derived**: the tempting `people_home + markers − people_total` is UNSOUND
+  because nine cards grant growth with no action space
+  (`PendingFamilyGrowth(place_on_space=False)` — Family Friendly Home fires mid-WORK), raising
+  `people_total`/`newborns` while placing no marker, and `newborns` cannot distinguish those;
+  Lodger's round-9 eviction (people_total −1 with the board marker left standing) breaks it a
+  second way. (2) **`helpers.activate_temp_worker`** — the one choke point, moving a meeple
+  supply → hand (`workers_in_supply` −1, `people_home` +1, count +1); from there the loaner is
+  FUNGIBLE with a family worker, so alternation, the all-placed gate, the placement enumerator,
+  and mid-round return effects (Sheep Inspector, Tea Time) all handle it unchanged — nothing
+  tracks WHICH meeple is on loan, only how many. (3) **`helpers.placements_this_round`** — THE
+  single definition of "the Nth person you place this round"
+  (`(people_total − newborns) − people_home + temp_workers_active`), with the six
+  ordinal-reading cards migrated onto it (Fir Cutter, Catcher, Skillful Renovator, Henpecked
+  Husband, and — the two that genuinely broke — **Plow Hero / Wheel Plow**, whose
+  `people_home == people_total − 1` shortcut misses a loaner placement and then fires on the
+  second person). A loaner DOES advance the ordinal (ruling 2026-07-24). (4)
+  **`cards/turn_offers.py`** — the start-of-turn offer seam: a `PendingCardChoice` pushed at
+  the WORK-phase decision boundary before the player places (Motivator's "on your first
+  turn"), reusing that frame because it is options-only (so "decline" is just an option), its
+  resolver both applies and pops, and it is ALREADY exempt from the turn-alternation trigger.
+  **The resolver must latch on BOTH options** — a LIVENESS requirement, not a "once per round"
+  nicety: eligibility is re-tested at every boundary, so an offer surviving its own decline
+  would re-push forever. (5) The returning-home reset credits the meeples back to supply.
+  Census after: **234 occupations + 330 minors = 564**. The other supply-loaner cards
+  (Telegram A22, Work Permit D22, Delayed Wayfarer E125) are NOT built — `TEMP_WORKER_DESIGN.md`
+  has their per-card riders and what each still needs.
 - **The 2026-07-21 accommodation-chain state widening landed (ruling 73): the typed-holder
   family is CLOSED.** The capacity chain now carries GameState — `slots_fn(state,
   player_state)`, `typed_slot_counts` / `sheep_slot_count` / `extract_slots` /
@@ -2697,6 +2793,49 @@ examples; this is the reference list.
   unattributed "accepted approximation" claim is a defer signal, not precedent. The rule
   propagates **verbatim into every subagent prompt** (CARD_AUTHORING_GUIDE.md §0.1 — subagents
   drift toward convenience; the verify stage checks text-vs-implementation fidelity first).
+- **The placement ordinal is act-minted, anonymized by returns, preserved by relocations**
+  (ruling 79, 2026-07-26 — the "PHYSICAL" interpretation; full statement + the rejected
+  alternatives in CARD_DEFERRED_PLANS.md). "The Nth person you place" = the Nth act of
+  placing a worker from home/supply this round: each such act mints the next number
+  (`PlayerState.placements_this_round`, read via `helpers.placements_this_round`); a worker
+  RETURNED home loses its number (re-placing mints fresh; referents to the old number find
+  nothing); an on-board RELOCATION keeps the worker's number AND counts as "placing" for
+  place-triggered cards while minting nothing. Numbers can exceed 5; newborns never mint.
+  Never re-derive this count from `people_total`/`people_home` — the old derived expression
+  read "workers currently deployed", which diverges from every chosen answer the moment a
+  return card fires.
+- **"Even if X" strikes X from the illegality list — and on a Wish space the unit is the
+  person-GROUP** (ruling 80 as refined, 2026-07-26). An occupancy-bypass card looks through
+  exactly what its text names, and a placed person's ASSOCIATED NEWBORN belongs to that
+  person — one group, the only reading under which the wish-space overrides make sense
+  (every completed wish use leaves parent+newborn, so a per-meeple count would kill the
+  override in its ordinary case). Sleeping Corner / Sheep Rug / Second Spouse pierce
+  exactly ONE other player's group; a second group (another player's separate placement —
+  the 3+/4p shape) still blocks, and Second Spouse's "second, third, etc. people" counts
+  groups, not the newborn. **Forest School is a different shape** — "consider the Lessons
+  spaces not occupied" voids occupancy WHOLESALE: any number of workers, the owner's own
+  included (the owner may use Lessons twice in a round). Occupancy-override predicates are
+  written 4p-generic (count workers/owners, never assume a single opponent seat).
+- **Anything placed on a FUTURE round space is a TIMING indicator, never a placement** (user
+  ruling 2026-07-24, given as a general principle). Goods, animals, and other rewards put on
+  the round space of a round **not yet reached** are a physical reminder that they arrive **at
+  the start of that round**; this is *completely unrelated* to the action space that round
+  reveals, or to that round's dynamics. **The object's type is irrelevant** — a *meeple* on a
+  future round space is no more an occupying worker than a good is, because the placement
+  encodes WHEN, not WHERE. So such a space is never blocked, never occupied, and never needs
+  board state: the effect is identical to the player setting the thing aside until the named
+  round. Model it as a schedule (`future_resources` / `future_rewards`) or a CardStore record —
+  that IS the rule, not an approximation of it. Consumers: the deferred-goods schedule cards
+  (Pond Hut, Strawberry Patch, Sack Cart, …), Telegram's "mark the corresponding round space",
+  and **Work Permit**, whose *person* on a future round space is exactly this and therefore a
+  CardStore record.
+  > **Do not confuse this with goods on an ALREADY-REVEALED round space.** Once a round
+  > arrives, its space is a live action space, and a revealed round space that is an
+  > *accumulation* space really does hold stock — goods a player takes by placing a worker
+  > there, replenished each round (`ActionSpaceState.accumulated`). Those goods are the
+  > space's contents, not a reminder about a future round. The rule above applies only while
+  > the round is still ahead; the collection at that round's start is what converts the
+  > indicator into actual goods, after which nothing card-scheduled remains on the space.
 - **"Each time you use [space]" = the before-window** (`before_action_space`), unless the text
   literally says "after"/"immediately after". Taking the space's mandatory work closes the
   window and implicitly declines unfired before-triggers — the enforce-first rule (§2). Never

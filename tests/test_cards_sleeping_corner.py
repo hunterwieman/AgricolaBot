@@ -71,11 +71,25 @@ def test_owner_may_use_wish_occupied_by_opponent():
 
 
 def test_owner_may_use_wish_with_opponent_parent_and_newborn():
-    # A normally-used wish space holds the opponent's parent + newborn = 2 workers, ONE
-    # player. "Count players, not workers" must still permit the owner to use it.
+    # A normally-used wish space holds the opponent's parent + newborn = 2 workers
+    # but ONE placed person-GROUP (ruling 80 as refined, 2026-07-26: the person and
+    # its associated newborn are one unit — "occupied by one other player's person
+    # (and the associated newborn)" — the only reading under which the card makes
+    # sense, since every completed wish use leaves the pair). The override pierces it.
     cs = _state(owner=0)
     cs = _set_workers(cs, (0, 2))
     assert _wish_placeable(cs)
+
+
+def test_two_other_groups_block():
+    # The clarification's "not if occupied by 2+ other player's people" counts
+    # GROUPS: two separate placements by two other players (a 3+/4p shape) block.
+    from agricola.cards.sleeping_corner import _occupancy_override
+    cs = _state(owner=0)
+    cs3 = f.with_space(cs, WISH, workers=(0, 2, 2))
+    assert _occupancy_override(cs3, WISH) is False
+    cs1 = f.with_space(cs, WISH, workers=(0, 2, 0))
+    assert _occupancy_override(cs1, WISH) is True
 
 
 # ---------------------------------------------------------------------------

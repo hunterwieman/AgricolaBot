@@ -81,11 +81,23 @@ def test_owner_may_use_urgent_wish_occupied_by_opponent():
 
 
 def test_owner_may_use_urgent_wish_with_opponent_parent_and_newborn():
-    # A normally-used wish space holds the opponent's parent + newborn = 2 workers, ONE
-    # player. "Count players, not workers" must still permit the owner to use it.
+    # A normally-used wish space holds the opponent's parent + newborn = 2 workers
+    # but ONE placed person-GROUP (ruling 80 as refined, 2026-07-26: the person and
+    # its associated newborn are one unit; the clarification's "second, third, etc.
+    # people" counts GROUPS, not the newborn). Pierced.
     cs = _state(owner=0)
     cs = _set_workers(cs, (0, 2))
     assert _placeable(cs)
+
+
+def test_two_other_groups_block():
+    # A second separate placement (another player having placed here — a 3+/4p
+    # shape) is a second GROUP: blocked. One group of two workers: pierced.
+    cs = _state(owner=0)
+    cs3 = f.with_space(cs, TARGET_SPACE, workers=(0, 2, 2))
+    assert _occupancy_override(cs3, TARGET_SPACE) is False
+    cs1 = f.with_space(cs, TARGET_SPACE, workers=(0, 2, 0))
+    assert _occupancy_override(cs1, TARGET_SPACE) is True
 
 
 # ---------------------------------------------------------------------------

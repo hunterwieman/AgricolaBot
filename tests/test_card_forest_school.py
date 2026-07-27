@@ -112,10 +112,13 @@ def test_not_offered_without_ownership():
     assert not _lessons_placeable(cs)
 
 
-def test_not_offered_when_owner_already_holds_lessons():
+def test_offered_even_when_owner_already_holds_lessons():
+    # "Consider the 'Lessons' action spaces not occupied" is UNQUALIFIED — ruled
+    # (2026-07-26) to look through the owner's OWN earlier worker too, so the owner
+    # may use Lessons twice in a round.
     cs = _lessons_state(owner=0)
     cs = _set_workers(cs, (1, 0))   # owner (p0) is the sole occupant
-    assert not _lessons_placeable(cs)
+    assert _lessons_placeable(cs)
 
 
 def test_override_does_not_apply_to_non_lessons_spaces():
@@ -124,13 +127,18 @@ def test_override_does_not_apply_to_non_lessons_spaces():
     assert PlaceWorker(space="forest") not in legal_placements(cs)
 
 
-def test_two_other_players_blocks_override():
-    # 4-player shape: 2+ OTHER players holding the space -> override declines (== 1 only).
+def test_any_occupancy_is_looked_through():
+    # Forest School's text is UNQUALIFIED — "consider the 'Lessons' action spaces not
+    # occupied" — ruled (2026-07-26) to void occupancy WHOLESALE: any number of
+    # workers, any owners, the owner's own included ("you could go on a lessons
+    # space with many people already on it").
     cs = _lessons_state(owner=0)
     cs = _set_workers(cs, (0, 1))
-    cs3 = f.with_space(cs, "lessons", workers=(0, 1, 1))
-    assert _occupancy_override(cs3, "lessons") is False
     assert _occupancy_override(cs, "lessons") is True
+    cs3 = f.with_space(cs, "lessons", workers=(0, 1, 1))    # two other players
+    assert _occupancy_override(cs3, "lessons") is True
+    own = f.with_space(cs, "lessons", workers=(1, 1))       # own worker among them
+    assert _occupancy_override(own, "lessons") is True
 
 
 def test_unoccupied_lessons_uses_normal_legality():

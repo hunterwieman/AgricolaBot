@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
+from agricola.helpers import placements_this_round
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -70,7 +71,7 @@ def _eligible_renovate(state: GameState, idx: int) -> bool:
 
 def _apply_renovate(state: GameState, idx: int) -> GameState:
     p = state.players[idx]
-    placed = p.people_total - p.newborns - p.people_home
+    placed = placements_this_round(p)
     p = fast_replace(p, resources=p.resources + Resources(wood=placed))
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))

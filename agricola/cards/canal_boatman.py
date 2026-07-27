@@ -127,6 +127,12 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
         p,
         resources=p.resources - Resources(food=1) + _REWARDS[variant],
         people_home=p.people_home - 1,
+        # "Place another person on this card" is an act of PLACING, so it mints the
+        # round's next placement number (ruling 79). This card is the one placement
+        # written in card code rather than the engine chokepoints — it parks a worker
+        # for a benefit without being an action space (per the user, it is not one) —
+        # so it carries its own tick; a unique solution for a unique card.
+        placements_this_round=p.placements_this_round + 1,
     )
     p = place_card_space_worker(p, CARD_ID)
     return fast_replace(state, players=tuple(

@@ -319,3 +319,60 @@ def test_played_via_minor_action_costs_4_food():
 
     assert CARD_ID in cs.players[cp].minor_improvements
     assert cs.players[cp].resources.food == food0 - 4    # 4 Food paid at play
+
+
+# ---------------------------------------------------------------------------
+# The newborn survives its own round (user ruling 2026-07-24)
+# ---------------------------------------------------------------------------
+
+def _walk_to_work(state):
+    """Finish the preparation ladder into the work phase."""
+    while state.phase is not Phase.WORK:
+        acts = legal_actions(state)
+        if not acts:
+            break
+        state = step(state, Proceed() if Proceed() in acts else acts[-1])
+    return state
+
+
+def test_newborn_is_still_a_newborn_in_the_round_it_appears():
+    """A Heart of Stone newborn IS a newborn and is fed 1 food, not 2 (user ruling
+    2026-07-24).
+
+    This card grants its growth at the `reveal` window — preparation rung 3 — and the
+    "last round's newborns become adults" clear used to sit at `__collect__`, rung 4.
+    So the newborn this card had just created was wiped one rung later and was fed as
+    an ADULT at that round's harvest. The clear now lives at `__round_setup__`
+    (rung 2), which precedes every card window of the new round; this test is what
+    stops it drifting back.
+    """
+    s = _owner_with_room_at_reveal(seat=0)
+    s = step(s, RevealCard(card="western_quarry"))
+    before = s.players[0]
+
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    s = step(s, CommitFamilyGrowth())
+    s = _walk_to_work(step(s, Stop()))
+
+    p = s.players[0]
+    assert p.people_total == before.people_total + 1
+    # The point of the test: the newborn is STILL flagged as one in the work phase,
+    # so the harvest feeding cost carries its 1-food discount.
+    assert p.newborns == 1
+    assert 2 * p.people_total - p.newborns == 2 * before.people_total + 1
+
+
+def test_newborn_may_not_be_placed_in_the_round_it_appears():
+    """The complement: a newborn does not work until the following round. The growth
+    raises `people_total` but never `people_home` (`resolution._grow_family`), and
+    `people_home` was already fixed by the previous round's reset — so the owner's
+    placement count this round is unchanged."""
+    s = _owner_with_room_at_reveal(seat=0)
+    s = step(s, RevealCard(card="western_quarry"))
+    home_before = s.players[0].people_home
+
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    s = step(s, CommitFamilyGrowth())
+    s = _walk_to_work(step(s, Stop()))
+
+    assert s.players[0].people_home == home_before

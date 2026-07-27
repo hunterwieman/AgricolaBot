@@ -473,8 +473,10 @@ def test_plow_hero_not_offered_on_second_placement():
     s = _own_occ(s, cp, "plow_hero")
     s = with_resources(s, cp, food=2)
     p = s.players[cp]
-    # Round 2+: 3 workers total, one already placed -> people_home 2 (== total - 1).
-    p = fast_replace(p, people_total=3, people_home=2)
+    # Round 2+: 3 workers total, one already placed -> people_home 2 (== total - 1),
+    # and the faked prior placement carries the act counter (ruling 79 — the ordinal
+    # is the stored counter, not derived from the people fields).
+    p = fast_replace(p, people_total=3, people_home=2, placements_this_round=1)
     s = fast_replace(s, players=tuple(p if i == cp else s.players[i] for i in range(2)))
     s = _place_at(s, "farmland")
     # After placing, people_home is 1 = people_total - 2 -> not the first placement.

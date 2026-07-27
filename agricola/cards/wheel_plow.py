@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
+from agricola.helpers import placements_this_round
 from agricola.legality import _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.replace import fast_replace
@@ -53,10 +54,11 @@ def _used(state: GameState, idx: int) -> bool:
 
 def _is_first_placement_this_round(state: GameState, idx: int) -> bool:
     """True iff the placement now being resolved is the player's first this round (the
-    before_action_space trigger fires after the placing worker left people_home). See
-    Plow Hero for the derivation."""
-    p = state.players[idx]
-    return p.people_home == p.people_total - 1
+    before_action_space trigger fires after the placing worker was debited), read from
+    the shared ordinal definition — see helpers.placements_this_round and the note in
+    Plow Hero on why the old `people_home == people_total − 1` shortcut is wrong once a
+    LOANER can be placed."""
+    return placements_this_round(state.players[idx]) == 1
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:

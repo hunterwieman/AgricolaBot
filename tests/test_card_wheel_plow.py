@@ -55,7 +55,10 @@ def _num_fields(state, idx):
 
 
 def _set_people(state, idx, home, total):
-    p = fast_replace(state.players[idx], people_home=home, people_total=total)
+    # Faking "k workers already out" carries the coherent placement-act counter
+    # (ruling 79 — the ordinal is the stored counter, not derived from people).
+    p = fast_replace(state.players[idx], people_home=home, people_total=total,
+                     placements_this_round=total - home)
     return fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(2)))
 

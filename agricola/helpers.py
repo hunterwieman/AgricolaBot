@@ -91,6 +91,87 @@ def suppress_space_reward(state: GameState) -> GameState:
 # Part 1: Simple derived quantities
 # ---------------------------------------------------------------------------
 
+def activate_temp_worker(state: GameState, idx: int, *,
+                         debit_supply: bool = True) -> GameState:
+    """Take one meeple from the player's SUPPLY and put it in their hand as a LOANER —
+    an extra worker for this round that never joins the family (Motivator E93 and the
+    rest of the supply-loaner family).
+
+    The single choke point for activating a loaner. Three fields move together:
+
+    - ``workers_in_supply -= 1`` — the meeple physically leaves the supply pile. This is
+      what makes "Family Growth to a 5th person" illegal while the loaner is out: the
+      growth gate already reads this field (`legality._legal_basic_wish_for_children`),
+      so the tradeoff the card poses — an extra worker now, or the option to grow —
+      needs no new legality code at all.
+    - ``people_home += 1`` — the loaner is a meeple available to place, so it enters the
+      pool the turn flow already runs on. Alternation, the round's all-placed detection,
+      and the placement enumerator are all keyed on `people_home`, so a loaner is placed
+      by the ordinary placement path with nothing special-cased. It is fungible with a
+      family worker from here on (identical wooden tokens): nothing needs to know WHICH
+      meeple is the loaner, only how many are out — which is why a mid-round "return a
+      person home" effect (Sheep Inspector, Tea Time) needs no loaner awareness.
+    - ``temp_workers_active += 1`` — the count, read by the ordinal
+      (`placements_this_round`) and by the returning-home restore that puts the meeple
+      back in supply (`engine._return_home_reset`).
+
+    `people_total` is deliberately untouched: feeding (`2*people_total - newborns`) and
+    scoring read it, and the loaner is fed by neither — it is back in supply before any
+    harvest.
+
+    `debit_supply=False` activates a meeple that has ALREADY left the supply pile — Work
+    Permit parks its person on a future round space when the card is played, so the debit
+    happened rounds earlier and must not be repeated. The returning-home restore still
+    credits the meeple back, because it goes by `temp_workers_active`.
+    """
+    p = state.players[idx]
+    assert not debit_supply or p.workers_in_supply > 0, (
+        f"activate_temp_worker: player {idx} has no meeple in supply to loan")
+    p = fast_replace(
+        p,
+        workers_in_supply=p.workers_in_supply - (1 if debit_supply else 0),
+        people_home=p.people_home + 1,
+        temp_workers_active=p.temp_workers_active + 1,
+    )
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+
+
+def placements_this_round(player: PlayerState) -> int:
+    """The 1-based ordinal of the placement now resolving — "the Nth person you place
+    this round" — under the PHYSICAL interpretation (ruling 79, 2026-07-26).
+
+    THE single read point for that number; every ordinal-reading card consumes it here
+    (Wheel Plow, Plow Hero, Fir Cutter, Henpecked Husband, Catcher, Skillful Renovator).
+    Valid at a `before_`/`after_action_space` host, where the placement bookkeeping has
+    already run, so the value IS the acting placement's minted number.
+
+    The semantics (`PlayerState.placements_this_round` carries the count):
+
+    - Each act of PLACING a worker from home or supply mints the round's next number —
+      ticked at the placement chokepoints (`resolution._apply_worker_placement`,
+      `engine._apply_place_card_space_worker`, Canal Boatman's park), Cards mode only.
+    - A worker RETURNED home (Tea Time, Sheep Inspector, Henpecked Husband's return) is
+      anonymized: returns never touch the counter, so re-placing that worker mints a
+      FRESH number — it is a new "person you place". Numbers can exceed 5 (off-table for
+      the tiered cards; harmless, ruled acceptable).
+    - A future on-board RELOCATION (Straw Hat, Archway, Job Contract) preserves the
+      worker's number and mints nothing — relocations must NOT tick this counter, even
+      though they count as "placing" for place-triggered cards (ruling 79 item 4).
+    - Newborns never mint ("Newborns are not placed"): births — wish-space or no-space —
+      happen outside the placement chokepoints, so the old `− newborns` correction and
+      its whole family of derivation traps are structurally gone.
+    - A LOANER placement (Motivator et al.) mints normally: the loaner places through
+      the ordinary pipeline, satisfying the loaner-advances-the-ordinal ruling
+      (2026-07-24) with no special term.
+
+    Never re-derive this from `people_total`/`people_home`: the retired expression
+    `(people_total − newborns) − people_home + temp_workers_active` computes "workers
+    currently deployed", which under-reads after any return.
+    """
+    return player.placements_this_round
+
+
 def fences_built(farmyard: Farmyard) -> int:
     """Count fence pieces placed on the board (derived from the fence arrays)."""
     return (

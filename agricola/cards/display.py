@@ -44,7 +44,7 @@ HISTORY_VP_CARDS: frozenset[str] = frozenset({
     "asparagus_knife",
     "baking_sheet", "beaver_colony", "beer_keg", "beer_stein", "beer_table", "bellfounder",
     "big_country",
-    "blighter", "clutterer", "cookery_lesson", "curator",
+    "blighter", "child_ombudsman", "clutterer", "cookery_lesson", "curator",
     "bucksaw", "clay_deposit", "craft_brewery", "cube_cutter", "elephantgrass_plant",
     "facades_carving",
     "furniture_carpenter", "home_brewer", "hook_knife", "loppers", "mantlepiece",
@@ -227,3 +227,42 @@ def private_state_text(card_id: str, player_state) -> str | None:
     would leak to the opponent — Butler's play-round. Or None."""
     fn = _PRIVATE_STATE_FORMATTERS.get(card_id)
     return fn(player_state) if fn is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Labels for a card's PendingCardChoice options (web UI only)
+# ---------------------------------------------------------------------------
+# A PendingCardChoice's options are engine values ("take", "grain", ...), which the
+# web UI would otherwise render literally — "Choose: take" tells a player nothing
+# about what they are agreeing to. A card that puts a real decision to the player
+# registers human labels here; the UI prefixes the card's display name, so the
+# player sees which card is asking.
+#
+# The supply-loaner offers (Motivator, Telegram, Work Permit) matter most: taking a
+# loaner spends a meeple from the SUPPLY pile, which is the same pile a Family
+# Growth draws from — so declining can be the stronger play, and the label has to
+# make that visible rather than leaving it as a bare "take"/"decline".
+
+CARD_CHOICE_OPTION_LABELS: dict[str, dict] = {
+    "motivator": {
+        "take": "Place an extra person from your supply",
+        "decline": "Decline — keep the meeple in supply",
+    },
+    "telegram": {
+        "take": "Place an extra person from your supply",
+        "decline": "Decline — keep the meeple in supply",
+    },
+    "work_permit": {
+        # Work Permit's meeple left the supply when the card was played and is
+        # waiting on this round's space, so declining does not "keep" anything —
+        # the meeple simply goes back to supply at the end of this round.
+        "take": "Use the person waiting on this round's space",
+        "decline": "Decline — the person returns to your supply this round",
+    },
+}
+
+
+def card_choice_option_label(card_id: str, option) -> str | None:
+    """The human label for one of `card_id`'s PendingCardChoice options, or None to
+    let the UI fall back to rendering the raw option value."""
+    return CARD_CHOICE_OPTION_LABELS.get(card_id, {}).get(option)
