@@ -284,11 +284,14 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   exit-less Lessons play, + the destination predicate evaluated on the post-payment state,
   the stranding-guard discipline; Traveling Players existence-guarded, absent at 2p).
   Deliberately NOT built: the commit-on-fire
-  "last space" seam — CORRECTED 2026-07-26 (the user caught the error): it is DEAD for
-  the jump family, whose spaces include no accumulation space at all (Grain Seeds is a
-  fixed take, not an accumulation space), so Steam Machine can never fire on a jump
-  member; the seam becomes LIVE with **Lasso B24** (its Sheep/Pig/Cattle Markets ARE
-  accumulation spaces) — the note lives on Lasso's ledger entry and the occupancy-READER scope of Job Contract's marker
+  "last space" seam — CORRECTED 2026-07-26 (the user caught both errors): it is DEAD for
+  the jump family (no member touches an accumulation space — Grain Seeds is a fixed
+  take), and DEAD for Lasso too (Lasso places new workers within the normal budget, so
+  "the last space you use" stays well-defined). Its live members are the SUPPLY-LOANER
+  offers already shipped: Steam Machine firing on the last family worker's
+  accumulation-space window while a Telegram / Delayed Wayfarer loaner offer is still
+  outstanding should implicitly DECLINE the loaner (the user's ruled principle from the
+  Telegram arc) — nothing enforces that yet; the foreclosure seam is the open item and the occupancy-READER scope of Job Contract's marker
   (legality-only per ruling 81.3; Turnip Farmer-class readers are 3+, flagged for that
   pass). Census after: **240 occupations + 333 minors = 573**.
 - **The 2026-07-26 same-worker-jump groundwork + Child Ombudsman D92 (ruling 81; card-only,

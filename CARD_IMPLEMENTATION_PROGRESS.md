@@ -353,7 +353,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B23 Final Scenario** · prereq: Round 13 or Before
   - _Place the action space card for round 14 face up in front of you. Only you can use it until it is placed on the game board._
   - `ONPLAY EXOTIC L-CARDSPACE L-HIDDEN` — Reserve the round-14 action-space card as an owner-private space.
-- ⬜ **B24 Lasso** · cost: 1 Reed · ⚠ NOTE (2026-07-26): implementing this makes the Steam Machine "last action space you use" / commit-on-fire question LIVE for the first time — Lasso's named Sheep/Pig/Cattle Markets ARE accumulation spaces (no jump-family card touches one; Grain Seeds is a fixed take). Design the commit-on-fire seam (a "last-X" card's fire declares finality and forecloses later same-phase placement activity — the Telegram-arc principle) together with this card
+- ⬜ **B24 Lasso** · cost: 1 Reed
   - _You can place exactly two people immediately after one another if at least one of them uses the "Sheep Market", "Pig Market", or "Cattle Market" accumulation space._
   - `ONPLAY PASSIVE E-EXTRAPLACE` — Place two people back-to-back if one uses an animal market; extra placement. A named-space reference is NOT board geometry (L-GEOMBOARD dropped).
 - ✅ **B25 Bread Paddle** · cost: 1 Wood
