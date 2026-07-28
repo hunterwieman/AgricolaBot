@@ -51,6 +51,14 @@ SELF_RATIFICATION = [
     r"accepted engine boundary",
     r"harmless (approximation|deviation|shift)",
     r"should be fine",
+    # The ruling-84 pass (2026-07-27) found two self-justifications these
+    # patterns never caught (Truffle Slicer's "Tier-2 simplification",
+    # Confidant's "deliberately NOT liquidation-raisable") plus the
+    # rules-by-assertion tic "the rules treat it as" — all three vectors are
+    # banned outright.
+    r"tier[- ]?2 simplification",
+    r"deliberately not liquidation",
+    r"the rules treat it as",
 ]
 _BANNED = re.compile("|".join(f"(?:{p})" for p in SELF_RATIFICATION), re.IGNORECASE)
 

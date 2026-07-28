@@ -37,6 +37,10 @@ The separate Sugar Baker interaction below stays a BEFORE-window auto: that food
 is a deposit ON the (non-atomic) Grain Utilization space, collected during the
 before-window by Sugar Baker's own auto — it never flows through an atomic take,
 so there is no `taken` to read and the CardStore-deposit read is retained.
+
+Ruling 84 (2026-07-27) classification: the `taken.food >= 1` comparison READS the
+food the space itself yielded (the stamped take) as the printed condition —
+nothing is charged; not a cost gate.
 """
 from __future__ import annotations
 

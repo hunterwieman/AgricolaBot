@@ -28,10 +28,16 @@ window and is byte-identical to the pre-ladder engine (the Family fast path).
 
 Window ordering is load-bearing and rules-derived (the four-slot timing model; see the
 design doc §1, including the resolved post-breeding-timeline ruling of 2026-07-03:
-after-the-breeding-phase is INSIDE the harvest, end-of-harvest is the last chance for
-in-harvest conversions, after-the-harvest is outside — and per the 2026-07-05 ruling
-"immediately after each harvest" is the SAME instant as "after each harvest", one
-window, not two).
+after-the-breeding-phase is INSIDE the harvest, after-the-harvest is outside — and per
+the 2026-07-05 ruling "immediately after each harvest" is the SAME instant as "after
+each harvest", one window, not two). Per user ruling 85 (2026-07-27), a CONVERTER's
+standalone offer has its final home at the last conversion opportunity of the breed
+phase, immediately before end_of_harvest — the converters are closed after it, and
+ruling 39's post-breed cooking floor lapses at the end_of_harvest moment. That
+supersedes the 2026-07-03 annotation that end_of_harvest was itself "the last chance
+for in-harvest conversions" (the last chance moved one step earlier, to
+after_breeding; the floor lapses instead). The food-SPENDING span buys keep their
+end_of_harvest surface — see ``CONVERTER_SPAN_EVENTS`` vs ``FREE_SPAN_EVENTS``.
 """
 from __future__ import annotations
 
@@ -59,7 +65,11 @@ HARVEST_WINDOWS: tuple[str, ...] = (
     "start_of_breeding",             # 12
     "breeding",                      # 13/14 (sentinel — the BREED frames)
     "after_breeding",                # 15
-    "end_of_harvest",                # 16 — the last chance for in-harvest conversions
+    "end_of_harvest",                # 16 — user ruling 85 (2026-07-27): the converters
+    #                                       are CLOSED here (their last surface is
+    #                                       after_breeding) and ruling 39's post-breed
+    #                                       cooking floor has LAPSED; the food-SPENDING
+    #                                       span buys still surface here.
     "after_harvest",                 # 17 — outside the harvest. User ruling 2026-07-05:
     #                                       "immediately after each harvest" and "after
     #                                       each harvest" name the SAME instant (there is
@@ -167,18 +177,36 @@ def sentinel_position(window_id: str, band_pass: int) -> int:
 
 # ---------------------------------------------------------------------------
 # The in-harvest conversion span + ruling 39's cooking floor (the converter
-# cluster — rulings 34/37/39, 2026-07-12; CARD_DEFERRED_PLANS.md)
+# cluster — rulings 34/37/39, 2026-07-12; span end + floor lapse per user
+# ruling 85, 2026-07-27; CARD_DEFERRED_PLANS.md)
 # ---------------------------------------------------------------------------
+
+# User ruling 85 (2026-07-27): both the converter span and ruling 39's
+# post-breed cooking floor end when the walk reaches the end_of_harvest
+# window. A paused frame's stored cursor is (its window's virtual position
+# + 1), so "the decision surface is end_of_harvest or later" is exactly
+# `cursor > _END_OF_HARVEST_POS`; a frame paused at the breed phase's last
+# after_breeding surface has cursor == _END_OF_HARVEST_POS and is still
+# inside both. Keyed on the walk cursor, NOT a new Phase member — the Phase
+# enum is shared with the Family game and the C++ twin, and the outer
+# windows deliberately keep running under Phase.HARVEST_BREED.
+_END_OF_HARVEST_POS: int = sentinel_position("end_of_harvest", None)
+
 
 def in_conversion_span(state, idx: int) -> bool:
     """Is player `idx` inside ruling 34's conversion span — their own FIELD
-    band's start through end_of_harvest? A pre-field-phase cost (Autumn
-    Mother's, at the outer windows) sees no span converters; a WORK-phase
-    cost never does. The span is derived from phase/cursor: the walk must
-    have reached the player's band start (paused AT before_field_phase
-    counts — the band's first instant; the before-vs-start_of_field_phase
-    distinction is an unreachable corner today, no in-band cost frame
-    exists). A None cursor inside FEED/BREED is the legacy hand-built shape
+    band's start through the breed phase's last conversion opportunity? Per
+    user ruling 85 (2026-07-27) the converters are closed immediately BEFORE
+    end_of_harvest, so a frame paused at the end_of_harvest or after_harvest
+    windows is OUT of span (`available_span_converters` returns () there and
+    no raise-frame bundle at those windows carries a converter). A
+    pre-field-phase cost (Autumn Mother's, at the outer windows) sees no
+    span converters; a WORK-phase cost never does. The span is derived from
+    phase/cursor: the walk must have reached the player's band start (paused
+    AT before_field_phase counts — the band's first instant; the
+    before-vs-start_of_field_phase distinction is an unreachable corner
+    today, no in-band cost frame exists) and not yet reached end_of_harvest.
+    A None cursor inside FEED/BREED is the legacy hand-built shape
     (mid-phase — in span); a None cursor at FIELD is the fresh entry
     (pre-span)."""
     from agricola.constants import Phase
@@ -189,6 +217,8 @@ def in_conversion_span(state, idx: int) -> bool:
     cur = state.harvest_cursor
     if cur is None:
         return state.phase != Phase.HARVEST_FIELD
+    if cur > _END_OF_HARVEST_POS:      # ruling 85: closed at end_of_harvest
+        return False
     band_pass = 0 if idx == state.starting_player else 1
     return cur > sentinel_position("before_field_phase", band_pass)
 
@@ -199,16 +229,25 @@ def post_breed_floors(state, idx: int) -> tuple:
     harvest. Once their breed pass has RESOLVED (the walk passed their
     breeding sentinel and no un-committed breed frame of theirs remains), a
     type currently at or above min_parents + 1 may not be cooked below it —
-    3, or 2 for sheep with Dolly's Mother in play. The stateless shorthand
-    is EXACT at every reachable state (ruling 39's corrected record,
-    2026-07-13: at count 2 the floor does not bind, so a capacity-blocked
-    pair stays cookable — correct, they never bred). The one theoretical
-    residue, for whoever builds the first POST-BREED cost effect that pushes
-    the raise frame: a PARTIAL harvest-skipper (Lunchtime Beer skips field +
-    breeding but keeps the outer windows) standing at such a surface with 3+
-    of a type that never bred would be over-protected. Unreachable today —
-    every raise-frame producer is WORK-phase or outer-window; a TOTAL
-    skipper (Layabout) has no in-harvest surface at all."""
+    3, or 2 for sheep with Dolly's Mother in play — UNTIL the walk reaches
+    the end_of_harvest window: per user ruling 85 (2026-07-27) the cooking
+    prohibition stops applying at the "at the end of the harvest" moment
+    (equivalently, the breed phase ends just before it), so at the
+    end_of_harvest and after_harvest surfaces — which still run under
+    Phase.HARVEST_BREED — the floors are (0, 0, 0) again and a just-bred
+    animal is cookable (Winter Caretaker CAN cook one to pay for its
+    vegetable). The floors therefore bind from the player's breed resolution
+    through the breed phase's last after_breeding surface. The stateless
+    shorthand is EXACT at every reachable state (ruling 39's corrected
+    record, 2026-07-13: at count 2 the floor does not bind, so a
+    capacity-blocked pair stays cookable — correct, they never bred). The
+    one theoretical residue, for whoever builds the first POST-BREED cost
+    effect that pushes the raise frame: a PARTIAL harvest-skipper (Lunchtime
+    Beer skips field + breeding but keeps the outer windows) standing at
+    such a surface with 3+ of a type that never bred would be
+    over-protected. Unreachable today — every raise-frame producer is
+    WORK-phase or outer-window; a TOTAL skipper (Layabout) has no in-harvest
+    surface at all."""
     from agricola.constants import Phase
     from agricola.pending import PendingHarvestBreed
 
@@ -217,6 +256,8 @@ def post_breed_floors(state, idx: int) -> tuple:
     cur = state.harvest_cursor
     band_pass = 0 if idx == state.starting_player else 1
     if cur is None or cur <= sentinel_position("breeding", band_pass):
+        return (0, 0, 0)
+    if cur > _END_OF_HARVEST_POS:      # ruling 85: lapsed at end_of_harvest
         return (0, 0, 0)
     for f in state.pending_stack:
         if (isinstance(f, PendingHarvestBreed) and f.player_idx == idx
@@ -241,22 +282,41 @@ FREE_SPAN_EVENTS: tuple[str, ...] = (
     "end_of_harvest",
 )
 
+# User ruling 85 (2026-07-27): a resource→food CONVERTER's standalone offer
+# has its final home at the last conversion opportunity of the breed phase,
+# immediately before end_of_harvest — the converters are closed after it. So
+# the converter carriers (the craft majors' span entries in
+# `craft_major_span.py`, Braid Maker, Paintbrush, Stone Carver) register on
+# this trimmed surface list, whose last window is after_breeding; the
+# food-SPENDING span buys (Basket Carrier, Furniture Carpenter, Plow Builder)
+# keep the full FREE_SPAN_EVENTS through end_of_harvest. (Paintbrush's
+# bonus-point route rides the same printed exchange as its food route, so
+# both trim together.)
+CONVERTER_SPAN_EVENTS: tuple[str, ...] = tuple(
+    e for e in FREE_SPAN_EVENTS if e != "end_of_harvest")
+
 
 def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
-                               *, variants_fn=None, is_owned_fn=None) -> None:
-    """Register an optional trigger on EVERY free-span surface (ruling 36,
+                               *, variants_fn=None, is_owned_fn=None,
+                               converter: bool = False) -> None:
+    """Register an optional trigger on every free-span surface (ruling 36,
     2026-07-12: the anytime food→resources/points buys are available
     throughout the harvest span, field phase through end_of_harvest — the
     late-anchor approach is dead; ruling 38 puts Lumber Virtuoso here too).
-    One call replaces eleven manual rows: the trigger + window hook per
-    in-span simple window, the "field_phase" during-event, and the breed
-    frame's pre-commit "breeding" stretch. The card's own eligibility_fn
-    must gate its once-per-X budget (typically `conversion_id not in
-    harvest_conversions_used` — shared with the card's feed-seam
-    HarvestConversionSpec entry, which covers the payment surface). A card
-    with a per-fire CHOICE (Paintbrush's food-vs-point) passes `variants_fn`
-    — registered once in the play-variant registry (event-independent), so
-    every surface expands the trigger into per-variant FireTriggers.
+    One call replaces the per-surface manual rows: the trigger + window hook
+    per in-span simple window, the "field_phase" during-event, and the breed
+    frame's pre-commit "breeding" stretch. `converter=True` (user ruling 85,
+    2026-07-27) registers on `CONVERTER_SPAN_EVENTS` instead — a
+    resource→food converter's span ends at its last surface, after_breeding,
+    immediately before end_of_harvest; the default full list is for the
+    food-SPENDING span buys, which keep the end_of_harvest surface. The
+    card's own eligibility_fn must gate its once-per-X budget (typically
+    `conversion_id not in harvest_conversions_used` — shared with the card's
+    feed-seam HarvestConversionSpec entry, which covers the payment
+    surface). A card with a per-fire CHOICE (Paintbrush's food-vs-point)
+    passes `variants_fn` — registered once in the play-variant registry
+    (event-independent), so every surface expands the trigger into
+    per-variant FireTriggers.
 
     `is_owned_fn` (`(state, player_idx) -> bool`, default None = tableau
     ownership) is threaded onto every registered entry — the ruling-74
@@ -265,7 +325,8 @@ def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
     board's major-owner array; both surfacing gates consult it)."""
     from agricola.cards.triggers import register, register_play_variant_trigger
 
-    for event in FREE_SPAN_EVENTS:
+    events = CONVERTER_SPAN_EVENTS if converter else FREE_SPAN_EVENTS
+    for event in events:
         register(event, card_id, eligibility_fn, apply_fn,
                  is_owned_fn=is_owned_fn)
         if event not in SENTINEL_WINDOWS:

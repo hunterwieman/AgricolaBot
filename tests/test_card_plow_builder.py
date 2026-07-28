@@ -41,6 +41,11 @@ Coverage:
 - The early-harvest value case (the ruled point of the span availability):
   firing at start_of_feeding nets +1 food that then pays the feeding —
   begging-free where the no-fire walk begs.
+- The ruling-85 (2026-07-27) floor boundary at the standalone fire's fee: the
+  post-breed cooking floor still BINDS at an after_breeding surface (a 1-food
+  fee whose only fuel is floored animals is not offered there) and has LAPSED
+  at end_of_harvest — which this food-SPENDING span buy keeps (only the
+  converters' span was trimmed to after_breeding).
 """
 from __future__ import annotations
 
@@ -663,3 +668,70 @@ def test_without_the_fire_the_same_state_begs():
     state, _ = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
     assert state.players[0].begging_markers == 1
+
+
+# --- Ruling 85 (2026-07-27): the floor boundary at the standalone fee --------
+
+def _post_breed_window_state(window_id, cursor):
+    """A hand-built P0 window frame in the harvest tail: P0 (starting player)
+    owns Plow Builder with the Joinery budget USED this harvest (the
+    standalone fire's precondition), 0 food, 3 just-bred sheep, a Fireplace
+    to cook with, and plowable cells; phase HARVEST_BREED with the given
+    stored cursor (a frame pushed at virtual position P stores P + 1)."""
+    from agricola.pending import push
+    from tests.factories import with_animals
+
+    state = setup(seed=0)
+    state = fast_replace(state, starting_player=0)
+    state = _give_occupation(state, 0)
+    state = with_majors(state, owner_by_idx={0: 0})       # Fireplace
+    state = with_resources(state, 0, food=0)
+    state = with_animals(state, 0, sheep=3)
+    p = state.players[0]
+    p = fast_replace(p, harvest_conversions_used=frozenset({"joinery"}))
+    state = fast_replace(state, players=(p, state.players[1]))
+    state = push(state, PendingHarvestWindow(window_id=window_id, player_idx=0))
+    return fast_replace(state, phase=Phase.HARVEST_BREED, harvest_cursor=cursor)
+
+
+def test_fee_floored_at_after_breeding_lapsed_at_end_of_harvest():
+    """Ruling 85's floor boundary at a food FEE (pin iii): at P0's own
+    after_breeding surface the post-breed floor still BINDS — with 0 food and
+    3 just-bred sheep as the only fuel, the 1-food standalone plow fee is not
+    payable by any route, so the fire is NOT offered (only the decline). At
+    end_of_harvest — a surface this food-SPENDING span buy KEEPS (ruling 85
+    trimmed only the converters' span) — the floor has lapsed: the fire IS
+    offered, its raise frame cooks a sheep below the old floor, and the plow
+    completes."""
+    from agricola.cards.harvest_windows import (
+        post_breed_floors,
+        sentinel_position,
+    )
+
+    # P0's own after_breeding pause: frame pushed at pass-0 position 20 ->
+    # cursor 21. The floor binds; the fee is unpayable; no fire is offered.
+    bound = _post_breed_window_state(
+        "after_breeding", sentinel_position("after_breeding", 0) + 1)
+    assert post_breed_floors(bound, 0) == (3, 3, 3)
+    assert FireTrigger(card_id=CARD_ID) not in legal_actions(bound)
+    assert legal_actions(bound) == [Proceed()]
+
+    # The end_of_harvest frame: cursor one past the window's position. The
+    # floor has lapsed; the fee is payable by cooking; the fire is offered.
+    lapsed = _post_breed_window_state(
+        "end_of_harvest", sentinel_position("end_of_harvest", None) + 1)
+    assert post_breed_floors(lapsed, 0) == (0, 0, 0)
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(lapsed)
+
+    state = step(lapsed, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0,
+                                         cattle=0)]
+    state = step(state, bundles[0])
+    state = _commit_the_plow(state)
+    p0 = state.players[0]
+    assert p0.animals.sheep == 2                   # below the old floor of 3
+    assert p0.resources.food == 1                  # sheep raised 2, fee took 1
+    assert CARD_ID in p0.harvest_conversions_used  # the plow latch

@@ -24,16 +24,22 @@ Maker clause-1 shape):
 2. **The generalized in-harvest raise frame** (rulings 34/37, 2026-07-12: a
    pure converter joins the payment frontier) — ``frontier_fire=((0, 0, 0, 0,
    0, 1), 3)`` (the 6-tuple (grain,veg,wood,clay,reed,stone); 1 stone) on the
-   same spec, so any harvest-time ``PendingFoodPayment`` frontier
-   offers the fire. ``_execute_food_payment`` debits the stone, adds the food,
-   and marks the SAME budget.
+   same spec, so any IN-SPAN harvest-time ``PendingFoodPayment`` frontier
+   offers the fire (per user ruling 85, 2026-07-27, the span ends after
+   ``after_breeding``, so a raise frame at ``end_of_harvest``/
+   ``after_harvest`` carries no converter). ``_execute_food_payment`` debits
+   the stone, adds the food, and marks the SAME budget.
 3. **The free span** (ruling 36, 2026-07-12, extended to this card by ruling
    75's span classification): ``register_free_span_trigger`` puts an optional
-   ``FireTrigger`` on every in-span window/event — the player's field band
-   through ``end_of_harvest``, the FIELD during-window and the breed frame's
-   pre-commit stretch included. The window machinery carries no cost layer or
-   budget bookkeeping of its own, so the apply debits the stone, grants the
-   food, and marks the shared budget itself (the basket_carrier idiom).
+   ``FireTrigger`` on every CONVERTER-span window/event — the player's field
+   band through ``after_breeding``, the FIELD during-window and the breed
+   frame's pre-commit stretch included (``converter=True``; user ruling 85,
+   2026-07-27: a converter's final standalone offer is the last conversion
+   opportunity of the breed phase, immediately before ``end_of_harvest`` —
+   the converters are closed after it). The window machinery carries no cost
+   layer or budget bookkeeping of its own, so the apply debits the stone,
+   grants the food, and marks the shared budget itself (the basket_carrier
+   idiom).
 
 Any one surface's fire marks ``"stone_carver"`` in
 ``harvest_conversions_used``, withholding the other surfaces for the rest of
@@ -108,6 +114,9 @@ register_harvest_conversion(HarvestConversionSpec(
     frontier_fire=((0, 0, 0, 0, 0, 1), 3),   # (grain,veg,wood,clay,reed,stone) -> food
 ))
 
-# Surface 3 — the free span (rulings 36 + 75): an optional trigger on every
-# in-span window/event, field band through end_of_harvest, on the same budget.
-register_free_span_trigger(CARD_ID, _span_eligible, _span_exchange)
+# Surface 3 — the free span (rulings 36 + 75; converter=True per ruling 85):
+# an optional trigger on every CONVERTER-span window/event, field band through
+# after_breeding (the converters are closed before end_of_harvest), on the
+# same budget.
+register_free_span_trigger(CARD_ID, _span_eligible, _span_exchange,
+                           converter=True)

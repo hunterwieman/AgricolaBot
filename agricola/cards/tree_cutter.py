@@ -26,6 +26,10 @@ counts), read from what was TAKEN across the take:
 
 On-play is a no-op. Card-game only (ownership-gated registries), so the Family
 trace and the C++ gates are untouched.
+
+Ruling 84 (2026-07-27) classification: the `taken.food >= 3` branch READS the
+food the space provided (the stamped take) as one of the printed good-type
+conditions — nothing is charged; not a cost gate.
 """
 from __future__ import annotations
 

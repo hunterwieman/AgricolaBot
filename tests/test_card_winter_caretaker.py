@@ -17,6 +17,14 @@ printed "at the end of each harvest" and the 2026-07-03 post-breeding-timeline
 ruling. These tests drive the REAL harvest walk (``_advance_harvest`` via
 ``_advance_until_decision`` + step) and assert the buy surfaces at the
 ``end_of_harvest`` window (after breeding), never during feeding.
+
+User ruling 85 (2026-07-27) governs what pays for the buy at its window: the
+converters are CLOSED at end_of_harvest (their final home is the last
+conversion opportunity of the breed phase, immediately before it — a
+converter's food is routed into this buy by firing it at the owner's
+``after_breeding`` surface, then buying with the banked food), and ruling 39's
+post-breed cooking floor has LAPSED there — the buy CAN be paid by cooking a
+just-bred animal.
 """
 from __future__ import annotations
 
@@ -34,18 +42,28 @@ from agricola.actions import (
     Proceed,
     Stop,
 )
-from agricola.constants import Phase
+from agricola.constants import GameMode, Phase
 from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingFoodPayment, PendingHarvestFeed, PendingHarvestWindow
+from agricola.pending import (
+    PendingFoodPayment,
+    PendingHarvestFeed,
+    PendingHarvestWindow,
+    push,
+)
 from agricola.replace import fast_replace
 from agricola.scoring import SCORING_TERMS
-from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
+from agricola.cards.harvest_windows import (
+    HARVEST_WINDOW_CARDS,
+    available_span_converters,
+    post_breed_floors,
+    sentinel_position,
+)
 from agricola.cards.triggers import TRIGGERS
 from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
-from agricola.setup import setup
+from agricola.setup import CardPool, setup, setup_env
 
-from tests.factories import with_majors, with_phase, with_resources
+from tests.factories import with_animals, with_majors, with_phase, with_resources
 
 CARD_ID = "winter_caretaker"
 
@@ -242,7 +260,7 @@ def test_not_offered_when_food_short():
     assert not saw_window
 
 
-# --- The in-span converter route (ruling 82) --------------------------------
+# --- Ruling 85 (2026-07-27): the converter/floor boundary at end_of_harvest --
 
 def _neutral_action(state):
     """An action that advances the harvest walk WITHOUT firing any card or
@@ -263,51 +281,152 @@ def _neutral_action(state):
     raise AssertionError(f"no neutral action among {actions}")
 
 
-def test_zero_food_joinery_converter_route_raises_the_price():
-    """Ruling 82 (2026-07-26; corrected 2026-07-27), the in-span converter
-    boundary: at the end_of_harvest window P0 has 0 food, no crops/animals,
-    1 wood, and owns the Joinery (major 7) unused this harvest. The
-    end_of_harvest window is INSIDE the conversion span, so the harvest-aware
-    liquidation gate counts the Joinery route (1 wood -> 2 food) and the
-    trigger IS offered; the raise frame's bundle fires the Joinery conversion
-    (CommitFoodPayment.conversions non-empty); committing pays the 2 food,
-    grants the vegetable, and marks the Joinery's once-per-harvest budget."""
-    state = _harvest_state(owner_food=4)              # feeding takes exactly 4
-    state = with_majors(state, owner_by_idx={7: 0})   # the Joinery, P0's
-    state = with_resources(state, 0, food=4, wood=1)
+_POOL = CardPool(
+    occupations=tuple(f"o{i}" for i in range(20)),
+    minors=tuple(f"m{i}" for i in range(20)),
+)
 
+
+def _cards_harvest_state(*, food=4, wood=0):
+    """A CARDS-mode HARVEST_FIELD-phase state at the fresh walk entry: P0 is
+    starting player, owns Winter Caretaker and the Joinery (major 7), and
+    holds the given food/wood; P1 food-rich so its frames resolve trivially.
+    CARDS mode because the craft majors' span-window triggers — the ruled
+    after_breeding surface below — are Cards-only (ruling 74)."""
+    cs, _env = setup_env(5, card_pool=_POOL)
+    assert cs.mode is GameMode.CARDS
+    cs = with_phase(cs, Phase.HARVEST_FIELD)
+    cs = dataclasses.replace(
+        cs, starting_player=0, pending_stack=(), harvest_cursor=None)
+    cs = _give_occupation(cs, 0)
+    cs = with_majors(cs, owner_by_idx={7: 0})
+    cs = with_resources(cs, 0, food=food, wood=wood)
+    cs = with_resources(cs, 1, food=99)
+    return cs
+
+
+def _walk_to_p0_window(state, window_id):
+    """Neutral-step the walk to P0's frame for the named window."""
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
                           Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if (isinstance(top, PendingHarvestWindow)
-                and top.window_id == "end_of_harvest"
+                and top.window_id == window_id
                 and top.player_idx == 0):
-            break
+            return state
         state = step(state, _neutral_action(state))
-    else:
-        raise AssertionError("no P0 end_of_harvest frame surfaced")
+    raise AssertionError(f"no P0 {window_id} frame surfaced")
 
+
+def test_converters_closed_at_end_of_harvest_ruled_play_via_after_breeding():
+    """Ruling 85 (2026-07-27): the converters are closed at end_of_harvest —
+    a converter's final home is the last conversion opportunity of the breed
+    phase, immediately before it. The ruled play for "use the Joinery to pay
+    for the vegetable" (which the raise frame used to serve at end_of_harvest
+    itself): the owner standalone-fires the Joinery span trigger at their
+    after_breeding surface, banking the 2 food, and the buy then fires DIRECT
+    at end_of_harvest — no raise frame, no converter in it."""
+    state = _cards_harvest_state(food=4, wood=1)      # feeding takes exactly 4
+
+    state = _walk_to_p0_window(state, "after_breeding")
     p0 = state.players[0]
     assert p0.resources.food == 0                     # feeding drained it
     assert p0.resources.wood == 1
     assert "joinery" not in p0.harvest_conversions_used
-    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    # The Joinery's span trigger is offered here — its LAST surface.
+    assert FireTrigger(card_id="craft_span_joinery") in legal_actions(state)
+    state = step(state, FireTrigger(card_id="craft_span_joinery"))
+    p0 = state.players[0]
+    assert p0.resources.food == 2 and p0.resources.wood == 0
+    assert "joinery" in p0.harvest_conversions_used
 
+    state = _walk_to_p0_window(state, "end_of_harvest")
+    assert available_span_converters(state, 0) == ()  # the span is closed here
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    # Direct path on the banked food: no raise frame ever appears.
+    assert not any(isinstance(f, PendingFoodPayment)
+                   for f in state.pending_stack)
+    p0 = state.players[0]
+    assert p0.resources.veg == 1 and p0.resources.food == 0
+
+
+def _end_of_harvest_frame_state(*, food=0, grain=0, wood=0, sheep=0,
+                                fireplace=False, joinery=False):
+    """A hand-built P0 end_of_harvest window frame at its REAL walk shape:
+    phase HARVEST_BREED (the outer windows run under it) and the stored
+    cursor such a frame carries — one past the window's virtual position
+    (a frame pushed at position P stores cursor P + 1)."""
+    state = setup(seed=0)
+    state = fast_replace(state, starting_player=0)
+    state = _give_occupation(state, 0)
+    owners = {}
+    if fireplace:
+        owners[0] = 0                                 # Fireplace (major 0)
+    if joinery:
+        owners[7] = 0                                 # Joinery (major 7)
+    if owners:
+        state = with_majors(state, owner_by_idx=owners)
+    state = with_resources(state, 0, food=food, grain=grain, wood=wood)
+    if sheep:
+        state = with_animals(state, 0, sheep=sheep)
+    state = push(state, PendingHarvestWindow(window_id="end_of_harvest",
+                                             player_idx=0))
+    return fast_replace(
+        state, phase=Phase.HARVEST_BREED,
+        harvest_cursor=sentinel_position("end_of_harvest", None) + 1)
+
+
+def test_no_converter_in_end_of_harvest_raise_bundles():
+    """Ruling 85: a raise frame AT end_of_harvest carries no converter — the
+    span closed after after_breeding. P0 has 0 food, 2 grain, 1 wood, and the
+    Joinery unused: the buy IS offered (the grain covers the price), but
+    every payment bundle is converter-free — the Joinery never appears in
+    one, and its once-per-harvest budget survives the buy untouched."""
+    state = _end_of_harvest_frame_state(grain=2, wood=1, joinery=True)
+    assert available_span_converters(state, 0) == ()
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     state = step(state, FireTrigger(card_id=CARD_ID))
     top = state.pending_stack[-1]
     assert isinstance(top, PendingFoodPayment)
     assert top.food_needed == 2 and top.resume_kind == CARD_ID
-
     commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
-    assert commits                                    # the Joinery is the only route
-    assert all("joinery" in c.conversions for c in commits)
+    assert commits
+    assert all(c.conversions == () for c in commits)  # no Joinery bundle
     state = step(state, commits[0])
     p0 = state.players[0]
     assert p0.resources.veg == 1                      # the buy completed
-    assert p0.resources.food == 0                     # Joinery raised 2, buy paid 2
-    assert p0.resources.wood == 0                     # the Joinery's input
-    assert "joinery" in p0.harvest_conversions_used   # once-per-harvest budget used
+    assert p0.resources.grain == 0                    # the grain was the fuel
+    assert p0.resources.wood == 1                     # the Joinery input untouched
+    assert "joinery" not in p0.harvest_conversions_used
+
+
+def test_floor_lapsed_at_end_of_harvest_cooks_just_bred_sheep():
+    """Ruling 85's floor boundary, lapse side: at the end_of_harvest window
+    (still Phase.HARVEST_BREED) ruling 39's post-breed floor no longer binds
+    — with 0 food, 3 just-bred sheep, and a Fireplace, the buy IS offered and
+    the payment bundle cooks a sheep BELOW the old floor of 3. One step
+    earlier (a frame paused at the breed phase's last after_breeding surface,
+    cursor one lower) the same holdings are still floored — the boundary is
+    exactly the end_of_harvest moment."""
+    state = _end_of_harvest_frame_state(sheep=3, fireplace=True)
+    at_after_breeding = fast_replace(
+        state, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
+    assert post_breed_floors(at_after_breeding, 0) == (3, 3, 3)   # still bound
+    assert post_breed_floors(state, 0) == (0, 0, 0)               # lapsed
+
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 2
+    commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert commits == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0,
+                                         cattle=0)]
+    state = step(state, commits[0])
+    p0 = state.players[0]
+    assert p0.resources.veg == 1 and p0.resources.food == 0
+    assert p0.animals.sheep == 2                      # below the old floor of 3
 
 
 # --- Eligibility unit check -------------------------------------------------

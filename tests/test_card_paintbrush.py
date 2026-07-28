@@ -14,9 +14,11 @@ ONE once-per-harvest budget (id "paintbrush"), THREE surfaces (user rulings
 2. The generalized in-harvest raise frame — `frontier_fire=((0, 1, 0, 0), 2)`:
    a raise-frame fire IS the food branch (ruling 37: the point rider is not
    frontier-eligible) and marks the same budget (ruling 34).
-3. The free span (ruling 36) — a variant-expanded optional FireTrigger on
-   every in-span window/event, eligibility gated on ownership + the unused
-   budget + clay >= 1.
+3. The free span (ruling 36; trimmed per user ruling 85, 2026-07-27) — a
+   variant-expanded optional FireTrigger on every CONVERTER-span
+   window/event (field band through after_breeding — the converters are
+   closed at end_of_harvest, both variants trimming together), eligibility
+   gated on ownership + the unused budget + clay >= 1.
 
 Any one surface's fire withholds the other two for the rest of the harvest
 (the shared `harvest_conversions_used` budget). These tests drive the REAL
@@ -40,7 +42,7 @@ from agricola.actions import (
 )
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    FREE_SPAN_EVENTS,
+    CONVERTER_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -180,13 +182,19 @@ def test_registration_spec_row():
 
 
 def test_free_span_registration():
-    """One trigger per free-span event (windows indexed for hosting, sentinels
-    not), plus the play-variant registration that expands each surface's fire
-    into the food/point pair."""
-    for event in FREE_SPAN_EVENTS:
+    """One trigger per CONVERTER-span event (windows indexed for hosting,
+    sentinels not) — and NO end_of_harvest surface (user ruling 85,
+    2026-07-27: the converters are closed there, and the bonus-point route
+    rides the same printed exchange as the food route, so both trim
+    together) — plus the play-variant registration that expands each
+    surface's fire into the food/point pair."""
+    for event in CONVERTER_SPAN_EVENTS:
         assert CARD_ID in {e.card_id for e in TRIGGERS.get(event, ())}, event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
     assert CARD_ID in PLAY_VARIANT_TRIGGERS
     assert _variants(setup(0), 0) == ["food", "point"]
 

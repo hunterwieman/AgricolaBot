@@ -51,11 +51,14 @@ variant is offered iff ITS OWN price is raise-able (``_liquidatable_to`` — wit
 when the food is on hand; short of it, the fire pushes the raise-only
 ``PendingFoodPayment`` (resume kind ``"value_assets:<good>"`` — static variants
 ride the resume kind, the Canal Boatman shape), and the resume debits the price
-and grants the good. Window #17 sits OUTSIDE the harvest conversion span, so
-the raise draws on the plain crop/animal liquidation rates. (Known open rules
-question, flagged on the ledger: the ruling-39 post-breed cooking floors
-currently still bind at this outside-the-span window; implemented with the
-standard machinery as-is pending the user's call.)
+and grants the good. Window #17 sits OUTSIDE the harvest conversion span (user
+ruling 85, 2026-07-27: the converters close after the breed phase's last
+conversion opportunity, immediately before ``end_of_harvest``), so the raise
+draws on the plain crop/animal liquidation rates — and the same ruling RESOLVED
+the open question this docstring used to flag about ruling 39's post-breed
+cooking floors binding here: the floors lapse at the ``end_of_harvest`` moment,
+so they do not bind at this window either, and a purchase may be paid by
+cooking a just-bred animal.
 
 Card-only state is empty in the Family game (this card is card-game only), so
 the Family engine stays byte-identical and the C++ gates are untouched.

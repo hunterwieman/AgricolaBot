@@ -34,6 +34,10 @@ carries the "food on the card" gate, the stone auto's the space membership.
 placement is hosted (a PendingActionSpace frame pushed) for the owner, which is
 what lets the before-phase autos fire. See CARD_IMPLEMENTATION_PLAN.md Category 3
 (action-space hook); interim_storage.py is the closest template.
+
+Ruling 84 (2026-07-27) classification: the food comparison here READS the card's
+own reservoir (the CardStore count) as the printed condition for moving a food to
+supply — nothing is charged; not a cost gate.
 """
 from __future__ import annotations
 

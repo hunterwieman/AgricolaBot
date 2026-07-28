@@ -58,6 +58,10 @@ recurring window income). Card-only registries default empty, so the Family game
 is byte-identical and the C++ differential gates are untouched. See
 shepherds_whistle.py (the auto + optional-trigger on one harvest window idiom),
 bale_of_straw.py (the harvest-window auto idiom), and CARD_AUTHORING_GUIDE.md.
+
+Ruling 84 (2026-07-27) classification: the `food == 0` comparison READS the
+player's own post-feeding supply as the printed condition ("no food left") —
+nothing is charged for the grant; not a cost gate.
 """
 from __future__ import annotations
 

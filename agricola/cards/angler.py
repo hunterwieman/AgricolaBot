@@ -35,6 +35,10 @@ round — so the 0 band is unreachable, but "at most 2" covers it harmlessly.)
 Fishing is never hosted in the Family game (no hooking card), so this frame's
 after-window is card-only → byte-identical, C++ gates untouched. Played via
 Lessons; on-play is a no-op.
+
+Ruling 84 (2026-07-27) classification: the `taken.food <= 2` comparison READS the
+food that was on the Fishing space as the printed condition — nothing is charged;
+not a cost gate.
 """
 from __future__ import annotations
 

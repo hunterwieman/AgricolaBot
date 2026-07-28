@@ -43,6 +43,10 @@ Opponent plays never fire (own-action routing; ownership additionally requires
 Furniture Maker in the acting player's tableau — a copy still in HAND is
 inert). Eligibility also requires `cost.food >= 1`: a free play (the first
 Lessons occupation) pays no food and grants nothing.
+
+Ruling 84 (2026-07-27) classification: the food comparison here READS the
+`paid_cost` stamp — food already paid as the occupation cost — as the printed
+condition; this card charges nothing itself; not a cost gate.
 """
 from __future__ import annotations
 

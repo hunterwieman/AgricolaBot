@@ -12,9 +12,13 @@ must track the occupation per player); the generalized raise-frame reach
 and firing it debits the stone, raises the 3 food, and marks the shared
 once-per-harvest budget so a feed-seam offer is withheld; and the harvest-SPAN
 window surface (ruling 75, 2026-07-21 — "Stone Carver joins the harvest
-span"): the end_of_harvest fire on a post-feed stone gain, the shared budget
-in both directions (a feed fire withholds every later span surface; a window
-fire withholds the feed offer), and the fresh next-harvest reset.
+span"; trimmed per user ruling 85, 2026-07-27 — a converter's final
+standalone offer is the last conversion opportunity of the breed phase,
+immediately before end_of_harvest, so the trigger set ends at
+after_breeding): the after_breeding fire on a post-feed stone gain, the
+shared budget in both directions (a feed fire withholds every later span
+surface; a window fire withholds the feed offer), and the fresh next-harvest
+reset.
 """
 from __future__ import annotations
 
@@ -34,7 +38,7 @@ from agricola.actions import (
 )
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    FREE_SPAN_EVENTS,
+    CONVERTER_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -145,6 +149,11 @@ def _top_is_p0_end_of_harvest(state):
         state.pending_stack[-1].window_id == "end_of_harvest"
 
 
+def _top_is_p0_after_breeding(state):
+    return _top_is_p0_window(state) and \
+        state.pending_stack[-1].window_id == "after_breeding"
+
+
 def _walk_to_p0_feed(state):
     """Drive the REAL harvest walk (neutrally — Proceeding past the span's
     window frames) until P0's still-undecided feed frame is on top."""
@@ -174,12 +183,17 @@ def test_registration():
     assert spec.side_effect_fn is None
     assert spec.variants_fn is None
     assert spec.frontier_fire == ((0, 0, 0, 0, 0, 1), 3)
-    # The free span (ruling 75): a trigger on EVERY free-span event, with the
-    # window hooks indexed for the non-sentinel windows.
-    for event in FREE_SPAN_EVENTS:
+    # The free span (ruling 75; trimmed per ruling 85): a trigger on every
+    # CONVERTER-span event, with the window hooks indexed for the non-sentinel
+    # windows — and NO end_of_harvest surface (the converters are closed
+    # there; their last window is after_breeding).
+    for event in CONVERTER_SPAN_EVENTS:
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
 
 
 # --- The feed-phase fire (real walk) ----------------------------------------
@@ -215,9 +229,12 @@ def test_fire_turns_one_stone_into_three_food_once_per_harvest():
 
 # --- The span-window surface (ruling 75, 2026-07-21) -------------------------
 
-def test_end_of_harvest_fire_on_a_post_feed_stone_gain():
-    """Ruling 75's span classification: stone that arrives AFTER feeding can
-    still be turned into food at end_of_harvest — the span's last window."""
+def test_after_breeding_fire_on_a_post_feed_stone_gain():
+    """Ruling 75's span classification, re-timed by ruling 85 (2026-07-27):
+    stone that arrives AFTER feeding can still be turned into food at the
+    owner's after_breeding surface — the last conversion opportunity of the
+    breed phase and the span's last window (the converters are closed at
+    end_of_harvest, so no frame ever appears there)."""
     # Stoneless: no surface offers the exchange up to and at the feed.
     state, offers = _walk_until(_harvest_state(stone=0), _top_is_p0_undecided_feed)
     assert offers == []
@@ -228,9 +245,9 @@ def test_end_of_harvest_fire_on_a_post_feed_stone_gain():
     p = dataclasses.replace(p, resources=p.resources + Resources(stone=1))
     state = dataclasses.replace(state, players=(p, state.players[1]))
 
-    # The walk now reaches an end_of_harvest window frame for P0.
-    state, _ = _walk_until(state, _top_is_p0_end_of_harvest)
-    assert _top_is_p0_end_of_harvest(state)
+    # The walk now reaches an after_breeding window frame for P0.
+    state, _ = _walk_until(state, _top_is_p0_after_breeding)
+    assert _top_is_p0_after_breeding(state)
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)   # declining stays open
 
@@ -240,9 +257,10 @@ def test_end_of_harvest_fire_on_a_post_feed_stone_gain():
     assert res1.stone == res0.stone - 1
     assert res1.food == res0.food + 3
     assert CARD_ID in state.players[0].harvest_conversions_used
-    # The frame offers only the decline now; the harvest then completes.
+    # The frame offers only the decline now; the harvest then completes with
+    # no end_of_harvest frame (this walk would stop at one if it appeared).
     assert legal_actions(state) == [Proceed()]
-    state, offers_after = _walk_until(state, lambda s: False)
+    state, offers_after = _walk_until(state, _top_is_p0_end_of_harvest)
     assert state.phase not in _HARVEST_PHASES
     assert offers_after == []
 
@@ -264,7 +282,7 @@ def test_window_fire_spends_one_stone_and_withholds_the_feed_offer():
     and withholds the feed-frame offer (window -> feed direction)."""
     state, _ = _walk_until(_harvest_state(stone=1), _top_is_p0_window)
     top = state.pending_stack[-1]
-    assert top.window_id in FREE_SPAN_EVENTS
+    assert top.window_id in CONVERTER_SPAN_EVENTS
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)   # declining stays open
 

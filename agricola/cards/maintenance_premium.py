@@ -30,6 +30,10 @@ Played as a minor (prereq 2 occupations). Card-only state (the reservoir lives i
 CardStore, default empty → the Family game is byte-identical and the C++ gates are
 untouched). Template: wood_cutter.py + roughcaster.py + ash_trees.py. See
 CARD_AUTHORING_GUIDE.md.
+
+Ruling 84 (2026-07-27) classification: the food comparison here READS the card's
+own reservoir (the CardStore count) as the condition for paying the owner from
+the card — nothing is charged; not a cost gate.
 """
 from __future__ import annotations
 

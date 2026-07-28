@@ -398,6 +398,57 @@ def test_food_on_hand_stays_direct():
     assert r.food == 0 and r.reed == 1
 
 
+# --- Ruling 85 (2026-07-27): the post-breed cooking floor is lapsed here ------
+
+def test_floor_lapsed_at_after_harvest_cooks_just_bred_sheep():
+    """Ruling 85's floor boundary at THIS card's window: the post-breed
+    cooking prohibition (ruling 39) stops applying at the end_of_harvest
+    moment, so at the after_harvest window — which still runs under
+    Phase.HARVEST_BREED, one position later — the floors are (0, 0, 0) and a
+    purchase may be paid by cooking a just-bred animal. P0 has 0 food, 3
+    just-bred sheep, and a Fireplace: every variant is offered (a sheep cooks
+    for 2), and buying wood cooks one sheep BELOW the old floor of 3."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.cards.harvest_windows import (
+        post_breed_floors,
+        sentinel_position,
+    )
+    from agricola.pending import PendingFoodPayment, push
+    from agricola.replace import fast_replace
+    from tests.factories import with_animals, with_majors
+
+    state = with_minors(setup(seed=0), 0, frozenset({CARD_ID}))
+    state = dataclasses.replace(state, starting_player=0)
+    state = with_majors(state, owner_by_idx={0: 0})       # Fireplace
+    state = with_resources(state, 0, food=0)
+    state = with_animals(state, 0, sheep=3)
+    state = push(state, PendingHarvestWindow(window_id=WINDOW_ID, player_idx=0))
+    # The real walk shape at an after_harvest frame: still HARVEST_BREED,
+    # cursor one past the window's virtual position.
+    state = fast_replace(
+        state, phase=Phase.HARVEST_BREED,
+        harvest_cursor=sentinel_position("after_harvest", None) + 1)
+
+    # The boundary itself: bound at the last after_breeding pause, lapsed here.
+    at_after_breeding = fast_replace(
+        state, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
+    assert post_breed_floors(at_after_breeding, 0) == (3, 3, 3)
+    assert post_breed_floors(state, 0) == (0, 0, 0)
+
+    assert _fire_variants(legal_actions(state)) == sorted(_PURCHASES)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="wood"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0,
+                                         cattle=0)]
+    state = step(state, bundles[0])
+    r = state.players[0].resources
+    assert r.wood == 1                        # the bought good
+    assert r.food == 1                        # sheep raised 2, price debited 1
+    assert state.players[0].animals.sheep == 2   # below the old floor of 3
+
+
 # --- On-play: no immediate effect ---------------------------------------------
 
 def test_on_play_is_a_noop():

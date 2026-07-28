@@ -323,6 +323,22 @@ def test_span_derivations():
     # Fresh FIELD entry (cursor None): pre-span.
     s3 = fast_replace(s, phase=Phase.HARVEST_FIELD, harvest_cursor=None)
     assert not in_conversion_span(s3, 0)
+    # Ruling 85 (2026-07-27): the span ends at end_of_harvest. A frame paused
+    # at the breed phase's LAST after_breeding surface (stored cursor = its
+    # position + 1) is still in span; frames at end_of_harvest and
+    # after_harvest (still Phase.HARVEST_BREED) are out, so the raise frame
+    # carries no converter there.
+    last_in = fast_replace(
+        s, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
+    assert in_conversion_span(last_in, 0)
+    eoh = fast_replace(
+        s, harvest_cursor=sentinel_position("end_of_harvest", None) + 1)
+    assert not in_conversion_span(eoh, 0)
+    assert available_span_converters(eoh, 0) == ()
+    ah = fast_replace(
+        s, harvest_cursor=sentinel_position("after_harvest", None) + 1)
+    assert not in_conversion_span(ah, 0)
+    assert available_span_converters(ah, 0) == ()
 
 
 def test_post_breed_floors_by_cursor():
@@ -334,6 +350,19 @@ def test_post_breed_floors_by_cursor():
     # FEED phase: never floored (feeding precedes breeding per-player).
     feed = fast_replace(s, phase=Phase.HARVEST_FEED)
     assert post_breed_floors(feed, 0) == (0, 0, 0)
+    # Ruling 85 (2026-07-27): the floor binds through the breed phase's last
+    # after_breeding surface and LAPSES once the walk reaches end_of_harvest
+    # — at the end_of_harvest and after_harvest frames (still
+    # Phase.HARVEST_BREED) a just-bred animal is cookable again.
+    last_bound = fast_replace(
+        s, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
+    assert post_breed_floors(last_bound, 0) == (3, 3, 3)
+    eoh = fast_replace(
+        s, harvest_cursor=sentinel_position("end_of_harvest", None) + 1)
+    assert post_breed_floors(eoh, 0) == (0, 0, 0)
+    ah = fast_replace(
+        s, harvest_cursor=sentinel_position("after_harvest", None) + 1)
+    assert post_breed_floors(ah, 0) == (0, 0, 0)
 
 
 def test_raise_frame_offers_converter_fire():

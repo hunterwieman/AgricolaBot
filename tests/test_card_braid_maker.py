@@ -17,8 +17,11 @@ Coverage:
   (the seam's gate) -> the swap trigger -> Basketmaker's built for 1r+1s; the
   decline path (playing a hand minor normally); the branch-gate negatives.
 - The reed->2-food harvest-span exchange through the REAL banded harvest walk:
-  the feed-frame fire, the end_of_harvest window fire on a post-feed reed
-  gain, the shared once-per-harvest budget in both directions, the fresh
+  the feed-frame fire, the after_breeding window fire on a post-feed reed
+  gain (user ruling 85, 2026-07-27: a converter's final standalone offer is
+  the last conversion opportunity of the breed phase — the converters are
+  closed at end_of_harvest, so the span trigger set ends at after_breeding),
+  the shared once-per-harvest budget in both directions, the fresh
   next-harvest reset, and the raise-frame (PendingFoodPayment) reach.
 - Family-mode negative: an unowned harvest surfaces nothing new.
 """
@@ -45,7 +48,7 @@ from agricola.cards.braid_maker import BASKETMAKER_IDX, CARD_ID
 from agricola.cards.cost_mods import FORMULA_MODS
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    FREE_SPAN_EVENTS,
+    CONVERTER_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -166,6 +169,11 @@ def _top_is_p0_end_of_harvest(state):
         state.pending_stack[-1].window_id == "end_of_harvest"
 
 
+def _top_is_p0_after_breeding(state):
+    return _top_is_p0_window(state) and \
+        state.pending_stack[-1].window_id == "after_breeding"
+
+
 def _major9_commits(state):
     return [a for a in legal_actions(state)
             if isinstance(a, CommitBuildMajor) and a.major_idx == BASKETMAKER_IDX]
@@ -219,12 +227,17 @@ def test_registered_on_every_surface():
     assert spec.variants_fn is None
     assert spec.frontier_fire == ((0, 0, 0, 0, 1, 0), 2)
 
-    # The free span: a trigger on EVERY free-span event, with the window hooks
-    # indexed for the non-sentinel windows.
-    for event in FREE_SPAN_EVENTS:
+    # The free span (trimmed per ruling 85): a trigger on every CONVERTER-span
+    # event, with the window hooks indexed for the non-sentinel windows — and
+    # NO end_of_harvest surface (the converters are closed there; their last
+    # window is after_breeding).
+    for event in CONVERTER_SPAN_EVENTS:
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
 
     # The named-minor-action build seam row (ruling 74).
     assert MINOR_ACTION_MAJOR_BUILDS[CARD_ID] == BASKETMAKER_IDX
@@ -411,7 +424,7 @@ def test_feed_fire_withholds_every_later_span_surface():
     assert offers_seen == []                   # despite the second reed
 
 
-# --- The window fire, incl. end_of_harvest on a post-feed reed gain ----------
+# --- The window fire, incl. after_breeding on a post-feed reed gain ----------
 
 def test_window_fire_spends_one_reed_and_withholds_the_feed_offer():
     """The exchange surfaces as a FireTrigger at the first in-span window of
@@ -419,7 +432,7 @@ def test_window_fire_spends_one_reed_and_withholds_the_feed_offer():
     and withholds the feed-frame offer (window -> feed direction)."""
     state, _ = _walk_until(_harvest_state(reed=1), _top_is_p0_window)
     top = state.pending_stack[-1]
-    assert top.window_id in FREE_SPAN_EVENTS
+    assert top.window_id in CONVERTER_SPAN_EVENTS
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)   # declining stays open
 
@@ -439,9 +452,12 @@ def test_window_fire_spends_one_reed_and_withholds_the_feed_offer():
     assert offers_after == []
 
 
-def test_end_of_harvest_fire_on_a_post_feed_reed_gain():
-    """Ruling 74's late offering: reed that arrives AFTER feeding can still be
-    exchanged at end_of_harvest — the span's last window."""
+def test_after_breeding_fire_on_a_post_feed_reed_gain():
+    """Ruling 74's late offering, re-timed by ruling 85 (2026-07-27): reed
+    that arrives AFTER feeding can still be exchanged at the owner's
+    after_breeding surface — the last conversion opportunity of the breed
+    phase and the span's last window (the converters are closed at
+    end_of_harvest, so no frame ever appears there)."""
     # Start reedless: no surface offers the exchange up to and at the feed.
     state, offers = _walk_until(_harvest_state(reed=0), _top_is_p0_feed)
     assert offers == []
@@ -453,9 +469,9 @@ def test_end_of_harvest_fire_on_a_post_feed_reed_gain():
     state = dataclasses.replace(
         state, players=(p, state.players[1]))
 
-    # The walk now reaches an end_of_harvest window frame for P0.
-    state, _ = _walk_until(state, _top_is_p0_end_of_harvest)
-    assert _top_is_p0_end_of_harvest(state)
+    # The walk now reaches an after_breeding window frame for P0.
+    state, _ = _walk_until(state, _top_is_p0_after_breeding)
+    assert _top_is_p0_after_breeding(state)
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
 
     res0 = state.players[0].resources
@@ -464,9 +480,10 @@ def test_end_of_harvest_fire_on_a_post_feed_reed_gain():
     assert res1.reed == res0.reed - 1
     assert res1.food == res0.food + 2
     assert CARD_ID in state.players[0].harvest_conversions_used
-    # The frame offers only the decline now; the harvest then completes.
+    # The frame offers only the decline now; the harvest then completes with
+    # no end_of_harvest frame (this walk would stop at one if it appeared).
     assert legal_actions(state) == [Proceed()]
-    state, offers_after = _walk_until(state, lambda s: False)
+    state, offers_after = _walk_until(state, _top_is_p0_end_of_harvest)
     assert state.phase not in _HARVEST_PHASES
     assert offers_after == []
 

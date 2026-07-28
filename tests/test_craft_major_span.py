@@ -2,22 +2,29 @@
 
 `agricola/cards/craft_major_span.py` gives the three built-in craft-major
 conversions (Joinery 7: 1 wood -> 2 food; Pottery 8: 1 clay -> 2 food;
-Basketmaker's Workshop 9: 1 reed -> 3 food) the free-span WINDOW trigger set —
-through end_of_harvest and the breed frame's pre-commit stretch — in CARDS
-mode only, riding the ruling-74 `TriggerEntry.is_owned_fn` ownership override
-(craft ownership is the board's major-owner array, not a tableau card) and
-sharing the built-in once-per-harvest budget ids ("joinery" / "pottery" /
-"basketmaker" in `harvest_conversions_used`) with the FEED offering and the
-payment-frontier fire.
+Basketmaker's Workshop 9: 1 reed -> 3 food) the CONVERTER-span WINDOW trigger
+set — through the breed frame's pre-commit stretch and after_breeding (user
+ruling 85, 2026-07-27: a converter's final standalone offer is the last
+conversion opportunity of the breed phase, immediately before end_of_harvest;
+the converters are closed after it, so these entries have NO end_of_harvest
+surface) — in CARDS mode only, riding the ruling-74
+`TriggerEntry.is_owned_fn` ownership override (craft ownership is the board's
+major-owner array, not a tableau card) and sharing the built-in
+once-per-harvest budget ids ("joinery" / "pottery" / "basketmaker" in
+`harvest_conversions_used`) with the FEED offering and the payment-frontier
+fire.
 
-Coverage: registration shape (pseudo-ids, per-entry is_owned_fn, never in the
-deal-pool specs); the Cards-mode end_of_harvest fire on a post-feed wood gain;
-the shared budget in both directions (feed fire blocks the windows, a window
-fire blocks the feed offer); Pottery/Basketmaker amounts; the non-owner
-negative; and the REQUIRED Family negative — a Family harvest with an OWNED
-Joinery walks byte-identically with and without these registrations (the
-action sets at every decision are unchanged, no window frame ever appears,
-and the Family FEED surface itself is intact).
+Coverage: registration shape (pseudo-ids on the trimmed CONVERTER_SPAN_EVENTS
+list, per-entry is_owned_fn, never in the deal-pool specs, absent from
+end_of_harvest); the Cards-mode fire on a post-feed wood gain at the span's
+LAST surface, after_breeding — and the closure after it (a decline there is
+final: no end_of_harvest offer exists); the shared budget in both directions
+(feed fire blocks the windows, a window fire blocks the feed offer);
+Pottery/Basketmaker amounts; the non-owner negative; and the REQUIRED Family
+negative — a Family harvest with an OWNED Joinery walks byte-identically with
+and without these registrations (the action sets at every decision are
+unchanged, no window frame ever appears, and the Family FEED surface itself
+is intact).
 """
 from __future__ import annotations
 
@@ -35,7 +42,11 @@ from agricola.actions import (
     Stop,
 )
 from agricola.cards.craft_major_span import CRAFT_SPAN_IDS
-from agricola.cards.harvest_windows import FREE_SPAN_EVENTS, SENTINEL_WINDOWS
+from agricola.cards.harvest_windows import (
+    CONVERTER_SPAN_EVENTS,
+    HARVEST_WINDOW_CARDS,
+    SENTINEL_WINDOWS,
+)
 from agricola.cards.specs import MINORS, OCCUPATIONS
 from agricola.cards.triggers import CARDS, TRIGGERS
 from agricola.constants import GameMode, Phase
@@ -137,6 +148,11 @@ def _top_is_p0_end_of_harvest(state):
         state.pending_stack[-1].window_id == "end_of_harvest"
 
 
+def _top_is_p0_after_breeding(state):
+    return _top_is_p0_window(state) and \
+        state.pending_stack[-1].window_id == "after_breeding"
+
+
 def _add_resources_p0(state, **kwargs):
     p = state.players[0]
     p = dataclasses.replace(p, resources=p.resources + Resources(**kwargs))
@@ -147,7 +163,7 @@ def _add_resources_p0(state, **kwargs):
 
 def test_registered_on_every_span_event_with_owner_override():
     for pseudo_id in _PSEUDO_IDS:
-        for event in FREE_SPAN_EVENTS:
+        for event in CONVERTER_SPAN_EVENTS:
             entries = [e for e in TRIGGERS.get(event, ())
                        if e.card_id == pseudo_id]
             assert len(entries) == 1, (pseudo_id, event)
@@ -155,6 +171,12 @@ def test_registered_on_every_span_event_with_owner_override():
             # so the tableau gate never applies to these entries.
             assert entries[0].is_owned_fn is not None
             assert not entries[0].mandatory
+        # Ruling 85: the converters are closed at end_of_harvest — no trigger
+        # entry, no window hook there.
+        assert not any(e.card_id == pseudo_id
+                       for e in TRIGGERS.get("end_of_harvest", ()))
+        assert pseudo_id not in HARVEST_WINDOW_CARDS.get("end_of_harvest",
+                                                         set())
         # Dispatchable at the fire (CARDS is card-id-keyed).
         assert pseudo_id in CARDS
         # NOT a card: no spec row, so the pseudo-id is never dealt/played.
@@ -164,22 +186,26 @@ def test_registered_on_every_span_event_with_owner_override():
 
 def test_owner_predicate_reads_the_major_owner_array():
     state = _cards_harvest_state(owner_by_idx={7: 0, 8: 1})
-    joinery = next(e for e in TRIGGERS["end_of_harvest"]
+    joinery = next(e for e in TRIGGERS["after_breeding"]
                    if e.card_id == "craft_span_joinery")
-    pottery = next(e for e in TRIGGERS["end_of_harvest"]
+    pottery = next(e for e in TRIGGERS["after_breeding"]
                    if e.card_id == "craft_span_pottery")
-    basket = next(e for e in TRIGGERS["end_of_harvest"]
+    basket = next(e for e in TRIGGERS["after_breeding"]
                   if e.card_id == "craft_span_basketmaker")
     assert joinery.is_owned_fn(state, 0) and not joinery.is_owned_fn(state, 1)
     assert pottery.is_owned_fn(state, 1) and not pottery.is_owned_fn(state, 0)
     assert not basket.is_owned_fn(state, 0)   # unbuilt -> nobody owns it
 
 
-# --- The Cards-mode end_of_harvest fire (post-feed wood gain) ----------------
+# --- The Cards-mode late fire (post-feed wood gain; ruling 85: the span's ----
+# --- last surface is after_breeding, and a decline there is final ------------
 
-def test_joinery_fires_at_end_of_harvest_on_post_feed_wood_gain():
-    """Ruling 74's late offering: wood that arrives AFTER feeding can still be
-    exchanged at end_of_harvest — the span's last window."""
+def test_joinery_fires_at_after_breeding_on_post_feed_wood_gain():
+    """The late offering, re-timed by ruling 85 (2026-07-27): wood that
+    arrives AFTER feeding can still be exchanged at the owner's
+    after_breeding surface — the last conversion opportunity of the breed
+    phase and the span's last window (the converters are closed at
+    end_of_harvest, so no later surface exists)."""
     state = _cards_harvest_state(owner_by_idx={7: 0}, wood=0)
     # Woodless: nothing offered up to and at P0's feed frame.
     state, offers = _walk_until(state, _top_is_p0_feed)
@@ -189,8 +215,8 @@ def test_joinery_fires_at_end_of_harvest_on_post_feed_wood_gain():
     state = step(state, _neutral_action(state))
     state = _add_resources_p0(state, wood=1)
 
-    state, _ = _walk_until(state, _top_is_p0_end_of_harvest)
-    assert _top_is_p0_end_of_harvest(state)
+    state, _ = _walk_until(state, _top_is_p0_after_breeding)
+    assert _top_is_p0_after_breeding(state)
     assert FireTrigger(card_id="craft_span_joinery") in legal_actions(state)
     assert Proceed() in legal_actions(state)    # declining stays open
 
@@ -205,6 +231,32 @@ def test_joinery_fires_at_end_of_harvest_on_post_feed_wood_gain():
     state, offers_after = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
     assert offers_after == []
+
+
+def test_decline_at_after_breeding_is_final_no_end_of_harvest_offer():
+    """Ruling 85's closure, the discriminating leg: the owner holds the wood
+    and DECLINES the exchange at their after_breeding surface. Before ruling
+    85 the end_of_harvest window would have re-offered it; now the converters
+    are closed after after_breeding, so no craft offer — and no end_of_harvest
+    frame at all (nothing else is registered there for P0) — appears for the
+    rest of the harvest."""
+    state = _cards_harvest_state(owner_by_idx={7: 0}, wood=0)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    state = step(state, _neutral_action(state))       # resolve P0's feeding
+    state = _add_resources_p0(state, wood=1)
+
+    state, _ = _walk_until(state, _top_is_p0_after_breeding)
+    assert FireTrigger(card_id="craft_span_joinery") in legal_actions(state)
+    state = step(state, Proceed())                    # decline — final
+
+    # If an end_of_harvest frame appeared, this walk would stop there;
+    # instead the harvest completes with no further craft offer, the wood
+    # unspent and the budget untouched.
+    state, offers_after = _walk_until(state, _top_is_p0_end_of_harvest)
+    assert state.phase not in _HARVEST_PHASES
+    assert offers_after == []
+    assert state.players[0].resources.wood == 1
+    assert "joinery" not in state.players[0].harvest_conversions_used
 
 
 # --- The shared budget, both directions --------------------------------------
@@ -228,7 +280,7 @@ def test_window_fire_blocks_the_feed_offer():
     state = _cards_harvest_state(owner_by_idx={7: 0}, wood=1)
     state, _ = _walk_until(state, _top_is_p0_window)
     assert _top_is_p0_window(state)
-    assert state.pending_stack[-1].window_id in FREE_SPAN_EVENTS
+    assert state.pending_stack[-1].window_id in CONVERTER_SPAN_EVENTS
     state = step(state, FireTrigger(card_id="craft_span_joinery"))
     assert "joinery" in state.players[0].harvest_conversions_used
 

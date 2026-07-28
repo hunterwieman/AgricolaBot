@@ -30,12 +30,18 @@ THE PRICE — 2 food, paid through the shared food-payment path (ruling 82
 (2026-07-26); corrected 2026-07-27): the at-any-time conversions are legal
 payment routes for a food cost, so a plain food-on-hand gate would delete
 rules-legal plays. Eligibility is liquidation-aware (``_liquidatable_to`` —
-harvest-aware, and the ``end_of_harvest`` window sits INSIDE the conversion
-span, so in-span once-per-harvest converter cards/majors and ruling 39's
-post-breed floors bind the raise routes exactly as the raise frame does); with
-the food on hand ``_buy`` debits and grants directly, and when short it pushes
-a raise-only ``PendingFoodPayment`` whose registered resume (``_pay_and_buy``)
-debits the raised food and grants the vegetable.
+harvest-aware). Per user ruling 85 (2026-07-27) the ``end_of_harvest`` window
+sits OUTSIDE the converter span — a converter's final standalone offer is the
+last conversion opportunity of the breed phase, immediately before
+``end_of_harvest``, so a raise frame here carries no once-per-harvest
+converter (a player routes a converter's food into this buy by firing it at
+their ``after_breeding`` surface, then buying here with the banked food) —
+and ruling 39's post-breed cooking floor has LAPSED here: the prohibition
+stops applying at the "at the end of the harvest" moment, so the buy CAN be
+paid by cooking a just-bred animal. With the food on hand ``_buy`` debits and
+grants directly, and when short it pushes a raise-only ``PendingFoodPayment``
+whose registered resume (``_pay_and_buy``) debits the raised food and grants
+the vegetable.
 
 Mis-timing history: this card was previously registered on the
 ``HARVEST_CONVERSIONS`` seam (surfaced during the FEED sub-phase), which the old

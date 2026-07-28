@@ -24,17 +24,25 @@ surfaces, each fire carrying the food-vs-point choice as a variant:
    2026-07-12: a raise-frame fire IS the food branch — rider outputs like the
    bonus point are NOT frontier-eligible, so only the pure clay→2-food
    converter joins the payment frontier): `frontier_fire=((0, 0, 0, 1, 0, 0),
-   2)` (the 6-tuple (grain,veg,wood,clay,reed,stone); 1 clay) on the same spec.
+   2)` (the 6-tuple (grain,veg,wood,clay,reed,stone); 1 clay) on the same
+   spec, offered at any IN-SPAN harvest-time `PendingFoodPayment` (per user
+   ruling 85, 2026-07-27, the span ends after `after_breeding`, so a raise
+   frame at `end_of_harvest`/`after_harvest` carries no converter).
    `_execute_food_payment` debits the clay, adds the 2 food,
    and marks the SAME budget — no side effect runs there (pure fire).
 
 3. **The free span** (user ruling 36, 2026-07-12: the anytime exchanges are
-   available throughout the harvest span, field phase through end_of_harvest;
-   the point branch rides along per ruling 37's rider treatment on these
-   trigger surfaces): `register_free_span_trigger` puts an optional
-   variant-expanded FireTrigger on every in-span window/event. Eligibility
-   gates on ownership + the unused budget + clay >= 1; the apply debits the
-   clay, marks the budget, and grants the chosen output.
+   available throughout the harvest span; the point branch rides along per
+   ruling 37's rider treatment on these trigger surfaces):
+   `register_free_span_trigger` puts an optional variant-expanded FireTrigger
+   on every CONVERTER-span window/event — field band through `after_breeding`
+   (`converter=True`; user ruling 85, 2026-07-27: a converter's final
+   standalone offer is the last conversion opportunity of the breed phase,
+   immediately before `end_of_harvest` — the converters are closed after it,
+   and the bonus-point route rides the same printed exchange as the food
+   route, so both trim together). Eligibility gates on ownership + the
+   unused budget + clay >= 1; the apply debits the clay, marks the budget,
+   and grants the chosen output.
 
 Any one surface's fire marks "paintbrush" in `harvest_conversions_used`,
 which withholds the other two for the rest of the harvest: the feed enumerator
@@ -159,10 +167,12 @@ register_harvest_conversion(HarvestConversionSpec(
     frontier_fire=((0, 0, 0, 1, 0, 0), 2),   # (grain,veg,wood,clay,reed,stone): clay->2 food
 ))
 
-# Surface 3 — the free span (ruling 36, 2026-07-12): a variant-expanded
-# optional trigger on every in-span window/event.
+# Surface 3 — the free span (ruling 36, 2026-07-12; converter=True per ruling
+# 85): a variant-expanded optional trigger on every CONVERTER-span
+# window/event, field band through after_breeding (both variants trim
+# together — the point route rides the same printed exchange).
 register_free_span_trigger(CARD_ID, _span_eligible, _span_apply,
-                           variants_fn=_variants)
+                           variants_fn=_variants, converter=True)
 
 _ACTION_LABELS = {"food": "1 clay → 2 food", "point": "1 clay → 1 point"}
 

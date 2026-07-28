@@ -21,6 +21,10 @@ promised on this round's round space (the Well, schedule cards) have NOT yet
 landed — exactly what "before the start of the round" means, and the observable
 reason this rung exists as its own instant.
 See CARD_IMPLEMENTATION_PLAN.md Category 7.
+
+Ruling 84 (2026-07-27) classification: the `food >= round + 1` comparison READS
+the player's own supply as the printed condition — nothing is charged (the card
+only grants food); not a cost gate.
 """
 from __future__ import annotations
 

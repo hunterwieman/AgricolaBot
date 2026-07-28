@@ -11,6 +11,10 @@ never flip another good's threshold — the goods are disjoint — but the snaps
 is the literal reading and keeps the checks independent).
 
 Category 2 (on-play one-shot, conditional). No stored state.
+
+Ruling 84 (2026-07-27) classification: the per-good `>= 2` comparisons (food
+included) READ the player's own supply as the printed condition — nothing is
+charged; not a cost gate.
 """
 from __future__ import annotations
 

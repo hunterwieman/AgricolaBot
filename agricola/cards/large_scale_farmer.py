@@ -68,21 +68,22 @@ guarantees every space host a doable mandatory):
   - the 1 food is payable: on hand (then the predicate is checked on the state
     with the fee debited — with exactly 1 food, a destination reachable only
     via a 1-food minor would be stranded by paying, the Merchant post-payment
-    lesson), or raisable by liquidation (`_liquidatable_to`, the plow_hero
-    shape). On the liquidation path the predicate must hold under EVERY
-    conversion bundle the raise frame will offer (`_food_payment_commits`, the
-    frame's own enumeration, post-states mirrored from `_execute_food_payment`'s
-    math): the frame is generic and cannot filter bundles per-card, so a bundle
-    that cooked the very good the destination needs (e.g. the grain that paid
-    the only playable minor) would strand the jump after payment. Requiring all
-    bundles keeps every reachable resume sound. This is conservative in one
-    remote corner — when bundles DIFFER (one cooks the needed good, another
-    does not) the jump is withheld although paying with the preserving bundle
-    would be legal in physical play; an exact treatment needs a per-card
-    bundle-filter seam on PendingFoodPayment (the ruling-75 pair-gate shape) and
-    is left to a user decision. (The simulation also omits cook-reaction bonuses
-    such as Cookery Lesson's food — a strict under-count, so it can only
-    withhold, never strand.)
+    lesson), or raisable by liquidation — a direction-keyed check (ruling 82,
+    2026-07-26: the food-payment PRESERVE seam). Toward Farm Expansion, bare
+    raise EXISTENCE (`_liquidatable_to`) is the whole check: a work-phase raise
+    consumes only crops/animals, disjoint from the wood/reed the destination
+    needs (the invariant `tests/test_liquidation_disjointness.py` pins; see
+    `_jump_ok`'s caveat for the converter class that would break it). Toward
+    Major Improvement, `raisable_food_preserving` with the `_preserve_mi`
+    check: the jump is offered iff SOME liquidation bundle leaves the
+    destination usable on the post-fee state, and the same check — registered
+    frame-side via `register_food_payment_preserve` — filters the raise
+    frame's menu down to exactly the preserving bundles, so the player can
+    always raise the fee but never into a stranded destination. Probe and
+    frame share one simulation (`legality._apply_liquidation_bundle`,
+    cook-reaction bonuses included), so they can never disagree. The earlier
+    all-bundles-must-pass form withheld the jump whenever ANY bundle failed —
+    itself a deletion of a rules-legal line of play, corrected by ruling 82.
 
 "You can pay" → optional trigger (`register`, not `register_auto`); declining is
 implicit (Stop/Proceed instead — no SkipTrigger). Once per window via the host's

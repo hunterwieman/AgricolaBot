@@ -7,8 +7,12 @@ major 9: 1 reed → 3 food), and their `HarvestConversionSpec` rows in
 `harvest_conversions.py` already give each two surfaces: the FEED offering
 (`CommitHarvestConversion`) and, via `frontier_fire`, any harvest-time
 `PendingFoodPayment` frontier. This module adds the third surface family the
-span pattern prescribes — the free-span WINDOW triggers, through
-``end_of_harvest`` and the breed frame's pre-commit stretch:
+span pattern prescribes — the free-span WINDOW triggers, through the breed
+frame's pre-commit stretch and ``after_breeding`` (per user ruling 85,
+2026-07-27, a converter's final standalone offer is the last conversion
+opportunity of the breed phase, immediately before ``end_of_harvest`` — the
+converters are closed after it, so these entries ride the trimmed
+``CONVERTER_SPAN_EVENTS`` list via ``converter=True``):
 
 > **Ruling 74 (user, 2026-07-21, CARD_DEFERRED_PLANS.md):** "General pattern
 > (user): every resource→food conversion printed without a specific harvest
@@ -17,6 +21,11 @@ span pattern prescribes — the free-span WINDOW triggers, through
 > **Cards-mode-only** (user approved the lean; Family keeps its FEED-only
 > surface, lossless there since nothing can change between the feed offering
 > and end_of_harvest in Family)."
+
+(Ruling 74's "`end_of_harvest` offering" phrasing is superseded on the
+timing point by ruling 85: the offering's last home is now ``after_breeding``.
+The Cards-mode-only lean stands unchanged — in Family the crafts still keep
+exactly their FEED-only surface.)
 
 So every eligibility here gates on ``state.mode is GameMode.CARDS``: in the
 Family game the crafts keep exactly their FEED-only surface (plus the
@@ -82,7 +91,7 @@ def _register_craft_span(pseudo_id: str, conversion_id: str) -> None:
     def _eligible(state, idx, triggers_resolved) -> bool:
         """Cards mode only (ruling 74: Family keeps its FEED-only surface,
         lossless there since nothing can change between the feed offering and
-        end_of_harvest in Family), owner of the major, the shared
+        the span's last window in Family), owner of the major, the shared
         once-per-harvest budget unused, and the input good on hand."""
         if state.mode is not GameMode.CARDS:
             return False
@@ -109,8 +118,10 @@ def _register_craft_span(pseudo_id: str, conversion_id: str) -> None:
         return fast_replace(state, players=tuple(
             p if i == idx else state.players[i] for i in range(2)))
 
+    # converter=True (ruling 85): a resource→food converter's span ends at
+    # after_breeding — no end_of_harvest surface.
     register_free_span_trigger(pseudo_id, _eligible, _apply,
-                               is_owned_fn=spec.is_owned_fn)
+                               is_owned_fn=spec.is_owned_fn, converter=True)
 
 
 for _pseudo_id, _conversion_id in CRAFT_SPAN_IDS:

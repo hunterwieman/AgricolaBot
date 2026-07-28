@@ -29,6 +29,10 @@ handler and soft-locks the turn.)
 
 No cost / prereq / vps / passing (pure occupation; played via Lessons — the whole
 effect is the hook).
+
+Ruling 84 (2026-07-27) classification: the banded `taken.food` comparison READS
+the food actually obtained from the space (the stamped take) as the printed
+condition — nothing is charged; not a cost gate.
 """
 from __future__ import annotations
 
