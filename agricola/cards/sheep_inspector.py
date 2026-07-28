@@ -39,8 +39,12 @@ MECHANICS. An OPTIONAL play-variant trigger (the Work Certificate idiom) on
 ``"card:<card_id>"`` for an on-card worker). A target is a space OTHER than the
 one just used (the host frame's ``space_id`` — "another person") where the
 owner has at least one returnable PLACED person (newborns excluded, below).
-Eligibility: not latched this round, sheep >= 1 (on the farm) AND food >= 2 on
-hand AND >= 1 legal target. Firing debits 1 sheep + 2 food, latches
+Eligibility: not latched this round, sheep >= 1 (on the farm) AND the 2 food
+payable by ANY legal route — on hand or raised by liquidation with the cost
+sheep RESERVED from cooking (`_liquidatable_to(..., reserved_animals=1 sheep)`;
+ruling 82, corrected 2026-07-26) — AND >= 1 legal target. A food-short fire
+stashes the chosen target in CardStore and pushes the raise-only
+PendingFoodPayment; its resume debits 1 sheep + 2 food, latches
 ``used_this_round``, credits ``people_home`` +1, and decrements the owner's
 worker count on the chosen space (the Tea Time board edit). Declining is the
 host's after-phase Stop. Own use only: the hook is own-use and the enumerator
