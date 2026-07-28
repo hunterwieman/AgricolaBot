@@ -16,12 +16,14 @@ Cutter / Clay Puncher / Carpenter's Axe):
 
   - buy 1 stone for 1 food — a player CHOICE ("you can buy") → an OPTIONAL FireTrigger
     (`register`, not `register_auto`). Declining is simply not firing it (the host's Stop
-    exits the after-phase). Once fired, the 1-food-for-1-stone exchange is mandatory, so
-    eligibility gates on having ≥ 1 food on hand to never offer a dead-end. The food cost
-    is fixed at 1 and on-hand only — the rules treat it as a simple at-the-moment 1-food
-    spend, so it is debited directly (no PendingFoodPayment / liquidation path, unlike Ox
-    Goad's variable 2-food cost). "Each time" = once per use, enforced by `CARD_ID not in
-    triggers_resolved`.
+    exits the after-phase). "Each time" = once per use, enforced by `CARD_ID not in
+    triggers_resolved`. The 1 food rides the shared food-payment path (ruling 82
+    (2026-07-26); corrected 2026-07-27): the at-any-time conversions are legal payment
+    routes for a food cost, so a plain food-on-hand gate would delete rules-legal plays.
+    Eligibility is liquidation-aware (`_liquidatable_to`); with the food on hand
+    `_apply_buy` pays and grants directly, and when short it pushes a raise-only
+    `PendingFoodPayment` whose registered resume (`_pay_and_buy`) debits the raised
+    food and grants the stone.
 
 Day Laborer is an ATOMIC action space, so it must be explicitly hosted
 (`register_action_space_hook`) to push a PendingActionSpace frame whose Proceed runs Day
@@ -37,10 +39,12 @@ No on-play effect, no cost / prereq / VPs.
 """
 from __future__ import annotations
 
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register, register_action_space_hook, register_auto
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "excavator"
@@ -74,22 +78,36 @@ def _apply_auto(state: GameState, idx: int) -> GameState:
 # Optional: buy 1 stone for 1 food (player choice → register FireTrigger)
 # ---------------------------------------------------------------------------
 
-def _eligible_buy(state: GameState, idx: int, triggers_resolved) -> bool:
-    if CARD_ID in triggers_resolved:                       # once per use
-        return False
-    if state.pending_stack[-1].space_id not in EXCAVATOR_SPACES:
-        return False
-    # Fixed 1-food, on-hand only: never a dead-end fire.
-    return state.players[idx].resources.food >= _FOOD_COST
-
-
-def _apply_buy(state: GameState, idx: int) -> GameState:
+def _pay_and_buy(state: GameState, idx: int) -> GameState:
+    """Debit 1 food and grant 1 stone. Reached directly (food on hand) and as
+    the post-food-payment resume (the raise-only frame leaves the food in
+    supply for this to debit)."""
     p = state.players[idx]
     return _set_player(state, idx,
                        fast_replace(p, resources=p.resources + Resources(food=-_FOOD_COST, stone=1)))
 
 
+def _eligible_buy(state: GameState, idx: int, triggers_resolved) -> bool:
+    if CARD_ID in triggers_resolved:                       # once per use
+        return False
+    if state.pending_stack[-1].space_id not in EXCAVATOR_SPACES:
+        return False
+    # Payable outright or by liquidating convertible goods to the 1 food.
+    return _liquidatable_to(state, idx, state.players[idx],
+                            Resources(food=_FOOD_COST))
+
+
+def _apply_buy(state: GameState, idx: int) -> GameState:
+    if state.players[idx].resources.food >= _FOOD_COST:
+        return _pay_and_buy(state, idx)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID,
+        reserved=Cost(),
+    ))
+
+
 register_occupation(CARD_ID, lambda s, i: s)               # no on-play effect
 register_auto("after_action_space", CARD_ID, _eligible_auto, _apply_auto)
 register("after_action_space", CARD_ID, _eligible_buy, _apply_buy)
+register_food_payment_resume(CARD_ID, _pay_and_buy)
 register_action_space_hook(CARD_ID, EXCAVATOR_SPACES)      # atomic Day Laborer host

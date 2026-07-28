@@ -159,6 +159,71 @@ def test_unowned_never_offered():
 
 
 # ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): each route's price is payable by raising
+# ---------------------------------------------------------------------------
+
+def _ready_goods(**res):
+    """Own New Purchase with exactly the given resources (food defaults to 0)."""
+    return _edit_player(_own(setup(seed=0), 0), 0, resources=Resources(**res))
+
+
+def test_zero_food_two_grain_offers_only_the_grain_route_and_raise_completes():
+    """Boundary pins: at 0 food with 2 grain, only the 2-food route is payable
+    (each route filtered on its OWN price: veg needs 4, both 6, max raise is
+    2) — the old plain food-on-hand gate offered nothing here. Firing pushes
+    the raise-only PendingFoodPayment; committing the grain bundle completes
+    the buy identically to the on-hand path — net 2 grain → 1 grain, dominated
+    but rules-legal, so it must be playable."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s = _enter_round(_ready_goods(grain=2), from_round=3)   # entering round 4
+    la = legal_actions(s)
+    assert FireTrigger(card_id=CARD_ID, variant="grain") in la
+    assert FireTrigger(card_id=CARD_ID, variant="veg") not in la
+    assert FireTrigger(card_id=CARD_ID, variant="both") not in la
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="grain"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 2
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])
+    p = s.players[0]
+    assert (p.resources.grain, p.resources.veg, p.resources.food) == (1, 0, 0)
+    # Once per round: back at the window, the card is resolved.
+    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(s))
+
+
+def test_per_route_raise_filter():
+    """Each route is filtered on its OWN raise-able price: 4 vegetables raise
+    at most 4 food → grain (2) and veg (4) offered, both (6) not."""
+    s = _ready_goods(veg=4)
+    s = fast_replace(s, round_number=3)               # entering harvest round 4
+    assert _legal_variants(s, 0) == ["grain", "veg"]
+
+
+def test_nothing_liquidatable_stays_silent():
+    """0 food and nothing convertible: no route is payable, so the trigger is
+    not offered at all."""
+    s = _ready_goods()
+    s = fast_replace(s, round_number=3)
+    assert _legal_variants(s, 0) == []
+    s = _enter_round(_ready_goods(), from_round=3)
+    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(s))
+
+
+def test_food_on_hand_stays_direct():
+    """With the route's price on hand the buy never detours through a raise
+    frame."""
+    from agricola.pending import PendingFoodPayment
+    s = _enter_round(_ready(food=9), from_round=3)
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="both"))
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    assert s.players[0].resources.food == 3
+
+
+# ---------------------------------------------------------------------------
 # Web-UI labeler
 # ---------------------------------------------------------------------------
 

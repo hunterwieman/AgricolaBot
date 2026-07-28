@@ -42,13 +42,19 @@ HOW IT FIRES — the outcome-reactive TRIGGER pattern (CARD_ENGINE_IMPLEMENTATIO
   post-commit ``"breeding_outcome"`` event — reactions to WHICH newborns were
   just placed surface AFTER ``CommitBreed``, before ``Stop``, still inside the
   breeding phase (ruling 20's post-commit stretch). Eligibility reads THIS
-  round's latch (>= 2 placed) and requires the pay-and-plow to be actually
-  doable — food >= 1 AND a plowable cell (``legality._can_plow``) — so a fired
-  trigger is never a dead end. Firing debits the 1 food directly (frame
-  triggers carry no cost layer — the Stone Importer idiom) and pushes
-  ``PendingPlow(initiated_by_id="card:dung_collector")``; the pushed primitive
-  composes mid-harvest (the Autumn Mother precedent — the walk hosts it
-  unchanged).
+  round's latch (>= 2 placed) and requires a plowable cell
+  (``legality._can_plow``) plus the 1 food being payable. The food rides the
+  shared food-payment path (ruling 82 (2026-07-26); corrected 2026-07-27): the
+  at-any-time conversions are legal payment routes for a food cost, so a plain
+  food-on-hand gate would delete rules-legal plays. Eligibility is therefore
+  liquidation-aware (``_liquidatable_to`` — harvest-aware, so ruling 39's
+  post-breed cooking floors bind the raise routes here); with the food on hand
+  the fire debits directly and pushes
+  ``PendingPlow(initiated_by_id="card:dung_collector")``, and when short it
+  pushes a raise-only ``PendingFoodPayment`` whose registered resume
+  (``_pay_and_plow``) debits the raised food and pushes the plow. The pushed
+  primitive composes mid-harvest (the Autumn Mother precedent — the walk hosts
+  it unchanged).
 
 DECLINE PATH — "you can": declining is simply not firing the trigger (the breed
 frame's ``Stop`` is always available alongside it); once fired, the pay-and-
@@ -63,12 +69,12 @@ the Family game is byte-identical and the C++ differential gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.harvest_windows import register_breeding_outcome_auto
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow
-from agricola.pending import PendingPlow, push
+from agricola.legality import _can_plow, _liquidatable_to
+from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "dung_collector"
@@ -93,26 +99,43 @@ def _latch_outcome(state: GameState, idx: int, outcome) -> GameState:
 
 def _trig_eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
     """Offer the paid plow iff THIS round's latch records >= 2 placed newborns
-    AND the pay-and-plow is doable now (food >= 1, a plowable cell) — never a
-    dead end. Ownership is the trigger enumerator's gate (and the latch is only
-    ever written for an owner); once-per-breeding-event is the breed frame's
-    ``triggers_resolved`` plus the round-keyed latch."""
+    AND a plowable cell exists AND the 1 food is payable — directly or by
+    liquidating convertible goods (ruling 82). Ownership is the trigger
+    enumerator's gate (and the latch is only ever written for an owner);
+    once-per-breeding-event is the breed frame's ``triggers_resolved`` plus the
+    round-keyed latch."""
     latch = _latch(state, idx)
     if latch is None or latch[0] != state.round_number or latch[1] < 2:
         return False
     p = state.players[idx]
-    return p.resources.food >= _FOOD_COST and _can_plow(p)
+    if not _can_plow(p):
+        return False
+    return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
 
 
-def _trig_apply(state: GameState, idx: int) -> GameState:
-    """Pay the 1 food (frame triggers carry no cost layer — debited directly,
-    the Stone Importer idiom), then grant the plow."""
+def _pay_and_plow(state: GameState, idx: int) -> GameState:
+    """Debit the 1 food, then grant the plow. Reached directly (food on hand)
+    and as the post-food-payment resume (the raise-only frame leaves the food
+    in supply for this to debit)."""
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources - Resources(food=_FOOD_COST))
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
     return push(state, PendingPlow(
         player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
+
+
+def _trig_apply(state: GameState, idx: int) -> GameState:
+    """Pay 1 food and plow. With the food on hand, directly; otherwise push a
+    raise-only PendingFoodPayment and defer to its resume (which debits the
+    raised food and pushes the plow). The 1 food is the card's only cost, so
+    nothing is reserved."""
+    if state.players[idx].resources.food >= _FOOD_COST:
+        return _pay_and_plow(state, idx)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID,
+        reserved=Cost(),
+    ))
 
 
 # Pure recurring occupation: played via Lessons, on-play is a no-op.
@@ -126,3 +149,4 @@ register_breeding_outcome_auto(
 # Optional post-commit trigger on the breed frame (the "breeding_outcome"
 # stretch): pay 1 food, plow 1 field, still inside the breeding phase.
 register("breeding_outcome", CARD_ID, _trig_eligible, _trig_apply)
+register_food_payment_resume(CARD_ID, _pay_and_plow)

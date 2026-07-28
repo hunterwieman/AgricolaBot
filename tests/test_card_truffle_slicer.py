@@ -8,28 +8,34 @@ banked, not printed). Not passing.
 Shape: an OPTIONAL `before_action_space` FireTrigger on the atomic-hosted Forest
 (the only wood accumulation space on the 2-player board). Owning the card gives
 Forest a PendingActionSpace host; in the host's before-phase the trigger is
-surfaced (alongside Proceed) iff the player has >=1 wild boar and >=1 food. Firing
-pays 1 food for 1 BANKED bonus point (stored in the per-card CardStore, emitted by
-register_scoring at end-game). Declining is not firing — Proceed exits the
-before-phase, picks up the +3 wood, then Stop pops. Tests drive the REAL engine
-flow through the Forest placement, per CARD_AUTHORING_GUIDE §5.
+surfaced (alongside Proceed) iff the player has >=1 wild boar (the printed
+condition, a plain read at fire time) and the 1 food is payable. The food rides
+the shared food-payment path (ruling 82, 2026-07-26; corrected 2026-07-27):
+eligibility is liquidation-aware, the food-on-hand fire pays directly, and a
+food-short fire pushes a raise-only PendingFoodPayment whose resume debits and
+banks. Firing pays 1 food for 1 BANKED bonus point (stored in the per-card
+CardStore, emitted by register_scoring at end-game). Declining is not firing —
+Proceed exits the before-phase, picks up the +3 wood, then Stop pops. Tests
+drive the REAL engine flow through the Forest placement, per
+CARD_AUTHORING_GUIDE §5.
 """
 from __future__ import annotations
 
 import agricola.cards.truffle_slicer  # noqa: F401  (registers the card)
 
 from agricola.actions import (
+    CommitFoodPayment,
     FireTrigger,
     PlaceWorker,
     Proceed,
     Stop,
 )
-from agricola.cards.specs import MINORS, OCCUPATIONS, prereq_met
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, MINORS, OCCUPATIONS, prereq_met
 from agricola.cards.triggers import OWN_ACTION_HOOK_CARDS, TRIGGERS
 from agricola.cards.truffle_slicer import CARD_ID, _eligible, _score
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingActionSpace
+from agricola.pending import PendingActionSpace, PendingFoodPayment
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.setup import CardPool, setup_env
@@ -97,6 +103,8 @@ def test_registration():
     before = {e.card_id for e in TRIGGERS.get("before_action_space", [])}
     assert CARD_ID in before
     assert CARD_ID in OWN_ACTION_HOOK_CARDS.get("forest", set())
+    # The 1-food price is liquidatable (ruling 82).
+    assert CARD_ID in FOOD_PAYMENT_RESUMES
 
 
 def test_prereq_round_8_or_later():
@@ -206,12 +214,43 @@ def test_not_offered_without_boar():
     assert not _has_fire(s)
 
 
-def test_not_offered_without_food():
-    # Boar present but 0 food to pay → not offered (no dead-end).
+def test_not_offered_without_food_or_liquidation_source():
+    # Boar present but 0 food AND no way to raise it (no crops, and the boar
+    # itself is not cookable without a cooking improvement) → not offered
+    # (no dead-end).
     s, cp = _setup(boar=1, food=0)
     s = _place_forest_before(s)
     assert s.players[cp].resources.food == 0
     assert not _has_fire(s)
+
+
+def test_zero_food_with_cookable_grain_raises_the_fee():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): 0 food but 1 grain (always
+    cookable 1:1) → the 1 food is raisable, so the buy IS offered; firing
+    pushes a raise-only PendingFoodPayment, and the committed bundle banks the
+    point identically to the on-hand path."""
+    s, cp = _setup(boar=1, food=0)
+    s = with_resources(s, cp, grain=1)          # 0 food, 1 cookable grain
+    s = _place_forest_before(s)
+    assert _has_fire(s)
+
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)
+    assert pay in legal_actions(s)
+    s = step(s, pay)                            # cook the grain, resume debits 1
+    p = s.players[cp]
+    assert p.resources.food == 0                # raised 1, paid 1
+    assert p.resources.grain == 0               # the grain was cooked
+    assert p.card_state.get(CARD_ID) == 1       # the point banked
+    assert p.animals.boar == 1                  # the condition good untouched
+    # Host back on top, once per use.
+    assert isinstance(s.pending_stack[-1], PendingActionSpace)
+    assert not _has_fire(s)
+    assert Proceed() in legal_actions(s)
 
 
 def test_not_offered_without_card():
@@ -235,7 +274,8 @@ def test_eligible_predicate_direct():
     # No boar → not eligible.
     s_noboar = with_animals(s, cp, boar=0)
     assert not _eligible(s_noboar, cp, triggers_resolved)
-    # No food → not eligible.
+    # No food and nothing liquidatable (the boar is not cookable without a
+    # cooking improvement) → not eligible.
     s_nofood = with_resources(s, cp, food=0)
     assert not _eligible(s_nofood, cp, triggers_resolved)
 

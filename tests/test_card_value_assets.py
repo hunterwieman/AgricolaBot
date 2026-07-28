@@ -324,6 +324,80 @@ def test_fires_after_the_final_harvest_before_scoring():
     assert state.phase == Phase.BEFORE_SCORING
 
 
+# --- Ruling 82 (2026-07-26): each price is payable by raising -----------------
+
+def _synthetic_window(*, food=0, grain=0):
+    """P0 owning Value Assets with exactly the given goods, an after_harvest
+    PendingHarvestWindow host on top (the synthetic-frame idiom of
+    test_card_green_grocer — the same frame the real ladder pushes)."""
+    from agricola.pending import push
+    state = with_minors(setup(seed=0), 0, frozenset({CARD_ID}))
+    state = with_resources(state, 0, food=food, grain=grain)
+    return push(state, PendingHarvestWindow(window_id=WINDOW_ID, player_idx=0))
+
+
+def test_one_grain_offers_only_the_one_food_goods_and_raise_completes():
+    """Boundary pins: at 0 food with 1 grain, each variant is filtered on its
+    OWN raise-able price — wood and clay (1 food) ARE offered (the old plain
+    food-on-hand gate offered nothing), reed and stone (2 food) are not (max
+    raise is 1). Firing wood pushes the raise-only PendingFoodPayment;
+    committing the grain bundle completes the buy identically to the on-hand
+    path."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    state = _synthetic_window(grain=1)
+    assert _fire_variants(legal_actions(state)) == ["clay", "wood"]
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="wood"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, bundles[0])
+    r = state.players[0].resources
+    assert r.wood == 1                        # the bought good
+    assert r.food == 0                        # raised 1, debited 1
+    assert r.grain == 0                       # the grain was the fuel
+    assert _fire_variants(legal_actions(state)) == []   # once per window
+    assert legal_actions(state) == [Proceed()]
+
+
+def test_two_grain_reaches_the_two_food_goods():
+    """With 2 grain (raising up to 2 food) all four variants are payable; a
+    2-food purchase (stone) completes through the raise frame, consuming both
+    grain."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    state = _synthetic_window(grain=2)
+    assert _fire_variants(legal_actions(state)) == sorted(_PURCHASES)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="stone"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 2
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, bundles[0])
+    r = state.players[0].resources
+    assert r.stone == 1 and r.food == 0 and r.grain == 0
+
+
+def test_nothing_liquidatable_stays_silent():
+    """0 food and nothing convertible: no price is payable by any route, so no
+    variant is offered (the real-walk version is test_no_food_no_trigger_no_frame)."""
+    state = _synthetic_window()
+    assert _fire_variants(legal_actions(state)) == []
+    assert legal_actions(state) == [Proceed()]
+
+
+def test_food_on_hand_stays_direct():
+    """With the price on hand the buy never detours through a raise frame."""
+    from agricola.pending import PendingFoodPayment
+    state = _synthetic_window(food=2)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="reed"))
+    assert not any(isinstance(f, PendingFoodPayment)
+                   for f in state.pending_stack)
+    r = state.players[0].resources
+    assert r.food == 0 and r.reed == 1
+
+
 # --- On-play: no immediate effect ---------------------------------------------
 
 def test_on_play_is_a_noop():

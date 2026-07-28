@@ -686,6 +686,27 @@ def _liquidatable_to(
     owe = cost.food - p.resources.food
     if owe <= 0:
         return True
+    from agricola.cards.harvest_windows import (
+        available_span_converters,
+        post_breed_floors,
+    )
+    converters = available_span_converters(state, idx)
+    floors = post_breed_floors(state, idx)
+    if converters or any(floors):
+        # An in-harvest instant: the cheap arithmetic below is wrong in both
+        # directions there — in-span once-per-harvest converters can raise MORE
+        # food (rulings 34/77), and ruling 39's post-breed floors allow LESS
+        # cooking. Delegate to the same frontier the raise frame enumerates
+        # (`_food_payment_commits` passes the identical converters/floors), so
+        # the gate and the frame agree by construction.
+        avail = fast_replace(
+            p,
+            resources=p.resources - fast_replace(cost, food=0),
+            animals=p.animals - reserved_animals,
+        )
+        return bool(food_payment_frontier(
+            avail, owe, cooking_rates(state, idx),
+            span_converters=converters, animal_floors=floors))
     rem = p.resources - fast_replace(cost, food=0)            # food untouched; non-food reserved
     sR, bR, cR, vR = cooking_rates(state, idx)
     max_food = (

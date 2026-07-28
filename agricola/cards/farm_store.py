@@ -40,11 +40,19 @@ variants. It is modeled as a play-variant optional trigger (mirroring
 ``home_brewer.py``): the trigger surfaces as one ``FireTrigger(card_id, variant)``
 per output, and the player fires exactly one (or ``Proceed`` declines).
 
-COST — the harvest-window trigger machinery carries no cost layer (like
-``winter_caretaker.py``), so ``_apply`` debits the 1 food and grants the chosen
-goods in one step, and affordability (>= 1 food) is checked in ``_eligible`` /
-``_variants`` so the exchange is offered only when the player can pay. The player
-can therefore only ever spend food they still hold after feeding.
+PAYMENT — the 1 food is payable by ANY legal route: food on hand OR raised by
+the at-any-time crop/animal conversions (ruling 82, 2026-07-26: a plain
+food-on-hand gate makes rules-legal moves unplayable; this card shipped with
+that defect and was corrected 2026-07-27). The variants are offered iff the
+1-food price is raise-able (``_liquidatable_to`` — this window sits INSIDE the
+harvest conversion span, where the gate delegates to the same frontier the
+raise frame enumerates, once-per-harvest span converters and the ruling-39
+post-breed floors included). Firing exchanges directly when the food is on
+hand; short of it, the fire pushes the raise-only ``PendingFoodPayment``
+(resume kind ``"farm_store:<output>"`` — static variants ride the resume kind,
+the Canal Boatman shape), and the resume debits the 1 food and grants the
+chosen output. Either way the player only ever spends value they still hold
+after feeding — the window is post-payment.
 
 Card-only state is empty in the Family game (this card is card-game only), so the
 Family engine stays byte-identical and the C++ gates are untouched.
@@ -52,8 +60,10 @@ Family engine stays byte-identical and the C++ gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.harvest_windows import register_harvest_window_hook
-from agricola.cards.specs import register_minor
+from agricola.cards.specs import register_food_payment_resume, register_minor
 from agricola.cards.triggers import register, register_play_variant_trigger
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -76,33 +86,48 @@ _OUTPUTS: dict[str, Resources] = {
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
-    """Usable iff the player holds at least 1 food to spend (the input is always
-    exactly 1 food). Ownership and the once-per-window guard are enforced by the
-    host enumerator (via ``_owns`` and the frame's ``triggers_resolved``); firing
-    marks the card resolved for this window, so it exchanges at most once per
-    harvest."""
-    return state.players[idx].resources.food >= 1
+    """Usable iff the 1-food input is raise-able — on hand or by the at-any-time
+    conversions (ruling 82). Ownership and the once-per-window guard are enforced
+    by the host enumerator (via ``_owns`` and the frame's ``triggers_resolved``);
+    firing marks the card resolved for this window, so it exchanges at most once
+    per harvest."""
+    p = state.players[idx]
+    return _liquidatable_to(state, idx, p, Resources(food=1))
 
 
 def _variants(state: GameState, idx: int) -> list[str]:
-    """The seven output choices, offered only when 1 food is affordable. The input
-    is always exactly 1 food, so every variant shares the same eligibility;
-    re-check here so the enumerator never surfaces an unaffordable variant."""
-    if state.players[idx].resources.food < 1:
+    """The seven output choices. The input is always exactly 1 food, so every
+    variant shares the same raise-ability gate; re-check here so the enumerator
+    never surfaces an unpayable variant."""
+    if not _eligible(state, idx, frozenset()):
         return []
     return list(_OUTPUTS)
 
 
-def _apply(state: GameState, idx: int, variant: str) -> GameState:
+def _exchange(state: GameState, idx: int, variant: str) -> GameState:
     """Spend exactly 1 food and grant the chosen output's goods (net −1 food +
-    the chosen goods). The window trigger carries no cost layer, so this debits
-    the food and adds the goods in one step."""
+    the chosen goods). Reached directly (food on hand) and as the
+    post-food-payment resume (the raise-only frame leaves the raised food in
+    supply to debit)."""
     out = _OUTPUTS[variant]
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources - Resources(food=1) + out)
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
+
+
+def _apply(state: GameState, idx: int, variant: str) -> GameState:
+    """Fire one exchange. With the food on hand, exchange directly; otherwise
+    push the raise-only PendingFoodPayment — the output is STATIC, so it rides
+    the resume_kind itself ("farm_store:<output>", one registered resume per
+    output), and the exchange reserves nothing (its only cost is the food)."""
+    if state.players[idx].resources.food >= 1:
+        return _exchange(state, idx, variant)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=1,
+        resume_kind=f"{CARD_ID}:{variant}", reserved=Cost(),
+    ))
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2, clay=2)), vps=0)
@@ -113,3 +138,9 @@ register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2, clay=2)), vps=0)
 register(WINDOW_ID, CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
 register_harvest_window_hook(CARD_ID, WINDOW_ID)
+# One resume per (static) output: the raise-only food frame's resume_kind
+# carries the chosen output (ruling 82's payment shape).
+for _v in _OUTPUTS:
+    register_food_payment_resume(
+        f"{CARD_ID}:{_v}",
+        (lambda v: lambda state, idx: _exchange(state, idx, v))(_v))

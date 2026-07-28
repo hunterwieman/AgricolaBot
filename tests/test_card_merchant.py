@@ -264,7 +264,11 @@ def test_house_redevelopment_renovate_only_no_window():
 # Eligibility boundaries
 # ---------------------------------------------------------------------------
 
-def test_not_offered_at_zero_food():
+def test_not_offered_at_zero_food_with_nothing_cookable():
+    """UPDATED for ruling 82 (2026-07-27) — previously pinned the plain
+    food-on-hand gate. The ruled gate is liquidation-aware; here the fee is
+    unraisable (after the Fireplace build: 0 food, 0 goods, no animals), so
+    the repeat is still not offered. Boundary pin (b): silent."""
     cs, cp = _state("major_improvement", occ=("merchant",),
                     res=Resources(clay=2, food=0))
 
@@ -275,6 +279,143 @@ def test_not_offered_at_zero_food():
     cs = step(cs, Stop())
 
     assert not _merchant_offered(cs)
+
+
+def test_zero_food_fee_raises_via_food_payment_and_grants_second_composite():
+    """Ruling 82 boundary pin (a): with 0 food and a cookable grain the repeat
+    IS offered — the fee is payable by the at-any-time grain conversion. The
+    fire pushes the raise-only PendingFoodPayment (resume kind
+    merchant:composite); committing the grain bundle raises 1 food, the resume
+    debits it and pushes the second composite, which then builds the second
+    Fireplace — the same end state the food-on-hand path reaches."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    cs, cp = _state("major_improvement", occ=("merchant",),
+                    res=Resources(clay=5, grain=1, food=0))
+
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, 0))   # Fireplace (2 clay)
+    cs = step(cs, Stop())                    # composite flips to after
+
+    assert _merchant_offered(cs)             # fee raisable: 1 grain -> 1 food
+    cs = step(cs, _FIRE)
+
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == "merchant:composite"
+    commits = [a for a in legal_actions(cs) if isinstance(a, CommitFoodPayment)]
+    assert commits == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    cs = step(cs, commits[0])
+
+    # The raise banked 1 food; the resume debited it and pushed the composite.
+    assert cs.players[cp].resources.food == 0
+    assert cs.players[cp].resources.grain == 0
+    top = cs.pending_stack[-1]
+    assert type(top).PENDING_ID == "major_minor_improvement"
+    assert top.initiated_by_id == "card:merchant"
+
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, 1))   # second Fireplace (3 clay)
+    cs = step(cs, Stop())
+    assert not _merchant_offered(cs)         # ruling 3: no chain off the grant
+    cs = step(cs, Stop())                    # pop the granted composite
+
+    owners = cs.board.major_improvement_owners
+    assert owners[0] == cp and owners[1] == cp
+    assert cs.players[cp].resources.clay == 0
+
+
+def test_zero_food_fee_raises_for_the_bare_minor_clause_too():
+    """The bare "Minor Improvement" clause's raise path (resume kind
+    merchant:bare_minor): after Market Stall at Meeting Place the player holds
+    0 food but the granted vegetable cooks 1:1, so the repeat is offered;
+    committing the veg bundle raises the fee, the resume debits it and pushes
+    the second bare minor, and Corn Scoop plays off the remaining wood."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    cs, cp = _state("meeting_place", occ=("merchant",),
+                    minors=("market_stall", "corn_scoop"),
+                    res=Resources(grain=1, wood=1, food=0))
+    cs = step(cs, PlaceWorker(space="meeting_place"))
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))   # pays the grain, grants 1 veg
+
+    assert cs.players[cp].resources.food == 0
+    assert _merchant_offered(cs)             # the veg makes the fee raisable
+    cs = step(cs, _FIRE)
+
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == "merchant:bare_minor"
+    commits = [a for a in legal_actions(cs) if isinstance(a, CommitFoodPayment)]
+    assert commits == [CommitFoodPayment(grain=0, veg=1, sheep=0, boar=0, cattle=0)]
+    cs = step(cs, commits[0])
+
+    # The raise banked 1 food; the resume debited it and pushed the bare minor.
+    assert cs.players[cp].resources.food == 0
+    assert cs.players[cp].resources.veg == 0
+    cs = step(cs, sole_play_minor(cs, "corn_scoop"))
+    assert not _merchant_offered(cs)                     # ruling 3 (card:merchant)
+    assert "corn_scoop" in cs.players[cp].minor_improvements
+
+
+def test_not_offered_when_the_raise_must_cook_the_only_childs_fuel():
+    """The preserve seam (ruling 82): the fee is raisable ONLY by cooking the
+    1 grain — but the sole would-be child (Cob, a 1-food minor) needs that
+    same grain as its own liquidation fuel. Every raise bundle strands the
+    granted host childless, so `raisable_food_preserving` finds no surviving
+    bundle and the repeat is not offered. (A goods-blind probe would have
+    offered it and reached a dead composite host.) The first build is the
+    Joinery, not a Fireplace — owning a Fireplace would keep a Cooking Hearth
+    buildable by returning it, keeping the composite's major branch alive."""
+    cs, cp = _state("major_improvement", occ=("merchant",),
+                    minors=("cob",),
+                    res=Resources(wood=2, stone=2, grain=1, food=0))
+
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, 7))   # Joinery: spends the wood + stone
+    cs = step(cs, Stop())
+
+    # Post-build: 0 food, 1 grain, no building resources. Fee raisable
+    # (grain -> 1 food) but the post-raise world (0 food, 0 grain) has no
+    # affordable major and no payable minor -> withheld.
+    assert not _merchant_offered(cs)
+
+
+def test_zero_food_offer_preserved_when_a_second_grain_keeps_the_child_alive():
+    """The preserve seam's positive half: with TWO grain, the frontier's
+    minimal bundle cooks one and keeps one — the surviving grain still funds
+    Cob's 1-food cost — so the repeat IS offered and the raise frame offers
+    exactly the preserving bundle."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    cs, cp = _state("major_improvement", occ=("merchant",),
+                    minors=("cob",),
+                    res=Resources(wood=2, stone=2, grain=2, food=0))
+
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, 7))   # Joinery: spends the wood + stone
+    cs = step(cs, Stop())
+
+    assert _merchant_offered(cs)
+    cs = step(cs, _FIRE)
+    assert isinstance(cs.pending_stack[-1], PendingFoodPayment)
+    commits = [a for a in legal_actions(cs) if isinstance(a, CommitFoodPayment)]
+    # Only the child-preserving bundle (cook 1 grain, keep 1) survives.
+    assert commits == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    cs = step(cs, commits[0])
+    top = cs.pending_stack[-1]
+    assert type(top).PENDING_ID == "major_minor_improvement"
+    assert cs.players[cp].resources.grain == 1   # the child's fuel survived
 
 
 def test_not_offered_when_nothing_buildable_or_playable():

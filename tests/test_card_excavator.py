@@ -9,12 +9,22 @@ Shape: a MANDATORY automatic +1 wood +1 clay (register_auto) AND an OPTIONAL
 "buy 1 stone for 1 food" FireTrigger (register), both on the after-phase of the
 atomic-hosted Day Laborer space (which grants +2 food on Proceed). The auto fires
 choicelessly at the after-phase flip; the buy is surfaced as a FireTrigger that the
-player may decline (the host's Stop), gated on once-per-use + having ≥ 1 food.
+player may decline (the host's Stop), gated on once-per-use + the 1 food being
+payable. The 1 food rides the shared food-payment path (ruling 82, 2026-07-26;
+corrected 2026-07-27): eligibility is liquidation-aware, the food-on-hand fire
+pays directly, and a food-short fire pushes a raise-only PendingFoodPayment whose
+resume debits and grants the stone.
 """
 import agricola.cards.excavator  # noqa: F401  (registers the card)
 
-from agricola.actions import FireTrigger, PlaceWorker, Proceed, Stop
-from agricola.cards.specs import OCCUPATIONS
+from agricola.actions import (
+    CommitFoodPayment,
+    FireTrigger,
+    PlaceWorker,
+    Proceed,
+    Stop,
+)
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.cards.triggers import (
     AUTO_EFFECTS,
     OWN_ACTION_HOOK_CARDS,
@@ -22,11 +32,11 @@ from agricola.cards.triggers import (
 )
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingActionSpace
+from agricola.pending import PendingActionSpace, PendingFoodPayment
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup_env
-from tests.factories import with_resources
+from tests.factories import with_animals, with_majors, with_resources
 
 CARD_ID = "excavator"
 
@@ -77,6 +87,8 @@ def test_excavator_registered():
     assert CARD_ID in trig_ids
     # Day Laborer is atomic → it must be explicitly hosted.
     assert CARD_ID in OWN_ACTION_HOOK_CARDS.get("day_laborer", set())
+    # The 1-food price is liquidatable (ruling 82).
+    assert CARD_ID in FOOD_PAYMENT_RESUMES
 
 
 # ---------------------------------------------------------------------------
@@ -112,11 +124,13 @@ def test_auto_fires_and_buy_offered_after_pickup():
     assert Stop() in legal_actions(s)
 
 
-def test_buy_not_offered_when_no_food_at_after_phase():
-    # The food>=1 eligibility boundary: force the after-phase supply to 0 food (a
-    # state the +2 pickup wouldn't produce on its own) → the buy is NOT offered, but
-    # the host Stop still is. Exercises that the buy never offers a dead-end. Drain
-    # only food, preserving the auto-granted wood/clay.
+def test_buy_not_offered_when_no_food_and_nothing_liquidatable():
+    # The payability boundary: force the after-phase supply to 0 food (a state
+    # the +2 pickup wouldn't produce on its own). The player holds only wood/clay
+    # (not cookable) and no crops/animals, so the 1 food is not raisable by any
+    # route → the buy is NOT offered, but the host Stop still is. Exercises that
+    # the buy never offers a dead-end. Drain only food, preserving the
+    # auto-granted wood/clay.
     s, cp = _card_state()
     s = _place_day_laborer_to_after(s)
     assert s.players[cp].resources.wood == 1 and s.players[cp].resources.clay == 1
@@ -128,6 +142,37 @@ def test_buy_not_offered_when_no_food_at_after_phase():
     # The mandatory wood/clay (fired at the flip) is untouched by the food drain.
     assert s.players[cp].resources.wood == 1
     assert s.players[cp].resources.clay == 1
+
+
+def test_zero_food_with_cookable_sheep_raises_the_fee():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): 0 food but a sheep + an
+    owned Fireplace → the 1 food is raisable, so the buy IS offered; firing
+    pushes a raise-only PendingFoodPayment, and the committed bundle completes
+    the buy identically to the on-hand path."""
+    s, cp = _card_state()
+    s = with_majors(s, owner_by_idx={0: cp})   # a Fireplace (sheep → 2 food)
+    s = with_animals(s, cp, sheep=1)
+    s = _place_day_laborer_to_after(s)
+    p = s.players[cp]
+    p = fast_replace(p, resources=fast_replace(p.resources, food=0, stone=0))
+    s = fast_replace(s, players=tuple(p if i == cp else s.players[i] for i in range(2)))
+
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(s)
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0, cattle=0)
+    assert pay in legal_actions(s)
+    s = step(s, pay)                            # cook the sheep, resume debits 1
+    p = s.players[cp]
+    assert p.resources.food == 1                # raised 2, paid 1
+    assert p.resources.stone == 1               # the stone arrived
+    assert p.animals.sheep == 0                 # the sheep was cooked
+    # Host back on top, once per use.
+    assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
+    assert Stop() in legal_actions(s)
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +190,8 @@ def test_buy_offered_with_food_and_fires():
     assert FireTrigger(card_id=CARD_ID) in la
     assert Stop() in la                             # declining is also available
     s = step(s, FireTrigger(card_id=CARD_ID))
+    # Direct path: no PendingFoodPayment frame — the debit and grant are one step.
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
     assert s.players[cp].resources.food == 4        # -1 food
     assert s.players[cp].resources.stone == 1       # +1 stone
     # After firing, the buy is once-per-use → not re-offered; only the host Stop.

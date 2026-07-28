@@ -165,6 +165,81 @@ def test_unowned_never_offered():
 
 
 # ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): the price is payable by raising, not only on hand
+# ---------------------------------------------------------------------------
+
+def _ready_goods(*, people=2, **res):
+    """Own Acquirer with exactly the given resources (food defaults to 0)."""
+    s = _own(setup(seed=0), 0)
+    return _edit_player(s, 0, resources=Resources(**res),
+                        people_total=people, people_home=people)
+
+
+def test_zero_food_with_convertible_grain_offers_and_raise_completes():
+    """Boundary pins: at 0 food with 2 grain (price = 2 people = 2 food) every
+    good IS offered — the price is raise-able by the at-any-time conversions
+    (the old plain food-on-hand gate wrongly withheld the whole trigger).
+    Firing pushes the raise-only PendingFoodPayment; committing the grain
+    bundle completes the buy identically to the on-hand path. The food-good
+    prune (user ruling 2026-07-15) stands under the fix."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s = _enter_round(_ready_goods(grain=2))
+    la = legal_actions(s)
+    for good in _GOODS:
+        assert FireTrigger(card_id=CARD_ID, variant=good) in la
+    assert FireTrigger(card_id=CARD_ID, variant="food") not in la   # prune stands
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="wood"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 2
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])
+    p = s.players[0]
+    assert p.resources.wood == 1              # the bought good
+    assert p.resources.food == 0              # raised 2, debited 2
+    assert p.resources.grain == 0             # the grain was the fuel
+    # Once per round: back at the window, the card is resolved.
+    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(s))
+
+
+def test_animal_good_via_raise_routes_through_grant_animals():
+    """An animal good bought through the raise path still lands via
+    grant_animals: 1 sheep fits the house-pet slot, no accommodation frame."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s = _enter_round(_ready_goods(grain=2))
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="sheep"))
+    assert isinstance(s.pending_stack[-1], PendingFoodPayment)
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    s = step(s, bundles[0])
+    p = s.players[0]
+    assert p.animals == Animals(sheep=1)
+    assert p.resources.food == 0 and p.resources.grain == 0
+    assert not any(isinstance(f, PendingAccommodate) for f in s.pending_stack)
+
+
+def test_nothing_liquidatable_stays_silent():
+    """0 food and nothing convertible: no route can pay, so no variant is
+    offered (the card is silent, exactly as before the fix)."""
+    s = _ready_goods()
+    assert _legal_variants(s, 0) == []
+    s = _enter_round(s)
+    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(s))
+
+
+def test_food_on_hand_stays_direct():
+    """With the price on hand the buy never detours through a raise frame."""
+    from agricola.pending import PendingFoodPayment
+    s = _enter_round(_ready(food=5))
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="grain"))
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    assert s.players[0].resources.food == 3
+
+
+# ---------------------------------------------------------------------------
 # Web-UI labeler
 # ---------------------------------------------------------------------------
 

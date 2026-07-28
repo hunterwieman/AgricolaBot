@@ -264,6 +264,66 @@ def test_re_eligible_on_next_use():
 
 
 # ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): each route's price is payable by raising
+# ---------------------------------------------------------------------------
+
+def test_vegetable_route_payable_by_raising_and_raise_completes():
+    """Boundary pins: post-pickup 1 food + 2 grain reach the 3-food vegetable
+    price by conversion, so BOTH routes are offered (the old plain food-on-hand
+    gate withheld the vegetable route below 3 food on hand). Firing it pushes
+    the raise-only PendingFoodPayment; committing the grain bundle completes
+    the buy identically to the on-hand path."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s, cp = _card_state()
+    s = _own_minor(s, cp, CARD_ID)
+    s = with_resources(s, cp, food=0, grain=2)
+    s = _place_fishing_to_after(s)
+    assert s.players[cp].resources.food == 1       # the round-1 catch (stock 1)
+    la = legal_actions(s)
+    assert _GRAIN in la                            # 1 food on hand
+    assert _VEG in la                              # 3 food raise-able (1 + 2 grain)
+    s = step(s, _VEG)
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 3
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])
+    p = s.players[cp]
+    assert p.resources.veg == 1                    # the bought vegetable
+    assert p.resources.food == 0                   # 1 + 2 raised - 3 paid
+    assert p.resources.grain == 0                  # the grain was the fuel
+    assert Stop() in legal_actions(s)              # the after-phase host is back
+    s = step(s, Stop())
+    assert not s.pending_stack
+
+
+def test_per_route_raise_filter():
+    """Each route is filtered on its OWN raise-able price: 1 food + 1 grain
+    raise at most 2 food — grain offered, vegetable (3) not."""
+    from agricola.cards.supply_boat import _legal_variants
+    s, cp = _card_state()
+    s = _own_minor(s, cp, CARD_ID)
+    s = with_resources(s, cp, food=1, grain=1)
+    assert _legal_variants(s, cp) == ["grain"]
+    s = with_resources(s, cp, food=1, grain=2)
+    assert _legal_variants(s, cp) == ["grain", "vegetable"]
+
+
+def test_food_on_hand_stays_direct():
+    """With the route's price on hand the buy never detours through a raise
+    frame."""
+    from agricola.pending import PendingFoodPayment
+    s, cp = _card_state()
+    s = _own_minor(s, cp, CARD_ID)
+    s = with_resources(s, cp, food=5)
+    s = _place_fishing_to_after(s)
+    s = step(s, _VEG)
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    assert s.players[cp].resources.veg == 1
+
+
+# ---------------------------------------------------------------------------
 # Wrong space does not fire
 # ---------------------------------------------------------------------------
 

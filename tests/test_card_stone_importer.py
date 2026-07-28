@@ -12,7 +12,10 @@ decision, not after** — once CommitBreed resolves, that event is closed (only
 outcome-reactive triggers + Stop remain). Firing pays the current harvest's
 printed food price (2/2/3/3/4/1 by harvest ordinal) and grants exactly 2 stone,
 once per breeding phase (the frame's ``triggers_resolved``); declining is
-committing the breed without firing.
+committing the breed without firing. The price rides the shared food-payment
+path (ruling 82, 2026-07-26; corrected 2026-07-27): eligibility is
+liquidation-aware, the food-on-hand fire pays directly, and a food-short fire
+pushes a raise-only PendingFoodPayment whose resume debits and grants.
 
 These tests drive REAL harvests through the walk (mirroring
 tests/test_harvest_seam_hosts.py's ``_breed_state`` / ``_to_p0_breed_frame``
@@ -28,14 +31,14 @@ from pathlib import Path
 import agricola.cards.stone_importer  # noqa: F401  (import triggers registration)
 
 import agricola.cards as _cards_pkg
-from agricola.actions import CommitBreed, FireTrigger, Stop
-from agricola.cards.specs import OCCUPATIONS
+from agricola.actions import CommitBreed, CommitFoodPayment, FireTrigger, Stop
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.cards.stone_importer import _eligible, _price, _PRICES
 from agricola.cards.triggers import CARDS, PLAY_VARIANT_TRIGGERS
 from agricola.constants import Phase
 from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestBreed
+from agricola.pending import PendingFoodPayment, PendingHarvestBreed
 from agricola.scoring import SCORING_TERMS
 from agricola.setup import setup
 
@@ -145,6 +148,7 @@ def test_registered_as_pre_breed_trigger():
     assert entry.event == "breeding"
     assert entry.mandatory is False
     assert CARD_ID not in PLAY_VARIANT_TRIGGERS
+    assert CARD_ID in FOOD_PAYMENT_RESUMES  # the price is liquidatable (ruling 82)
 
 
 def test_on_play_is_noop_and_no_scoring_term():
@@ -202,6 +206,8 @@ def test_fire_debits_food_and_grants_two_stone_first_harvest():
     state = _to_p0_breed_frame(_breed_state(round_number=4))
     food0 = state.players[0].resources.food
     state = step(state, FireTrigger(card_id=CARD_ID))
+    # Direct path: no PendingFoodPayment — the breed frame stays on top.
+    assert isinstance(state.pending_stack[-1], PendingHarvestBreed)
     assert state.players[0].resources.food == food0 - 2
     assert state.players[0].resources.stone == 2
     # Once per breeding phase: no re-offer; CommitBreed still to come.
@@ -231,7 +237,8 @@ def test_price_at_final_harvest_is_one_food():
 # --- Eligibility boundaries ---------------------------------------------------
 
 def test_unaffordable_not_offered():
-    """At the 5th harvest (price 4), 3 food is short and the buy is withheld;
+    """At the 5th harvest (price 4), 3 food with nothing liquidatable (no
+    crops/animals) cannot reach the price by any route and the buy is withheld;
     exactly 4 food is enough (the boundary)."""
     state = _to_p0_breed_frame(_breed_state(round_number=13))
     short = with_resources(state, 0, food=3)
@@ -242,6 +249,34 @@ def test_unaffordable_not_offered():
     exact = step(exact, FireTrigger(card_id=CARD_ID))
     assert exact.players[0].resources.food == 0
     assert exact.players[0].resources.stone == 2
+
+
+def test_zero_food_with_cookable_grain_raises_the_price():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): 0 food but 2 grain (always
+    cookable 1:1) covers the 1st-harvest price of 2 — the buy IS offered;
+    firing pushes a raise-only PendingFoodPayment, and the committed bundle
+    grants the 2 stone identically to the on-hand path."""
+    state = _to_p0_breed_frame(_breed_state(round_number=4))
+    state = with_resources(state, 0, food=0, grain=2)
+    acts = legal_actions(state)
+    assert FireTrigger(card_id=CARD_ID) in acts
+
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)
+    assert pay in legal_actions(state)
+    state = step(state, pay)                     # cook the grain, resume debits 2
+    p0 = state.players[0]
+    assert p0.resources.stone == 2               # the buy completed
+    assert p0.resources.food == 0                # raised 2, paid 2
+    assert p0.resources.grain == 0
+    # Once per phase; the breed commit is still to come.
+    acts = legal_actions(state)
+    assert FireTrigger(card_id=CARD_ID) not in acts
+    assert any(isinstance(a, CommitBreed) for a in acts)
 
 
 def test_unowned_never_offered():

@@ -81,12 +81,24 @@ the breed frame's pre-commit stretch included):
   ``craft_span_joinery`` window trigger, none of which grants a plow — the
   plow may still come at ANY later point in the harvest. Eligibility: owns
   Plow Builder, the ``"joinery"`` budget IS used this harvest (the ruling's
-  budget-used boolean), the plow latch unused, food >= 1 (no conversion
-  covers the cost here), and a plowable cell exists.
+  budget-used boolean), the plow latch unused, the 1 food payable, and a
+  plowable cell exists. The 1 food rides the shared food-payment path
+  (ruling 82 (2026-07-26); corrected 2026-07-27): the at-any-time
+  conversions are legal payment routes for a food cost, so a plain
+  food-on-hand gate would delete rules-legal plays. Eligibility is
+  liquidation-aware (``_liquidatable_to`` — harvest-aware, so remaining
+  in-span once-per-harvest converters and ruling 39's post-breed floors bind
+  the raise routes; the Joinery itself is never among them here, its budget
+  being used is this fire's precondition); with the food on hand the fire
+  debits, latches, and plows directly, and when short it pushes a raise-only
+  ``PendingFoodPayment`` whose registered resume
+  (``_pay_and_plow_standalone``) debits the raised food, marks the latch,
+  and pushes the plow.
 
 **The paid plow** (both fires): debit the printed 1 food and push
-``PendingPlow(initiated_by_id="card:plow_builder")`` (frame triggers carry no
-cost layer — the direct-debit Stone Importer idiom; the pushed primitive
+``PendingPlow(initiated_by_id="card:plow_builder")`` (the fused fire debits
+directly — its conversion's +2 food always covers the 1; the standalone
+debits directly or through the raise frame's resume; the pushed primitive
 composes mid-harvest, the Autumn Mother / Dung Collector precedent).
 
 **The once-per-harvest plow latch** — "you can pay 1 food to plow 1 field"
@@ -135,18 +147,19 @@ from typing import TYPE_CHECKING
 
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import register_free_span_trigger
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register
 from agricola.cost import RESOURCE_FIELDS
 from agricola.helpers import swap_play_minor_to_build_major
 from agricola.legality import (
     _can_plow,
+    _liquidatable_to,
     minor_action_major_build_options,
     register_minor_action_major_build,
 )
-from agricola.pending import PendingPlayMinor, PendingPlow, push
+from agricola.pending import PendingFoodPayment, PendingPlayMinor, PendingPlow, push
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 
 if TYPE_CHECKING:
     from agricola.state import GameState
@@ -201,14 +214,17 @@ def _standalone_eligible(state: "GameState", idx: int) -> bool:
     """The standalone pay-1-food-plow fire (ruling 76 item 3): the Joinery
     HAS been used this harvest (the budget-used boolean — any surface: feed,
     frontier, craft-span window, or the fused fire), the plow latch unused,
-    the 1 food on hand (no conversion covers it here), and a plowable cell
-    exists. Tableau ownership is checked by the caller (_span_eligible)."""
+    the 1 food payable — directly or by liquidating convertible goods
+    (ruling 82) — and a plowable cell exists. Tableau ownership is checked by
+    the caller (_span_eligible)."""
     p = state.players[idx]
     if JOINERY_CONVERSION_ID not in p.harvest_conversions_used:
         return False
     if PLOW_LATCH_ID in p.harvest_conversions_used:
         return False
-    return p.resources.food >= _PLOW_FOOD_COST and _can_plow(p)
+    if not _can_plow(p):
+        return False
+    return _liquidatable_to(state, idx, p, Resources(food=_PLOW_FOOD_COST))
 
 
 def _span_eligible(state: "GameState", idx: int, triggers_resolved) -> bool:
@@ -221,25 +237,45 @@ def _span_eligible(state: "GameState", idx: int, triggers_resolved) -> bool:
     return _fused_eligible(state, idx) or _standalone_eligible(state, idx)
 
 
+def _pay_and_plow_standalone(state: "GameState", idx: int) -> "GameState":
+    """The standalone fire's pay-and-plow: debit the printed 1 food, mark the
+    shared plow latch, push the plow primitive. Reached directly (food on
+    hand) and as the post-food-payment resume (the raise-only frame leaves
+    the food in supply for this to debit)."""
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        resources=p.resources - Resources(food=_PLOW_FOOD_COST),
+        harvest_conversions_used=(
+            p.harvest_conversions_used | {PLOW_LATCH_ID}),
+    )
+    state = fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
+    return push(state, PendingPlow(
+        player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
+
+
 def _span_fire(state: "GameState", idx: int) -> "GameState":
     """The span fire, dispatching on the same boolean the eligibilities
     discriminate on. Joinery budget unused -> the FUSED fire (ruling 75 item
     7): the Joinery conversion exactly as the feed surface performs it —
     debit the spec's input, add its food_out, mark the SHARED budget id —
-    plus the plow. Joinery budget used -> the STANDALONE fire (ruling 76 item
-    3): just the paid plow. Both debit the plow's printed 1 food directly
-    (frame triggers carry no cost layer), mark the shared plow latch, and
-    push the plow primitive."""
+    plus the plow, debited directly (the conversion's +2 food always covers
+    it). Joinery budget used -> the STANDALONE fire (ruling 76 item 3): just
+    the paid plow — direct with the food on hand, else through a raise-only
+    PendingFoodPayment whose resume (_pay_and_plow_standalone) debits,
+    latches, and plows (ruling 82). Both mark the shared plow latch and push
+    the plow primitive."""
     p = state.players[idx]
     if JOINERY_CONVERSION_ID in p.harvest_conversions_used:
         # Standalone (ruling 76 item 3): pay 1 food, plow — the Joinery was
         # used earlier this harvest by a plain surface.
-        p = fast_replace(
-            p,
-            resources=p.resources - Resources(food=_PLOW_FOOD_COST),
-            harvest_conversions_used=(
-                p.harvest_conversions_used | {PLOW_LATCH_ID}),
-        )
+        if p.resources.food >= _PLOW_FOOD_COST:
+            return _pay_and_plow_standalone(state, idx)
+        return push(state, PendingFoodPayment(
+            player_idx=idx, food_needed=_PLOW_FOOD_COST, resume_kind=CARD_ID,
+            reserved=Cost(),
+        ))
     else:
         # Fused (ruling 75 item 7): the Joinery conversion + the paid plow as
         # one fired action, consuming BOTH latches.
@@ -301,7 +337,9 @@ register_occupation(CARD_ID, lambda state, idx: state)
 # the standalone pay-1-food-plow once it is used, on the shared plow latch.
 # Eligibility is per-event (the enumerator reads the event-keyed TRIGGERS
 # entries); the apply is the card's ONE shared dispatch fn (see _fire_apply).
+# The standalone fire's food-short raise frame resumes here (ruling 82).
 register_free_span_trigger(CARD_ID, _span_eligible, _fire_apply)
+register_food_payment_resume(CARD_ID, _pay_and_plow_standalone)
 
 # Clause 1 — the named-minor-action build: the branch gate registration + the
 # swap trigger (eligibility == the seam's options predicate, per its contract;

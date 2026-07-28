@@ -8,13 +8,17 @@ each of Rounds 10-11, 10-12, or 10-13."
 No cost, no prerequisite, no printed VPs. Played via Lessons.
 
 GOVERNING RULING 74 (2026-07-21, CARD_DEFERRED_PLANS.md; the earlier C5 defer is
-superseded — user: "seems straightforward"): "Confidant (B93) ... Build: play-occupation
-variants N in {2,3,4} (gated food >= N, debiting N food) + schedule_resources (the food
-back) + schedule_effect (the per-round grant), resolved at the round_space_collection
-window as a variant trigger ['sow', 'build_fences'] (named actions — full-width frames),
-window Proceed = decline." Driver detail (verbatim): "the granted sow / build-fences are
-the NAMED actions, so the pushed frames carry their action flags True (full sow:
-PendingSow with max_fields=0; fences: PendingBuildFences with build_fences_action=True)."
+superseded — user: "seems straightforward"). The user's ruling was the hold release
+itself; the build shape recorded beside it — "play-occupation variants N in {2,3,4}
+(gated food >= N, debiting N food) + schedule_resources (the food back) +
+schedule_effect (the per-round grant), resolved at the round_space_collection window as
+a variant trigger ['sow', 'build_fences'] (named actions — full-width frames), window
+Proceed = decline" — was the IMPLEMENTER's build record, not ruling text; in particular
+the "(gated food >= N)" parenthetical was never a user ruling (an earlier docstring
+misattributed it as one) and is superseded by the 2026-07-27 ruling below. Driver
+detail (verbatim): "the granted sow / build-fences are the NAMED actions, so the pushed
+frames carry their action flags True (full sow: PendingSow with max_fields=0; fences:
+PendingBuildFences with build_fences_action=True)."
 
 Four composed mechanisms, every one an existing seam:
 
@@ -22,12 +26,16 @@ Four composed mechanisms, every one an existing seam:
    / baker.py). One play route per distinct placement COUNT c, each declaring a food
    SURCHARGE of c. The placed food leaves supply at play: the executor folds the surcharge
    into the debited play cost (FOOD_PAYMENT_DESIGN.md §8), so `_on_play` never re-debits
-   it. "Place 1 food FROM YOUR SUPPLY" is gated on RAW food >= c (ruling 74's "gated food
-   >= N") and is deliberately NOT liquidation-raisable — placing refunded food must not
-   become a backdoor grain->food conversion (the engine never surfaces at-any-time
-   conversions standalone). The base Lessons occupation cost stays liquidation-payable
-   normally: because raw food already covers the surcharge, any liquidation the executor
-   does covers only the base cost.
+   it. USER RULING (2026-07-27): asked whether a player may use the at-any-time cooking
+   conversions to afford a bigger placement count N, the user ruled "Yes, obviously they
+   may." (This supersedes the shipped raw `food >= c` pre-filter, whose docstring had
+   justified itself as blocking a "backdoor grain->food conversion" — under ruling 82 that
+   gate deleted rules-legal plays.) So `_variants` offers every positive count for the
+   round, and affordability is the play-occupation enumerator's standard, liquidation-aware
+   per-(variant, payment) gate — `_payable(payment + surcharge)`, exactly the
+   stable_sergeant / roof_ballaster shape; when the combined debit's food exceeds food on
+   hand, the executor's shortfall guard raises it via a `PendingFoodPayment` re-run at
+   debit time.
 
 2. THE FOOD COMES BACK — `schedule_resources` (exemplar pond_hut.py). 1 food onto each of
    the c scheduled round spaces (`future_resources`), auto-collected at each round's start.
@@ -84,8 +92,19 @@ from __future__ import annotations
 from agricola.cards.schedules import schedule_effect, schedule_resources
 from agricola.cards.specs import register_occupation, register_play_occupation_variant
 from agricola.cards.triggers import register, register_play_variant_trigger
-from agricola.legality import _any_legal_pasture_commit, _can_sow
-from agricola.pending import PendingBuildFences, PendingSow, push
+from agricola.legality import (
+    _any_legal_pasture_commit,
+    _can_sow,
+    _payable,
+    _play_occupation_ctx,
+    effective_payments,
+)
+from agricola.pending import (
+    PendingBuildFences,
+    PendingPlayOccupation,
+    PendingSow,
+    push,
+)
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -108,21 +127,49 @@ def _placement_counts(round_number: int) -> list[int]:
     return sorted({min(n, remaining) for n in (2, 3, 4)})
 
 
+def _any_positive_pair_payable(state: GameState, idx: int, c_min: int) -> bool:
+    """Would the play-occupation enumerator offer at least one (positive-count,
+    payment) pair right now? Mirrors its gate — liquidation-aware `_payable` on
+    payment + surcharge over the base-cost payment frontier — for the SMALLEST
+    positive count (payability is monotone in the count, so if the smallest
+    fails on every payment, every count does). The base cost lives on the
+    `PendingPlayOccupation` host, on top of the stack at every call site this
+    card reaches (the enumerator, the executor's debit and its post-raise
+    re-run — Confidant registers no pair gate, so the bundle-filter path that
+    calls variants under a food frame never runs for it); if no such host is
+    in sight, fall back to surcharge-only payability (base treated as free —
+    the permissive direction, matching a free first occupation)."""
+    p = state.players[idx]
+    top = state.pending_stack[-1] if state.pending_stack else None
+    if isinstance(top, PendingPlayOccupation) and top.player_idx == idx:
+        payments = effective_payments(state, idx, _play_occupation_ctx(top.cost))
+        return any(_payable(state, idx, p, pm + Resources(food=c_min))
+                   for pm in payments)
+    return _payable(state, idx, p, Resources(food=c_min))
+
+
 def _variants(state: GameState, idx: int) -> list[tuple[str, Resources]]:
-    """One play route per distinct AFFORDABLE placement count c (1 food per space over the
-    rounds-capped, deduped counts), each declaring a food SURCHARGE of c gated on RAW food
-    >= c (the placed food is "from your supply", not liquidation-raisable — ruling 74's
-    "gated food >= N"). When NO real count is affordable — too few rounds remain (round 14)
-    or the player can't afford the minimum 2 — the sole route is the WASTE `place_0`: you
-    still play the occupation but place nothing (user ruling 2026-07-21). Confidant prints
-    no "you may not play if you cannot place" prerequisite (unlike Established Person), so
-    it is played-and-wasted like Prophet / Basket Weaver, never unplayable — hence there is
-    always at least one variant."""
-    food = state.players[idx].resources.food
-    affordable = [c for c in _placement_counts(state.round_number)
-                  if c > 0 and food >= c]
-    if affordable:
-        return [(f"place_{c}", Resources(food=c)) for c in affordable]
+    """One play route per distinct positive placement count c for the round (1 food per
+    space over the rounds-capped, deduped counts), each declaring a food SURCHARGE of c.
+    No food pre-filter here (USER RULING 2026-07-27: the at-any-time cooking conversions
+    may fund a bigger count — "Yes, obviously they may"): affordability of base payment +
+    surcharge is the play-occupation enumerator's standard, liquidation-aware
+    per-(variant, payment) gate, and a food shortfall raises through the executor's
+    `PendingFoodPayment` re-run at debit time (the stable_sergeant shape).
+
+    The WASTE `place_0` route (user ruling 2026-07-21: played-and-wasted, never gated —
+    Confidant prints no "you may not play if you cannot place" prerequisite, the Prophet /
+    Basket Weaver category) is offered exactly when NO positive count would survive the
+    enumerator's pair gate (`_any_positive_pair_payable` — too few rounds remain, round
+    14, or even the smallest count atop the base payment cannot be covered by supply plus
+    conversions): with every positive pair unpayable the waste-play is the rules-legal
+    remainder and must stay offerable (ruling 82), while offering place_0 alongside a
+    payable positive count would let the player dodge the mandatory placement. Hence
+    there is always at least one variant, the mandatory placement is never dodgeable,
+    and it is never a playability gate."""
+    counts = [c for c in _placement_counts(state.round_number) if c > 0]
+    if counts and _any_positive_pair_payable(state, idx, min(counts)):
+        return [(f"place_{c}", Resources(food=c)) for c in counts]
     return [("place_0", Resources())]
 
 

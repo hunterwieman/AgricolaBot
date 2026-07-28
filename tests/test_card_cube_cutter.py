@@ -222,19 +222,60 @@ def test_not_offered_during_feeding_any_more():
 
 
 def test_not_offered_when_wood_short():
-    """Needs 1 wood; with 0 wood the exchange is unaffordable and not offered."""
+    """Needs 1 wood ON HAND (liquidation only produces food); with 0 wood the
+    exchange is not offered, food-rich or not."""
     state = _enter_field(_owner_state(owner_food=10, owner_wood=0))
     assert _fire_actions(state) == []
 
 
-def test_not_offered_when_food_short():
-    """Needs 1 food; with 0 food the exchange is unaffordable and not offered.
-
-    Field-phase timing is the whole point of the re-time: the food must be on
-    hand DURING the field phase, before any feeding-phase conversions could cook
-    wood into food.
-    """
+def test_not_offered_when_food_unraisable_but_offered_once_a_crop_lands():
+    """UPDATED for ruling 82 (2026-07-27) — this test previously pinned the old
+    plain food-on-hand gate ("with 0 food ... not offered"). The ruled gate is
+    liquidation-aware: with 0 food AND nothing convertible in supply the
+    exchange is not offered — so the walk finds no eligible trigger at window
+    entry and runs the mandatory take INLINE — but the harvested grain makes
+    the fee raisable (grain converts 1:1 at any time), so the walk's post-take
+    re-check hosts the during-frame (take already fired) and the exchange IS
+    offered there."""
     state = _enter_field(_owner_state(owner_food=0, owner_wood=5))
+    top = state.pending_stack[-1]
+    # The inline take already ran (no pre-take pause: nothing was eligible at
+    # entry with 0 food and nothing convertible) and landed the grain...
+    assert top.take_fired
+    assert state.players[0].resources.grain == 1
+    assert CommitFieldTake() not in legal_actions(state)
+    # ...which is exactly what makes the exchange offerable now.
+    assert _fire_actions(state) == [FireTrigger(card_id=CARD_ID)]
+
+
+def test_zero_food_fire_raises_via_food_payment_and_matches_direct_path():
+    """Ruling 82 boundary pin (a): with 0 food and a cookable grain (the
+    take's harvest) the fire is offered and completes through the raise-only
+    PendingFoodPayment — debiting exactly 1 wood + 1 food (the raised food)
+    and banking the point, identically to the food-on-hand path."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    state = _enter_field(_owner_state(owner_food=0, owner_wood=5))
+    assert state.players[0].resources.grain == 1    # the inline take's harvest
+    state = step(state, FireTrigger(card_id=CARD_ID))
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+    # The exchange's own wood is reserved from the raise.
+    assert top.reserved.resources.wood == 1
+
+    commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert commits == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, commits[0])
+
+    # Raised 1 food from the grain, then the resume debited 1 wood + 1 food.
+    assert state.players[0].resources.food == 0
+    assert state.players[0].resources.grain == 0
+    assert state.players[0].resources.wood == 4
+    assert state.players[0].card_state.get(CARD_ID, 0) == 1
+    # Once per field phase still holds (the fire was recorded before the raise).
     assert _fire_actions(state) == []
 
 

@@ -179,25 +179,78 @@ def test_discount_ordering_k1_costs_2():
 
 def test_no_discount_without_emptied_field():
     """A single 3-grain field is not emptied by taking 1: N2=0, so the one buy
-    costs 3 food — unaffordable at 2 food (no host at all), affordable at 3."""
+    costs 3 food. At 2 food the price is STILL payable — the take's own grain
+    raises the third food (ruling 82, 2026-07-26: a food price is payable by
+    ANY legal route, the at-any-time conversions included; the old plain
+    food-on-hand gate wrongly suppressed this host) — so the host IS pushed,
+    firing k=1 stashes (occasion, k) and detours through the raise-only
+    PendingFoodPayment, and the resume completes the buy identically to the
+    on-hand path. At 3 food the same buy runs direct, no frame."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
     poor = _harvest_entry({(0, 2): 3}, food=2)
-    assert not any(isinstance(f, PendingHarvestOccasion)
-                   for f in poor.pending_stack)
+    assert isinstance(poor.pending_stack[-1], PendingHarvestOccasion)
+    assert _offered_ks(poor) == [1]
+    poor = step(poor, _fire(k=1))
+    top = poor.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 3
+    stash = poor.players[0].card_state.get(CARD_ID)      # (occasion, k) rides
+    assert stash is not None and stash[1] == 1
+    assert stash[0].source == "take"
+    bundles = [a for a in legal_actions(poor) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    poor = step(poor, bundles[0])
+    assert poor.players[0].resources.food == 0           # 2 + 1 raised - 3 paid
+    assert poor.players[0].resources.veg == 1
+    assert poor.players[0].resources.grain == 0          # the take's grain was fuel
+    assert poor.players[0].card_state.get(CARD_ID) is None   # stash popped
 
     state = _harvest_entry({(0, 2): 3}, food=3)
     assert _offered_ks(state) == [1]
     state = step(state, _fire(k=1))
+    assert not any(isinstance(f, PendingFoodPayment)
+                   for f in state.pending_stack)          # direct path, no frame
     assert state.players[0].resources.food == 0
     assert state.players[0].resources.veg == 1
 
 
-def test_food_limited_drops_unaffordable_k():
-    """N2=1, N3=1 with 4 food: cost(2)=5 > 4, so only k=1 is offered."""
+def test_food_limited_k2_still_payable_by_raising():
+    """N2=1, N3=1 with 4 food: cost(2)=5 exceeds the food on hand, but the
+    take's 2 grain cover the difference (ruling 82, 2026-07-26) — BOTH counts
+    are offered (the old plain gate wrongly dropped k=2). Firing k=1 (cost 2,
+    on hand) is the direct path; firing k=2 raises 1 food from 1 grain via the
+    PendingFoodPayment detour and completes: 4+1−5=0 food, 2 veg, 1 grain kept."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
     state = _harvest_entry({(0, 1): 1, (0, 2): 3}, food=4)
-    assert _offered_ks(state) == [1]
-    state = step(state, _fire(k=1))
-    assert state.players[0].resources.food == 2
-    assert state.players[0].resources.veg == 1
+    assert _offered_ks(state) == [1, 2]
+    # Direct branch: k=1 costs 2, on hand.
+    direct = step(state, _fire(k=1))
+    assert not any(isinstance(f, PendingFoodPayment) for f in direct.pending_stack)
+    assert direct.players[0].resources.food == 2
+    assert direct.players[0].resources.veg == 1
+    # Raise branch: k=2 costs 5; owe 1, covered by 1 of the take's 2 grain.
+    raised = step(state, _fire(k=2))
+    top = raised.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 5
+    bundles = [a for a in legal_actions(raised) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    raised = step(raised, bundles[0])
+    p = raised.players[0]
+    assert p.resources.food == 0                          # 4 + 1 raised - 5 paid
+    assert p.resources.veg == 2
+    assert p.resources.grain == 1                         # one grain survives
+
+
+def test_silent_when_no_route_can_pay():
+    """0 food and only the take's single grain (worth 1 food) against the 3-food
+    price: no k is payable by any route, so the card is silent — no occasion
+    host at all (ruling 82's boundary: the gate widens to conversions, but a
+    truly unpayable price still withholds the offer)."""
+    state = _harvest_entry({(0, 2): 3}, food=0)
+    assert not any(isinstance(f, PendingHarvestOccasion)
+                   for f in state.pending_stack)
+    assert state.players[0].resources.grain == 1          # the take still landed
 
 
 def test_two_grain_field_not_emptied_by_take():

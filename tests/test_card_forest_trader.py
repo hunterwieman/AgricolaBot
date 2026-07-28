@@ -193,6 +193,52 @@ def test_not_offered_on_other_accumulation_spaces():
     assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
 
 
+# ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): each price is payable by raising
+# ---------------------------------------------------------------------------
+
+def test_zero_food_with_grain_offers_one_food_goods_and_raise_completes():
+    """Boundary pins: at 0 food with 1 grain, each resource is filtered on its
+    OWN raise-able price — wood/clay/reed (1 food) ARE offered (the old plain
+    food-on-hand gate offered nothing), stone (2 food) is not (max raise is 1).
+    Firing wood pushes the raise-only PendingFoodPayment; committing the grain
+    bundle completes the buy identically to the on-hand path, and the space's
+    own take still lands at Proceed afterwards."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s = _owned_state(grain=1)                     # 0 food + 1 grain
+    accumulated = get_space(s.board, "forest").accumulated.wood
+    s = step(s, PlaceWorker(space="forest"))
+    la = legal_actions(s)
+    for res in ("wood", "clay", "reed"):
+        assert FireTrigger(card_id="forest_trader", variant=res) in la
+    assert FireTrigger(card_id="forest_trader", variant="stone") not in la
+    s = step(s, FireTrigger(card_id="forest_trader", variant="wood"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])
+    r = s.players[0].resources
+    assert r.wood == 1                            # the bought wood (pre-take)
+    assert r.food == 0                            # raised 1, debited 1
+    assert r.grain == 0                           # the grain was the fuel
+    s = step(s, Proceed())                        # the space's own take
+    s = step(s, Stop())
+    assert not s.pending_stack
+    assert s.players[0].resources.wood == 1 + accumulated
+
+
+def test_food_on_hand_stays_direct():
+    """With the price on hand the buy never detours through a raise frame."""
+    from agricola.pending import PendingFoodPayment
+    s, ap = _at_space("forest", food=2)
+    s = step(s, FireTrigger(card_id="forest_trader", variant="stone"))
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    r = s.players[ap].resources
+    assert r.food == 0 and r.stone == 1
+
+
 def test_hand_only_card_is_inert():
     # In hand (not played): no hosting, no trigger, Forest resolves atomically.
     s, _env = setup_env(0)

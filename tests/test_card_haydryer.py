@@ -7,9 +7,14 @@ An optional TRIGGER on harvest window #1 ``immediately_before_harvest`` — the
 first window of the ladder, before start_of_harvest and the field phase. Firing
 it pays ``max(0, 4 - #pastures)`` food and grants 1 cattle via
 ``helpers.grant_animals`` (the accommodation barrier handles a cattle that does
-not fit). Declining is the window frame's ``Proceed``; the once-per-window
-``triggers_resolved`` makes the buy once per harvest. No round gate — "each
-harvest" (the round-14 gate on this window belongs to Transactor).
+not fit). A price of 0 is a free, unconditional buy; a positive price rides the
+shared food-payment path (ruling 82, 2026-07-26; corrected 2026-07-27):
+eligibility is liquidation-aware over the game-wide anytime conversions (this
+window is OUTSIDE the conversion span), the food-on-hand fire pays directly,
+and a food-short fire pushes a raise-only PendingFoodPayment whose resume
+debits and grants. Declining is the window frame's ``Proceed``; the
+once-per-window ``triggers_resolved`` makes the buy once per harvest. No round
+gate — "each harvest" (the round-14 gate on this window belongs to Transactor).
 
 Players 4+: not dealt in the 2-player pool, but the tests own the card directly
 (the established fixture pattern), which exercises the machinery it registers.
@@ -23,19 +28,23 @@ import dataclasses
 
 import agricola.cards.haydryer  # noqa: F401  (register the card)
 
-from agricola.actions import FireTrigger, Proceed
+from agricola.actions import CommitFoodPayment, FireTrigger, Proceed
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
-from agricola.cards.specs import OCCUPATIONS
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.cards.triggers import TRIGGERS
 from agricola.constants import Phase
 from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
 from agricola.pasture import Pasture
-from agricola.pending import PendingAccommodate, PendingHarvestWindow
+from agricola.pending import (
+    PendingAccommodate,
+    PendingFoodPayment,
+    PendingHarvestWindow,
+)
 from agricola.replace import fast_replace
 from agricola.setup import setup
 
-from tests.factories import with_animals, with_phase, with_resources
+from tests.factories import with_animals, with_majors, with_phase, with_resources
 
 CARD_ID = "haydryer"
 WINDOW_ID = "immediately_before_harvest"
@@ -116,6 +125,8 @@ def test_registered_as_occupation_and_window_trigger():
     assert CARD_ID in OCCUPATIONS
     assert CARD_ID in HARVEST_WINDOW_CARDS.get(WINDOW_ID, set())
     assert any(e.card_id == CARD_ID for e in TRIGGERS.get(WINDOW_ID, ()))
+    # A positive price is liquidatable (ruling 82).
+    assert CARD_ID in FOOD_PAYMENT_RESUMES
 
 
 def test_on_play_is_noop():
@@ -151,6 +162,8 @@ def test_buy_pays_four_food_with_no_pastures():
     state = _at_window_frame(_harvest_state(owner_food=10, pastures=0))
     cattle0 = state.players[0].animals.cattle
     state = step(state, FireTrigger(card_id=CARD_ID))
+    # Direct path: no PendingFoodPayment — the window frame stays on top.
+    assert isinstance(state.pending_stack[-1], PendingHarvestWindow)
     assert state.players[0].resources.food == 10 - 4
     assert state.players[0].animals.cattle == cattle0 + 1
 
@@ -204,11 +217,40 @@ def test_unhousable_cattle_surfaces_accommodation():
 # --- Eligibility boundaries ---------------------------------------------------
 
 def test_not_offered_when_food_short():
-    """4 food needed with no pastures; with 3 food the buy is unaffordable, so
-    no immediately_before_harvest frame is pushed and the trigger never appears."""
+    """4 food needed with no pastures; with 3 food and nothing liquidatable
+    (no crops/animals) the price is not payable by any route, so no
+    immediately_before_harvest frame is pushed and the trigger never appears."""
     state, offers = _drive_harvest_collecting_offers(
         _harvest_state(owner_food=3, pastures=0))
     assert offers == []
+
+
+def test_zero_food_with_cookable_sheep_raises_the_price():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): 3 pastures put the price
+    at 1; with 0 food but a sheep + an owned Fireplace the price is raisable
+    via the anytime conversions, so the buy IS offered; firing pushes a
+    raise-only PendingFoodPayment, and the committed bundle completes the buy
+    identically to the on-hand path."""
+    state = _harvest_state(owner_food=0, pastures=3)   # price 1
+    state = with_majors(state, owner_by_idx={0: 0})    # a Fireplace (sheep → 2)
+    state = with_animals(state, 0, sheep=1)
+    state = _at_window_frame(state)                    # the frame IS pushed
+
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0, cattle=0)
+    assert pay in legal_actions(state)
+    state = step(state, pay)                           # cook the sheep, resume
+    p0 = state.players[0]
+    assert p0.resources.food == 1                      # raised 2, paid 1
+    assert p0.animals.sheep == 0                       # the sheep was cooked
+    assert p0.animals.cattle == 1                      # the cattle arrived
+    # Once per window: only the decline remains.
+    assert legal_actions(state) == [Proceed()]
 
 
 def test_not_offered_when_unowned():

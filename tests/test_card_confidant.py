@@ -141,18 +141,26 @@ def test_near_end_placement_counts():
     assert _placement_counts(14) == [0]        # 0 remaining (flagged: <2 allowed)
 
 
-def test_variants_gated_on_raw_food_with_surcharge():
-    # A play route per distinct count c the player can afford (raw food >= c), each with
-    # a food surcharge of c.
-    cs, cp = _cards_state(food=4)              # R=1 -> counts {2,3,4}
-    assert _variants(cs, cp) == [
+def test_variants_offer_every_count_payability_is_the_enumerators():
+    # UPDATED for the USER RULING 2026-07-27 (the at-any-time cooking conversions may
+    # fund a bigger count — this test previously pinned the raw food >= c pre-filter,
+    # which ruling 82 forbids). `_variants` now offers EVERY positive count for the
+    # round; per-(variant, payment) affordability — liquidation-aware — is the
+    # play-occupation enumerator's gate, not the variants fn's.
+    all_counts = [
         ("place_2", Resources(food=2)),
         ("place_3", Resources(food=3)),
         ("place_4", Resources(food=4)),
     ]
-    cs, cp = _cards_state(food=2)
-    assert _variants(cs, cp) == [("place_2", Resources(food=2))]
-    # Cannot afford even the minimum (2) placement: NOT unplayable — Confidant prints no
+    cs, cp = _cards_state(food=4)              # R=1 -> counts {2,3,4}
+    assert _variants(cs, cp) == all_counts
+    cs, cp = _cards_state(food=2)              # short food no longer trims the list
+    assert _variants(cs, cp) == all_counts
+    # With 1 food + 1 grain the minimum count (2) is RAISABLE (grain cooks 1:1
+    # at any time), so the positive routes are offered — the ruled behavior.
+    cs, cp = _cards_state(food=1, grain=1)
+    assert _variants(cs, cp) == all_counts
+    # Cannot pay-or-raise even the minimum (2): NOT unplayable — Confidant prints no
     # "may not play if you cannot place" prerequisite, so it is played-and-wasted (user
     # ruling 2026-07-21). The sole route is the zero-surcharge `place_0` (place nothing).
     cs, cp = _cards_state(food=1)
@@ -194,11 +202,89 @@ def test_real_lessons_play_debits_and_schedules():
 
 
 def test_real_lessons_affordability_limits_variants():
-    # food < N -> that variant is not offered (real enumerator).
+    # The real enumerator's per-(variant, payment) gate: with NOTHING convertible,
+    # a count whose surcharge exceeds food on hand is not offered (the first
+    # occupation's base cost is free, so the pair's food is just the surcharge).
     cs, _ = _cards_state(food=2)
     assert _confidant_plays(_at_play_host(cs)) == ["place_2"]
     cs, _ = _cards_state(food=3)
     assert _confidant_plays(_at_play_host(cs)) == ["place_2", "place_3"]
+    # ...and the gate is LIQUIDATION-AWARE (USER RULING 2026-07-27): a grain in
+    # supply funds one more count than food-on-hand alone would.
+    cs, _ = _cards_state(food=2, grain=1)
+    assert _confidant_plays(_at_play_host(cs)) == ["place_2", "place_3"]
+
+
+def test_liquidation_funds_bigger_counts_and_commit_raises_then_schedules():
+    """Ruled boundary pin (2026-07-27): 1 food + 1 sheep + an owned Fireplace
+    (sheep cooks to 2 food) -> raise capacity 3, so N=2 and N=3 are offered
+    (N=4 exceeds capacity). Committing place_2 with only 1 food on hand
+    detours through the raise-only PendingFoodPayment (the executor's
+    shortfall re-run): the sheep bundle raises 2 food, the re-run debits the
+    2-food surcharge, and the play schedules exactly as the on-hand path
+    does."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    cs, cp = _cards_state(food=1)
+    p = cs.players[cp]
+    cs = _edit_player(cs, cp, animals=fast_replace(p.animals, sheep=1))
+    # Give the player a Fireplace (major idx 0) so the sheep is cookable at 2.
+    owners = list(cs.board.major_improvement_owners)
+    owners[0] = cp
+    cs = fast_replace(
+        cs, board=fast_replace(cs.board,
+                               major_improvement_owners=tuple(owners)))
+
+    cs = _at_play_host(cs)
+    assert _confidant_plays(cs) == ["place_2", "place_3"]
+
+    cs = step(cs, CommitPlayOccupation(card_id=CARD_ID, variant="place_2"))
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2 and top.resume_kind == "rerun"
+    commits = [a for a in legal_actions(cs) if isinstance(a, CommitFoodPayment)]
+    assert commits == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0, cattle=0)]
+    cs = step(cs, commits[0])
+
+    p = cs.players[cp]
+    assert CARD_ID in p.occupations
+    # 1 food + 2 raised (the cooked sheep) - 2 surcharge = 1; the sheep is gone.
+    assert p.resources.food == 1
+    assert p.animals.sheep == 0
+    # The next 2 round spaces (rounds 2, 3) carry 1 food + the effect each.
+    assert [p.future_resources[s].food for s in range(4)] == [0, 1, 1, 0]
+    assert [i for i, fr in enumerate(p.future_rewards)
+            if CARD_ID in fr.effect_card_ids] == [1, 2]
+
+
+def test_place0_when_raise_covers_only_the_base_cost_not_a_count():
+    """The pair-aware place_0 condition: 0 food + 2 grain with a 1-food BASE
+    cost (a second occupation). The smallest count's surcharge alone (2 food)
+    IS raisable — but no (count, payment) pair survives base + surcharge
+    (place_2 needs 3 food against a 2-food ceiling), so the waste `place_0`
+    is the rules-legal remainder and MUST be offered (ruling 82): the play
+    goes through, the base food is raised from a grain, nothing is scheduled.
+    (A surcharge-only condition would have returned positives here and left
+    Confidant with no offerable play at all.)"""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+
+    cs, cp = _cards_state(food=0, grain=2)
+    p = cs.players[cp]
+    cs = _edit_player(cs, cp, occupations=p.occupations | {"o19"})  # base = 1 food
+    cs = _at_play_host(cs)
+    assert _confidant_plays(cs) == ["place_0"]
+    cs = step(cs, CommitPlayOccupation(card_id=CARD_ID, variant="place_0"))
+    # The base cost's food was short -> the executor's shortfall re-run.
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == "rerun"
+    cs = step(cs, CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0))
+    p = cs.players[cp]
+    assert CARD_ID in p.occupations                    # played...
+    assert p.resources.food == 0 and p.resources.grain == 1   # base paid via the raise
+    assert all(not fr.effect_card_ids for fr in p.future_rewards)  # ...and wasted
 
 
 def test_confidant_playable_and_wasted_when_placement_unaffordable():

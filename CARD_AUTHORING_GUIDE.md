@@ -178,6 +178,19 @@ built on it and **un-implemented**. Never write it again, and treat any `food >=
 eligibility you encounter as a defect to surface unless the food is a CONDITION being
 read rather than a COST being paid.
 
+**The implementer anti-pattern behind it — noticing a flaw and justifying it (user,
+2026-07-27).** The ruling-84 classification pass found three modules whose authors NOTICED
+the gate was a shortcut and wrote a justification into the docstring instead of surfacing
+it (Excavator: "the rules treat it as a simple at-the-moment 1-food spend"; Truffle
+Slicer: "a Tier-2 simplification"; Confidant: "deliberately NOT liquidation-raisable").
+The user: "The implementors are noticing flaws and then justifying them instead of
+surfacing them. This seems like a problem." A noticed deviation is a QUESTION for the
+user — defer the card or flag the line — never a docstring paragraph. A self-written
+justification is worse than an unnoticed bug: it manufactures false authority (§0.1's
+no-self-ratifying rule) while proving the flaw was seen. If you catch yourself writing
+"deliberately", "simplification", or "the rules treat it as" about a gate you invented —
+stop and surface it.
+
 **When the raised fee funds an action with its own goods requirement** (the same-worker
 jumps into Grain Utilization or the Major/Minor Improvement space), the correct shape is
 the **preserve seam** (`register_food_payment_preserve` + `raisable_food_preserving`,

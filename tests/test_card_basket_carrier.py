@@ -241,10 +241,54 @@ def test_window_fire_withholds_the_feed_frame_offer():
 # --- Eligibility boundaries --------------------------------------------------
 
 def test_not_offered_without_two_food():
-    """With 1 food the 2-food buy is unaffordable: no surface offers it across
-    the whole harvest (window frames aren't even pushed; the feed enumerator's
-    affordability gate withholds the conversion)."""
+    """UPDATED for ruling 82 (2026-07-27) — this previously pinned the old
+    plain food-on-hand gate. The ruled span gate is liquidation-aware; here
+    the owner holds 1 food and NOTHING convertible (no supply crops, no
+    animals), so the 2-food fee is unraisable: no surface offers the buy
+    across the whole harvest (window frames aren't even pushed; the feed
+    enumerator's on-hand gate withholds the conversion). Boundary pin (b)."""
     state, offers_seen = _walk_until(_harvest_state(owner_food=1), lambda s: False)
+    assert state.phase not in _HARVEST_PHASES
+    assert offers_seen == []
+
+
+def test_window_zero_food_buy_raises_via_food_payment():
+    """Ruling 82 boundary pin (a): with 0 food and two cookable grain the span
+    fire IS offered and completes through the raise-only PendingFoodPayment —
+    the resume debits the 2 raised food, grants the wood+reed+grain bundle,
+    and marks the SHARED once-per-harvest budget, identically to the
+    food-on-hand path."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    from agricola.resources import Resources as _R
+
+    state = _harvest_state(owner_food=10)
+    p = state.players[0]
+    p = dataclasses.replace(p, resources=_R(food=0, grain=2))
+    state = dataclasses.replace(state, players=(p, state.players[1]))
+
+    state, _ = _walk_until(state, _top_is_p0_window)
+    assert _top_is_p0_window(state)
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    state = step(state, FireTrigger(card_id=CARD_ID))
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2 and top.resume_kind == CARD_ID
+
+    commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0) in commits
+    state = step(state, CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0))
+
+    # 2 grain cooked to 2 food; the resume debited them and granted the bundle.
+    r = state.players[0].resources
+    assert r.food == 0
+    assert r.grain == 1          # 2 cooked, 1 granted back by the bundle
+    assert r.wood == 1 and r.reed == 1
+    assert CARD_ID in state.players[0].harvest_conversions_used
+
+    # The shared budget withholds every surface for the rest of the harvest.
+    state, offers_seen = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
     assert offers_seen == []
 
@@ -308,8 +352,12 @@ def test_span_eligibility_gates_ownership_budget_and_food():
     assert _span_eligible(state, 0, frozenset()) is True
     # Non-owner seat.
     assert _span_eligible(state, 1, frozenset()) is False
-    # Owner with only 1 food cannot afford it.
+    # Owner with 1 food and NOTHING convertible: the fee is unraisable (the
+    # gate is liquidation-aware per ruling 82, 2026-07-27 — not food-on-hand).
     assert _span_eligible(with_resources(state, 0, food=1), 0, frozenset()) is False
+    # With 1 food + 1 grain the fee IS raisable (grain cooks 1:1 at any time).
+    assert _span_eligible(
+        with_resources(state, 0, food=1, grain=1), 0, frozenset()) is True
     # Budget already spent this harvest.
     p = state.players[0]
     p = dataclasses.replace(

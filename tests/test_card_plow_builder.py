@@ -54,6 +54,7 @@ from agricola.actions import (
     CommitBuildMajor,
     CommitConvert,
     CommitFieldTake,
+    CommitFoodPayment,
     CommitHarvestConversion,
     CommitPlow,
     FireTrigger,
@@ -69,7 +70,7 @@ from agricola.cards.harvest_windows import (
     SENTINEL_WINDOWS,
 )
 from agricola.cards.plow_builder import CARD_ID, JOINERY_IDX
-from agricola.cards.specs import OCCUPATIONS
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, GameMode, Phase
 from agricola.engine import _advance_until_decision, step
@@ -80,6 +81,7 @@ from agricola.legality import (
 )
 from agricola.pending import (
     PendingBuildMajor,
+    PendingFoodPayment,
     PendingHarvestFeed,
     PendingHarvestWindow,
     PendingPlayMinor,
@@ -274,6 +276,9 @@ def test_registered_on_every_surface():
     # The named-minor-action build seam row + the swap trigger (ruling 74).
     assert MINOR_ACTION_MAJOR_BUILDS[CARD_ID] == JOINERY_IDX
     assert any(e.card_id == CARD_ID for e in TRIGGERS.get("before_play_minor", ()))
+
+    # The standalone fire's 1-food fee is liquidatable (ruling 82).
+    assert CARD_ID in FOOD_PAYMENT_RESUMES
 
     # The Joinery builds at its NORMAL printed cost — NO formula (contrast
     # Braid Maker's printed 1r+1s price).
@@ -517,9 +522,11 @@ def test_no_standalone_next_harvest_without_a_fresh_joinery_use():
 
 
 def test_standalone_needs_the_food():
-    """The standalone's own food gate (no conversion covers it): a Joinery
-    feed use whose proceeds are fully consumed by the feeding leaves food 0 —
-    no standalone offer for the rest of the harvest."""
+    """The standalone's payability gate: a Joinery feed use whose proceeds are
+    fully consumed by the feeding leaves food 0 with nothing liquidatable (no
+    crops/animals — the wood went into the Joinery), so the 1-food fee is not
+    payable by any route and no standalone offer appears for the rest of the
+    harvest."""
     state = _cards_harvest_state(wood=1, food=2)
     state, _ = _walk_until(state, _top_is_p0_feed)
     state = step(state, CommitHarvestConversion(conversion_id="joinery"))
@@ -528,6 +535,44 @@ def test_standalone_needs_the_food():
     assert state.phase not in _HARVEST_PHASES
     assert state.players[0].resources.food == 0
     assert offers == []
+
+
+def test_standalone_zero_food_with_cookable_grain_raises_the_fee():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): the standalone plow's
+    1-food fee rides the shared food-payment path — a 0-food owner holding a
+    cookable grain is still offered the fire; firing pushes a raise-only
+    PendingFoodPayment, and the committed bundle debits, latches, and plows
+    identically to the on-hand path."""
+    state = _cards_harvest_state(wood=1)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
+    assert "joinery" in state.players[0].harvest_conversions_used
+    # Walk to the next P0 span window (the standalone's surface), then drain
+    # to 0 food with one cookable grain (the wood is already spent).
+    state, _ = _walk_until(state, _top_is_p0_window)
+    assert _top_is_p0_window(state)
+    state = with_resources(state, 0, grain=1)      # food 0, grain 1, wood 0
+
+    acts = legal_actions(state)
+    assert FireTrigger(card_id=CARD_ID) in acts    # liquidation-aware offer
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)
+    assert pay in legal_actions(state)
+    fields0 = _num_fields(state.players[0])
+    state = step(state, pay)                       # cook the grain, resume
+    p0 = state.players[0]
+    assert p0.resources.food == 0                  # raised 1, paid 1
+    assert p0.resources.grain == 0
+    assert CARD_ID in p0.harvest_conversions_used  # the plow latch marked
+    state = _commit_the_plow(state)
+    assert _num_fields(state.players[0]) == fields0 + 1
+
+    # Once per harvest: only the decline remains at the window.
+    assert legal_actions(state) == [Proceed()]
 
 
 # --- Eligibility negatives (each at the real surface) ------------------------

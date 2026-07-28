@@ -20,33 +20,43 @@ Firing pays 1 food for 1 BANKED bonus point:
     scored later. The count in the store is "how many times Truffle Slicer was
     used."
 
-Eligibility never offers a dead-end (CARD_AUTHORING_GUIDE §2): it gates on having
->=1 wild boar AND >=1 food to pay. "Once per use" is automatic — `_apply_fire_trigger`
-stamps `triggers_resolved | {card_id}` before applying, and `_eligible` reads it, so
+THE CONDITION — "if you have at least 1 wild boar" is a plain state read at
+fire time (``p.animals.boar >= 1``); the boar is a condition, not a payment,
+so it is never reserved.
+
+THE PRICE — 1 food, paid through the shared food-payment path (ruling 82
+(2026-07-26); corrected 2026-07-27): the at-any-time conversions are legal
+payment routes for a food cost, so a plain food-on-hand gate would delete
+rules-legal plays. Eligibility is liquidation-aware (``_liquidatable_to``);
+with the food on hand ``_apply`` pays and banks directly, and when short it
+pushes a raise-only ``PendingFoodPayment`` whose registered resume
+(``_pay_and_bank``) debits the raised food and banks the point.
+
+"Once per use" is automatic — `_apply_fire_trigger` stamps
+`triggers_resolved | {card_id}` before applying, and `_eligible` reads it, so
 the card fires at most once per Forest use. (It may, however, be used on every
 separate Forest use over the game, hence the cumulative bank.)
-
-The 1-food cost is gated on on-hand `food >= 1` (direct pay, Loppers-style), NOT
-routed through the PendingFoodPayment liquidation path: a Tier-2 simplification
-(only 1 food, late-game). A player with 0 food but spare grain/veg/animals could
-technically liquidate, but won't be offered the option.
 
 Card-only state (the CardStore int + the per-frame `triggers_resolved`) defaults
 canonically, so the Family game is byte-identical and the C++ gates are untouched.
 See loppers.py (optional pay-for-a-banked-point shape), wood_cutter.py (the Forest
-before_action_space host), and CARD_AUTHORING_GUIDE.md.
+before_action_space host), cattle_feeder.py (the food-payment shape), and
+CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
-from agricola.cards.specs import register_minor
+from agricola.cards.specs import register_food_payment_resume, register_minor
 from agricola.cards.triggers import register, register_action_space_hook
 from agricola.constants import WOOD_ACCUMULATION_SPACES
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.scoring import register_scoring
 from agricola.state import GameState
 
 CARD_ID = "truffle_slicer"
+_FOOD_COST = 1
 
 
 def _prereq(state: GameState, idx: int) -> bool:
@@ -54,29 +64,47 @@ def _prereq(state: GameState, idx: int) -> bool:
     return state.round_number >= 8
 
 
-def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
-    """Offer the pay-1-food-for-1-point exchange only on a wood-accumulation-space
-    use, when the player has a wild boar and the food to pay, and it has not
-    already fired this use. Never a dead-end."""
-    if CARD_ID in triggers_resolved:                        # once per forest use
-        return False
-    if state.pending_stack[-1].space_id not in WOOD_ACCUMULATION_SPACES:
-        return False
-    p = state.players[idx]
-    return p.animals.boar >= 1 and p.resources.food >= 1
-
-
-def _apply(state: GameState, idx: int) -> GameState:
-    """Pay 1 food for 1 banked bonus point. A simple state edit — no pending pushed."""
+def _pay_and_bank(state: GameState, idx: int) -> GameState:
+    """Debit 1 food and bank 1 bonus point. Reached directly (food on hand) and
+    as the post-food-payment resume (the raise-only frame leaves the raised
+    food in supply for this to debit)."""
     p = state.players[idx]
     p = fast_replace(
         p,
-        resources=p.resources - Resources(food=1),
+        resources=p.resources - Resources(food=_FOOD_COST),
         card_state=p.card_state.set(CARD_ID, p.card_state.get(CARD_ID, 0) + 1),
     )
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
+
+
+def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
+    """Offer the pay-1-food-for-1-point exchange only on a wood-accumulation-space
+    use, when the player has a wild boar (the printed condition, read at fire
+    time) and the 1 food is payable — directly or by liquidating convertible
+    goods — and it has not already fired this use."""
+    if CARD_ID in triggers_resolved:                        # once per forest use
+        return False
+    if state.pending_stack[-1].space_id not in WOOD_ACCUMULATION_SPACES:
+        return False
+    p = state.players[idx]
+    if p.animals.boar < 1:
+        return False
+    return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+
+
+def _apply(state: GameState, idx: int) -> GameState:
+    """Pay 1 food for 1 banked bonus point. With the food on hand, directly;
+    otherwise push a raise-only PendingFoodPayment and defer to its resume
+    (which debits the raised food). The 1 food is the card's only cost, so
+    nothing is reserved."""
+    if state.players[idx].resources.food >= _FOOD_COST:
+        return _pay_and_bank(state, idx)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID,
+        reserved=Cost(),
+    ))
 
 
 def _score(state: GameState, idx: int) -> int:
@@ -86,5 +114,6 @@ def _score(state: GameState, idx: int) -> int:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq, vps=0)
 register("before_action_space", CARD_ID, _eligible, _apply)
+register_food_payment_resume(CARD_ID, _pay_and_bank)
 register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)
 register_scoring(CARD_ID, _score)

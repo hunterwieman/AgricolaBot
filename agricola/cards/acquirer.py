@@ -16,18 +16,29 @@ may buy (like Forest Trader's per-resource purchase variants).
 - **Optional.** "you may" → declined by the window host's Proceed (no route fired).
 
 - **Cost.** "pay food equal to the number of people you have" = `people_total` food.
-  Every good is the same price, so the trigger is offered (all goods) exactly when
-  the player can afford one (`food >= people_total`), and nothing otherwise.
+  The price is payable by ANY legal route — food on hand OR raised by the
+  at-any-time crop/animal conversions (ruling 82, 2026-07-26: a plain
+  food-on-hand gate makes rules-legal moves unplayable; this card shipped with
+  that defect and was corrected 2026-07-27). Every good is the same price, so the
+  routes are offered together exactly when the price is raise-able
+  (`_liquidatable_to`), and nothing otherwise. With the food on hand a fired
+  route buys directly; short of food it pushes the raise-only
+  `PendingFoodPayment` (resume kind `"acquirer:<good>"` — the variant is static,
+  so it rides the resume kind, the Canal Boatman shape). The price is safe to
+  recompute at the resume: a raise bundle converts goods to food and never
+  changes `people_total`.
 
 - **"1 good of your choice from the general supply."** A *good* is any resource
   token (food included by definition — Emissary D124) or an **animal** (sheep /
   wild boar / cattle). One variant per good, **except food**: the price is
   `people_total` food (>= 1), so buying 1 food for >= 1 food is strictly
-  dominated and never offered (user ruling 2026-07-15). One variant per remaining
-  good. Resource goods are a direct debit-and-grant; an animal good routes through
-  `helpers.grant_animals` so the accommodation barrier surfaces the keep-which
-  choice on overflow (never a raw `p.animals + …`). Once per round comes from the
-  window frame's `triggers_resolved` ("buy 1 good").
+  dominated and never offered (user ruling 2026-07-15 — the prune stands under
+  the ruling-82 correction: raising the price by cooking only makes the buy
+  strictly worse). One variant per remaining good. Resource goods are a direct
+  debit-and-grant; an animal good routes through `helpers.grant_animals` so the
+  accommodation barrier surfaces the keep-which choice on overflow (never a raw
+  `p.animals + …`). Once per round comes from the window frame's
+  `triggers_resolved` ("buy 1 good").
 
 Played via Lessons; on-play is a no-op. Card-only registries — the Family game is
 byte-identical and the C++ differential gates are untouched.
@@ -35,11 +46,16 @@ byte-identical and the C++ differential gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.display import register_action_labeler
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import (
+    register_food_payment_resume,
+    register_occupation,
+)
 from agricola.cards.triggers import register, register_play_variant_trigger
 from agricola.helpers import grant_animals
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Animals, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "acquirer"
@@ -59,8 +75,10 @@ def _cost(state: GameState, idx: int) -> int:
 
 
 def _legal_variants(state: GameState, idx: int) -> list[str]:
-    """Every good, when the player can afford the (uniform) food price; else none."""
-    if state.players[idx].resources.food >= _cost(state, idx):
+    """Every good, when the (uniform) food price is raise-able — payable from
+    food on hand or by the at-any-time conversions (ruling 82); else none."""
+    p = state.players[idx]
+    if _liquidatable_to(state, idx, p, Resources(food=_cost(state, idx))):
         return list(_GOODS)
     return []
 
@@ -69,8 +87,11 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     return bool(_legal_variants(state, idx))
 
 
-def _apply(state: GameState, idx: int, variant: str) -> GameState:
-    """Pay `people_total` food, gain 1 of the chosen good."""
+def _buy(state: GameState, idx: int, variant: str) -> GameState:
+    """Pay `people_total` food, gain 1 of the chosen good. Reached directly
+    (food on hand) and as the post-food-payment resume (the raise-only frame
+    leaves the raised food in supply to debit; a raise changes no people, so
+    the recomputed price equals the one gated on at the fire)."""
     p = state.players[idx]
     paid = p.resources + Resources(food=-_cost(state, idx))
     if variant in _ANIMAL_GOODS:
@@ -83,6 +104,20 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
 
+def _apply(state: GameState, idx: int, variant: str) -> GameState:
+    """Fire one buy. With the food on hand, buy directly; otherwise push the
+    raise-only PendingFoodPayment — the good is STATIC, so it rides the
+    resume_kind itself ("acquirer:<good>", one registered resume per good), and
+    the buy reserves nothing (its only cost is the food being raised)."""
+    price = _cost(state, idx)
+    if state.players[idx].resources.food >= price:
+        return _buy(state, idx, variant)
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=price,
+        resume_kind=f"{CARD_ID}:{variant}", reserved=Cost(),
+    ))
+
+
 def _action_label(variant: str):
     return f"buy 1 {variant}" if variant in _GOODS else None
 
@@ -91,3 +126,9 @@ register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("start_of_round", CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _legal_variants)
 register_action_labeler(CARD_ID, _action_label)
+# One resume per (static) good: the raise-only food frame's resume_kind carries
+# the chosen good (ruling 82's payment shape). The food good has no resume — it
+# is never offered (the 2026-07-15 dominance prune).
+for _v in _GOODS:
+    register_food_payment_resume(
+        f"{CARD_ID}:{_v}", (lambda v: lambda state, idx: _buy(state, idx, v))(_v))

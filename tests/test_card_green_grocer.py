@@ -160,14 +160,19 @@ def test_opponent_unaffected():
 # Only affordable variants offered
 # ---------------------------------------------------------------------------
 
-def test_only_affordable_variants_offered():
-    # 1 veg, 1 grain, 0 food, no animals: exactly the veg routes + grain→food.
+def test_only_payable_variants_offered():
+    # 1 veg, 1 grain, 0 food, no animals: the veg routes + grain→food by their
+    # plain input checks — AND food2_to_grain, whose 2-food price is payable by
+    # converting the grain + veg (ruling 82, 2026-07-26: a food price is
+    # payable by ANY legal route; the old plain food-on-hand gate wrongly
+    # withheld it here). The animal routes stay out (no animals on hand — goods
+    # inputs have no raise route).
     s = _own_occ(setup(0), 0)
     s = with_resources(s, 0, veg=1, grain=1)
     s = with_animals(s, 0)
     s = _host(s, 0)
     assert _offered_variants(s) == ["veg_to_cattle", "veg_to_sheep2",
-                                    "grain_to_food2"]
+                                    "food2_to_grain", "grain_to_food2"]
     assert Proceed() in legal_actions(s)   # declinable
 
 
@@ -180,11 +185,58 @@ def test_all_six_offered_when_all_affordable():
 
 
 def test_not_offered_when_nothing_affordable():
+    # 1 food + 1 sheep pays no exchange by ANY route: every printed input is
+    # short, and the food2_to_grain price is not raise-able either (without a
+    # cooking improvement an animal converts to 0 food — ruling 82's boundary:
+    # nothing effectively liquidatable → the card stays silent).
     s = _own_occ(setup(0), 0)
     s = with_resources(s, 0, food=1)       # 1 food affords no exchange
     s = with_animals(s, 0, sheep=1)        # 1 sheep affords none either
     s = _host(s, 0)
     assert legal_actions(s) == [Proceed()]
+
+
+# ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): the food-priced exchange is payable by raising
+# ---------------------------------------------------------------------------
+
+def test_food2_to_grain_zero_food_completes_via_raise():
+    """Boundary pins: at 0 food with 2 grain the 2-food exchange IS offered
+    (the price is raise-able); firing pushes the raise-only PendingFoodPayment,
+    and committing the 2-grain bundle completes the exchange identically to the
+    on-hand path (latch set, 2 food raised and debited, +1 grain) — net
+    2 grain → 1 grain, dominated but rules-legal, so it must be playable."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    s = _own_occ(setup(0), 0)
+    s = with_resources(s, 0, grain=2)
+    s = with_animals(s, 0)
+    s = _host(s, 0)
+    assert _offered_variants(s) == ["food2_to_grain", "grain_to_food2"]
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="food2_to_grain"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 2
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])
+    p = s.players[0]
+    assert p.resources.food == 0           # raised 2, debited 2
+    assert p.resources.grain == 1          # 2 cooked as fuel, 1 bought
+    assert CARD_ID in p.used_this_round    # the latch rode the exchange
+    assert legal_actions(s) == [Proceed()]  # resolved for this host visit
+
+
+def test_food2_to_grain_on_hand_stays_direct():
+    """With the 2 food on hand the exchange never detours through a raise
+    frame — the direct path of the old and new shapes is identical."""
+    from agricola.pending import PendingFoodPayment
+    s = _own_occ(setup(0), 0)
+    s = with_resources(s, 0, food=2, grain=1)
+    s = _host(s, 0)
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="food2_to_grain"))
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    p = s.players[0]
+    assert p.resources.food == 0 and p.resources.grain == 2
 
 
 def test_not_offered_when_not_owned():

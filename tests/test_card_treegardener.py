@@ -107,17 +107,22 @@ def test_on_play_is_noop():
 
 # --- Clause 1: the mandatory +1 wood auto -----------------------------------
 
-def test_auto_pays_one_wood_at_field_phase_no_frame_when_food_short():
-    """With 0 food (no affordable buy), the +1 wood auto still fires and the field
-    phase runs with NO PendingFieldPhase frame — the auto needs no frame."""
+def test_auto_pays_one_wood_and_take_income_hosts_the_buy():
+    """With 0 food the +1 wood auto still fires pre-take — and the take's own
+    grain income makes the 1-food buy payable by conversion (ruling 82,
+    2026-07-26: the price is payable by ANY legal route, the at-any-time
+    crop conversions included), so the engine's post-take re-check hosts the
+    PendingFieldPhase frame (take_fired=True) instead of walking past. The old
+    plain food-on-hand gate wrongly suppressed exactly this offer."""
     state = _harvest_state(food=0)
     state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
     wood0 = state.players[0].resources.wood
     out = _advance_until_decision(state)
-    # No field-phase host was ever pushed (no eligible buy trigger at 0 food).
-    assert not any(isinstance(f, PendingFieldPhase) for f in out.pending_stack)
-    assert out.phase == Phase.HARVEST_FEED
-    assert out.players[0].resources.wood == wood0 + 1   # +1 free wood
+    top = out.pending_stack[-1]
+    assert isinstance(top, PendingFieldPhase) and top.player_idx == 0
+    assert top.take_fired                                # hosted POST-take
+    assert out.players[0].resources.wood == wood0 + 1    # +1 free wood (the auto)
+    assert out.players[0].resources.grain == 1           # the take landed first
 
 
 def test_auto_fires_before_the_take():
@@ -252,16 +257,48 @@ def test_buy_food_short_offers_only_affordable_quantity():
     assert _buy_variants(state) == ["1"]
 
 
-def test_buy_not_offered_with_zero_food():
-    """With 0 food no buy is affordable, so no PendingFieldPhase host is pushed
-    (the +1 wood auto still fires — see test_auto_pays_one_wood_...)."""
+def test_zero_food_take_grain_offers_only_qty_one_and_raise_completes():
+    """Ruling 82 boundary pins (2026-07-26). At 0 food the take's 1 grain makes
+    exactly the "1" quantity payable (1 grain raises at most 1 food, so "2" is
+    NOT offered — each quantity is filtered on its OWN price). Firing "1"
+    pushes the raise-only PendingFoodPayment; committing the grain bundle
+    completes the buy identically to the on-hand path (+1 wood, 1 food raised
+    and debited, the grain consumed as fuel)."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
     state = _harvest_state(food=0)
     state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
+    state = _walk_to_field_frame(state)
+    assert isinstance(state.pending_stack[-1], PendingFieldPhase)
+    assert _buy_variants(state) == ["1"]                 # "2" needs 2, max raise 1
+    wood0 = state.players[0].resources.wood
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="1"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, bundles[0])
+    p = state.players[0]
+    assert p.resources.wood == wood0 + 1                 # the bought wood
+    assert p.resources.food == 0                         # raised 1, debited 1
+    assert p.resources.grain == 0                        # the grain was the fuel
+    # Back at the field frame; the buy is spent for this window.
+    assert isinstance(state.pending_stack[-1], PendingFieldPhase)
+    assert _buy_variants(state) == []
+
+
+def test_buy_not_offered_with_zero_food_and_nothing_convertible():
+    """0 food and NO sown fields: the take delivers nothing, so no route can
+    raise even 1 food — the buy stays ineligible and no PendingFieldPhase host
+    is pushed (the +1 wood auto needs no frame). The card is silent."""
+    state = _harvest_state(food=0)                       # nothing sown
+    wood0 = state.players[0].resources.wood
     out = _walk_to_field_frame(state)
     # The owner's field-phase host never surfaced (harvest walked past it).
     assert not (out.pending_stack
                 and isinstance(out.pending_stack[-1], PendingFieldPhase)
                 and out.pending_stack[-1].player_idx == 0)
+    assert out.players[0].resources.wood == wood0 + 1    # the auto still fired
 
 
 # --- Clause 2: owner gating --------------------------------------------------

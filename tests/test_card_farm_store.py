@@ -266,6 +266,69 @@ def test_effect_reads_post_payment_food():
 
 
 # ---------------------------------------------------------------------------
+# Ruling 82 (2026-07-26): the 1-food input is payable by raising
+# ---------------------------------------------------------------------------
+
+def _synthetic_window(*, food=0, grain=0):
+    """P0 owning Farm Store with exactly the given goods, an after_feeding
+    PendingHarvestWindow host on top (the synthetic-frame idiom of
+    test_card_green_grocer — the same frame the real ladder pushes)."""
+    from agricola.pending import push
+    state = with_minors(setup(seed=0), 0, frozenset({CARD_ID}))
+    state = with_resources(state, 0, food=food, grain=grain)
+    return push(state, PendingHarvestWindow(window_id=WINDOW_ID, player_idx=0))
+
+
+def test_zero_food_with_grain_offers_and_raise_completes():
+    """Boundary pins: at 0 food with 1 grain every output IS offered — the
+    1-food input is raise-able by the at-any-time conversions (the old plain
+    food-on-hand gate wrongly withheld the exchange). Firing pushes the
+    raise-only PendingFoodPayment; committing the grain bundle completes the
+    exchange identically to the on-hand path."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    state = _synthetic_window(grain=1)
+    acts = legal_actions(state)
+    assert _fire_triggers(acts) == _EXPECTED_VARIANTS
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="wood_clay"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, bundles[0])
+    r = state.players[0].resources
+    assert r.wood == 1 and r.clay == 1        # the chosen output
+    assert r.food == 0                        # raised 1, debited 1
+    assert r.grain == 0                       # the grain was the fuel
+    # Once per window: the card is resolved on this host.
+    assert _fire_triggers(legal_actions(state)) == []
+    assert legal_actions(state) == [Proceed()]
+
+
+def test_nothing_liquidatable_stays_silent():
+    """0 food and nothing convertible: the input is unpayable by every route,
+    so no variant is offered (the trigger stays ineligible — the real-walk
+    version is test_not_offered_without_a_spare_food)."""
+    from agricola.cards.farm_store import _eligible, _variants
+    state = _synthetic_window()
+    assert _variants(state, 0) == []
+    assert _eligible(state, 0, frozenset()) is False
+    assert legal_actions(state) == [Proceed()]
+
+
+def test_food_on_hand_stays_direct():
+    """With the 1 food on hand the exchange never detours through a raise
+    frame."""
+    from agricola.pending import PendingFoodPayment
+    state = _synthetic_window(food=1)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="veg"))
+    assert not any(isinstance(f, PendingFoodPayment)
+                   for f in state.pending_stack)
+    r = state.players[0].resources
+    assert r.food == 0 and r.veg == 1
+
+
+# ---------------------------------------------------------------------------
 # On-play: no immediate effect (the card's whole effect is the recurring exchange)
 # ---------------------------------------------------------------------------
 

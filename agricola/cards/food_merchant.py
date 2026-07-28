@@ -44,33 +44,45 @@ cheaper, and any other split yields the same k vegetables for more food — Pare
 dominance over the outcome pair (vegetables gained, food spent) prunes those
 splits loss-lessly (the legality-shaping principle of CLAUDE.md Foundations; no
 strategically meaningful option is discarded). The variants are therefore exactly
-k in 1..(N2+N3) with cost(k) = 2*min(k, N2) + 3*max(0, k − N2), offered only
-while affordable (cost(k) <= food). Choosing k in ONE fire is exact, not an
-approximation: nothing changes between successive buys within one occasion (a buy
-neither harvests nor empties anything), so the one-shot k loses no information
-against buying one vegetable at a time.
+k in 1..(N2+N3) with cost(k) = 2*min(k, N2) + 3*max(0, k − N2). Choosing k in ONE
+fire is exact, not an approximation: nothing changes between successive buys
+within one occasion (a buy neither harvests nor empties anything), so the
+one-shot k loses no information against buying one vegetable at a time.
+
+PAYMENT (ruling 82, 2026-07-26; this card shipped with a plain food-on-hand gate
+and was corrected 2026-07-27): cost(k) is payable by ANY legal route — food on
+hand OR raised by the at-any-time crop/animal conversions — so a count k is
+offered iff ITS OWN cost(k) is raise-able (`_liquidatable_to`; the grain the
+take just delivered is itself legal fuel). Firing buys directly when the food is
+on hand; short of it, the fire STASHES `(occasion, k)` in CardStore (the Sheep
+Inspector dynamic-payload idiom — the chosen k and its occasion cannot ride a
+static resume kind, and the occasion is not otherwise reconstructible at resume
+time) and pushes the raise-only `PendingFoodPayment` for cost(k); the resume
+pops the stash, recomputes the same cost off the stashed occasion, debits it,
+and grants the k vegetables. The buy reserves nothing — its only cost is the
+food being raised.
 
 ONCE PER OCCASION comes from the host frame's `triggers_resolved`: the k is
 chosen at the fire and the card is marked resolved for that occasion. A later
 occasion — a card-granted additional harvest, the next harvest's take — hosts
 afresh, as "for each grain you harvest" requires.
 
-COST — the occasion-trigger machinery carries no cost layer (the Farm Store /
-Winter Caretaker precedent), so `_apply` debits the food and grants the
-vegetables in one step; `_variants` / `_eligible` enforce affordability so no
-unaffordable k is ever offered.
-
-Card-game only (occupation + occasion-trigger registries, both ownership-gated;
-no CardStore use): the Family game is byte-identical and the C++ gates are
-untouched.
+Card-game only (occupation + occasion-trigger registries, ownership-gated; the
+CardStore entry exists only between a food-short fire and its resume): the
+Family game is byte-identical and the C++ gates are untouched.
 """
 from __future__ import annotations
 
 from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import register_harvest_occasion_trigger
-from agricola.cards.specs import register_occupation
+from agricola.cards.specs import (
+    register_food_payment_resume,
+    register_occupation,
+)
+from agricola.legality import _liquidatable_to
+from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "food_merchant"
@@ -93,29 +105,65 @@ def _cost(k: int, n2: int) -> int:
 
 
 def _variants(state: GameState, idx: int, occasion) -> list[str]:
-    """One variant per affordable vegetable count k in 1..(n2+n3)."""
+    """One variant per vegetable count k in 1..(n2+n3) whose OWN cost(k) is
+    raise-able — food on hand or the at-any-time conversions (ruling 82)."""
     n2, n3 = _buy_counts(occasion)
-    food = state.players[idx].resources.food
-    return [str(k) for k in range(1, n2 + n3 + 1) if _cost(k, n2) <= food]
+    p = state.players[idx]
+    return [str(k) for k in range(1, n2 + n3 + 1)
+            if _liquidatable_to(state, idx, p, Resources(food=_cost(k, n2)))]
 
 
 def _eligible(state: GameState, idx: int, occasion) -> bool:
-    """Grain was harvested this occasion AND at least one buy is affordable —
+    """Grain was harvested this occasion AND at least one buy is payable —
     exactly 'some variant exists' (no grain harvested => the k-range is empty)."""
     return bool(_variants(state, idx, occasion))
 
 
-def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
+def _buy(state: GameState, idx: int, k: int, n2: int) -> GameState:
     """Buy k vegetables: debit cost(k) food, gain k vegetables from the general
-    supply (no cost layer on occasion triggers — the food is debited here)."""
-    k = int(variant)
-    n2, _n3 = _buy_counts(occasion)
+    supply. Reached directly (food on hand) and via `_resume` after a raise (the
+    raise-only frame leaves the raised food in supply to debit)."""
     p = state.players[idx]
     p = fast_replace(
         p, resources=p.resources - Resources(food=_cost(k, n2)) + Resources(veg=k))
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
+
+
+def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
+    """Fire one buy of k vegetables. With cost(k) food on hand, buy directly;
+    otherwise stash (occasion, k) in CardStore — the count is DYNAMIC and the
+    occasion is not reconstructible at resume time, so neither can ride a static
+    resume_kind (the Sheep Inspector idiom) — and push the raise-only
+    PendingFoodPayment for cost(k); the resume pops the stash and runs the same
+    buy. A raise bundle only converts supply goods to food, so the stashed
+    occasion's counts (and hence the debited cost) are the ones gated on here."""
+    k = int(variant)
+    n2, _n3 = _buy_counts(occasion)
+    if state.players[idx].resources.food >= _cost(k, n2):
+        return _buy(state, idx, k, n2)
+    p = state.players[idx]
+    p = fast_replace(p, card_state=p.card_state.set(CARD_ID, (occasion, k)))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+    return push(state, PendingFoodPayment(
+        player_idx=idx, food_needed=_cost(k, n2),
+        resume_kind=CARD_ID, reserved=Cost(),
+    ))
+
+
+def _resume(state: GameState, idx: int) -> GameState:
+    """The post-raise continuation: pop the stashed (occasion, k) and buy."""
+    p = state.players[idx]
+    stashed = p.card_state.get(CARD_ID)
+    assert stashed is not None, "food_merchant resume without a stashed buy"
+    occasion, k = stashed
+    p = fast_replace(p, card_state=p.card_state.remove(CARD_ID))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+    n2, _n3 = _buy_counts(occasion)
+    return _buy(state, idx, k, n2)
 
 
 def _action_label(variant: str) -> str | None:
@@ -131,3 +179,4 @@ def _action_label(variant: str) -> str | None:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_harvest_occasion_trigger(CARD_ID, _eligible, _apply, variants_fn=_variants)
 register_action_labeler(CARD_ID, _action_label)
+register_food_payment_resume(CARD_ID, _resume)

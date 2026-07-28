@@ -374,8 +374,53 @@ def test_window_offered_when_opponent_owns_joinery():
 
 
 def test_window_not_offered_when_food_short():
-    """The 2-food gate holds on the window surface: with 1 food the trigger is
-    never offered at any window."""
+    """UPDATED for ruling 82 (2026-07-27) — this previously pinned the old
+    plain food-on-hand gate. The ruled gate is liquidation-aware; here the
+    owner holds 1 food and NOTHING convertible (no supply crops, no animals),
+    so the 2-food fee is unraisable and the trigger is still never offered at
+    any window. (Boundary pin (b): 0/short food + nothing liquidatable →
+    silent.)"""
     state, offers = _run_harvest(_harvest_state(owner_food=1))
     assert offers == []
     assert state.players[0].card_state.get(CARD_ID, 0) == 0
+
+
+def test_window_zero_food_buy_raises_via_food_payment():
+    """Ruling 82 boundary pin (a): with 0 food and two cookable grain the
+    window fire IS offered and completes through the raise-only
+    PendingFoodPayment — the resume debits the 2 raised food, banks the point,
+    and marks the SHARED once-per-harvest budget, identically to the
+    food-on-hand path."""
+    import dataclasses as _dc
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    from agricola.resources import Resources
+
+    state = _harvest_state(owner_food=10)
+    p = state.players[0]
+    p = _dc.replace(p, resources=Resources(food=0, grain=2))
+    state = _dc.replace(state, players=(p, state.players[1]))
+
+    state, _ = _run_harvest(state, stop_when=_at_window("before_field_phase"))
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    state = step(state, FireTrigger(card_id=CARD_ID))
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2 and top.resume_kind == CARD_ID
+
+    commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0) in commits
+    state = step(state, CommitFoodPayment(grain=2, veg=0, sheep=0, boar=0, cattle=0))
+
+    # 2 grain cooked to 2 food, then the resume debited the 2 food.
+    assert state.players[0].resources.food == 0
+    assert state.players[0].resources.grain == 0
+    assert state.players[0].card_state.get(CARD_ID, 0) == 1
+    assert CARD_ID in state.players[0].harvest_conversions_used
+
+    # The shared budget withholds BOTH surfaces for the rest of the harvest.
+    state, offers = _run_harvest(state)
+    assert state.phase not in _HARVEST_PHASES
+    assert offers == []
+    assert state.players[0].card_state.get(CARD_ID, 0) == 1

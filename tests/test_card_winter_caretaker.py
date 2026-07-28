@@ -24,19 +24,28 @@ import dataclasses
 
 import agricola.cards.winter_caretaker  # noqa: F401  (register the card)
 
-from agricola.actions import FireTrigger, Proceed
+from agricola.actions import (
+    CommitBreed,
+    CommitConvert,
+    CommitFieldTake,
+    CommitFoodPayment,
+    CommitHarvestConversion,
+    FireTrigger,
+    Proceed,
+    Stop,
+)
 from agricola.constants import Phase
 from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestFeed, PendingHarvestWindow
+from agricola.pending import PendingFoodPayment, PendingHarvestFeed, PendingHarvestWindow
 from agricola.replace import fast_replace
 from agricola.scoring import SCORING_TERMS
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.triggers import TRIGGERS
-from agricola.cards.specs import OCCUPATIONS
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.setup import setup
 
-from tests.factories import with_phase, with_resources
+from tests.factories import with_majors, with_phase, with_resources
 
 CARD_ID = "winter_caretaker"
 
@@ -94,6 +103,8 @@ def test_registered_as_occupation_and_window_trigger():
     # Migrated off HARVEST_CONVERSIONS onto the end_of_harvest window.
     assert CARD_ID in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
     assert any(e.card_id == CARD_ID for e in TRIGGERS.get("end_of_harvest", ()))
+    # The 2-food price is liquidatable (ruling 82).
+    assert CARD_ID in FOOD_PAYMENT_RESUMES
 
 
 def test_no_longer_on_harvest_conversions():
@@ -145,6 +156,8 @@ def test_buy_spends_two_food_and_grants_one_vegetable():
     veg0 = state.players[0].resources.veg
     state = step(state, FireTrigger(card_id=CARD_ID))
 
+    # Direct path: no PendingFoodPayment — the window frame stays on top.
+    assert isinstance(state.pending_stack[-1], PendingHarvestWindow)
     # 2 food spent, no food produced; one vegetable gained.
     assert state.players[0].resources.food == food0 - 2
     assert state.players[0].resources.veg == veg0 + 1
@@ -214,8 +227,9 @@ def test_not_offered_when_unowned():
 
 
 def test_not_offered_when_food_short():
-    """Needs 2 food to buy; with 1 food (and feeding need 4) it's unaffordable,
-    so eligibility fails and no end_of_harvest frame is pushed for P0."""
+    """Needs 2 food to buy; with 1 food (and feeding need 4) and nothing
+    liquidatable (no crops/animals/converters) the price is not payable by any
+    route, so eligibility fails and no end_of_harvest frame is pushed for P0."""
     state = _harvest_state(owner_food=1)
     saw_window = False
     state = _advance_until_decision(state)
@@ -226,6 +240,74 @@ def test_not_offered_when_food_short():
             saw_window = True
         state = step(state, legal_actions(state)[0])
     assert not saw_window
+
+
+# --- The in-span converter route (ruling 82) --------------------------------
+
+def _neutral_action(state):
+    """An action that advances the harvest walk WITHOUT firing any card or
+    converter surface: the mechanical commits first, then Proceed/Stop, never
+    a FireTrigger or a CommitHarvestConversion (the test_card_plow_builder
+    walker)."""
+    actions = legal_actions(state)
+    for kind in (CommitFieldTake, CommitConvert, CommitBreed):
+        for a in actions:
+            if isinstance(a, kind):
+                return a
+    for a in actions:
+        if isinstance(a, (Proceed, Stop)):
+            return a
+    for a in actions:
+        if not isinstance(a, (FireTrigger, CommitHarvestConversion)):
+            return a
+    raise AssertionError(f"no neutral action among {actions}")
+
+
+def test_zero_food_joinery_converter_route_raises_the_price():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27), the in-span converter
+    boundary: at the end_of_harvest window P0 has 0 food, no crops/animals,
+    1 wood, and owns the Joinery (major 7) unused this harvest. The
+    end_of_harvest window is INSIDE the conversion span, so the harvest-aware
+    liquidation gate counts the Joinery route (1 wood -> 2 food) and the
+    trigger IS offered; the raise frame's bundle fires the Joinery conversion
+    (CommitFoodPayment.conversions non-empty); committing pays the 2 food,
+    grants the vegetable, and marks the Joinery's once-per-harvest budget."""
+    state = _harvest_state(owner_food=4)              # feeding takes exactly 4
+    state = with_majors(state, owner_by_idx={7: 0})   # the Joinery, P0's
+    state = with_resources(state, 0, food=4, wood=1)
+
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if (isinstance(top, PendingHarvestWindow)
+                and top.window_id == "end_of_harvest"
+                and top.player_idx == 0):
+            break
+        state = step(state, _neutral_action(state))
+    else:
+        raise AssertionError("no P0 end_of_harvest frame surfaced")
+
+    p0 = state.players[0]
+    assert p0.resources.food == 0                     # feeding drained it
+    assert p0.resources.wood == 1
+    assert "joinery" not in p0.harvest_conversions_used
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2 and top.resume_kind == CARD_ID
+
+    commits = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
+    assert commits                                    # the Joinery is the only route
+    assert all("joinery" in c.conversions for c in commits)
+    state = step(state, commits[0])
+    p0 = state.players[0]
+    assert p0.resources.veg == 1                      # the buy completed
+    assert p0.resources.food == 0                     # Joinery raised 2, buy paid 2
+    assert p0.resources.wood == 0                     # the Joinery's input
+    assert "joinery" in p0.harvest_conversions_used   # once-per-harvest budget used
 
 
 # --- Eligibility unit check -------------------------------------------------

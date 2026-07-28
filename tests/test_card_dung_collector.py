@@ -9,9 +9,12 @@ User ruling 74 (2026-07-21): fires ONLY on harvest breeding outcomes — the
 >= 2 means >= 2 types bred). An AUTO latches (round, placed-newborn total) in
 the card's own card_state at CommitBreed when >= 2 were placed; the optional
 "breeding_outcome" trigger (post-commit, before Stop, still inside the
-breeding phase) then offers pay-1-food-plow-1-field, gated on food >= 1 AND a
-plowable cell (never a dead end). Firing debits the food and pushes
-``PendingPlow``; Stop on the breed frame declines.
+breeding phase) then offers pay-1-food-plow-1-field, gated on a plowable cell
+AND the 1 food being payable. The food rides the shared food-payment path
+(ruling 82, 2026-07-26; corrected 2026-07-27): eligibility is
+liquidation-aware, the food-on-hand fire debits directly and pushes
+``PendingPlow``, and a food-short fire pushes a raise-only PendingFoodPayment
+whose resume debits and plows. Stop on the breed frame declines.
 
 These tests drive REAL harvests through the walk (``_advance_until_decision``
 + ``step``) from Phase.HARVEST_FIELD — an empty-stack HARVEST_BREED state
@@ -25,15 +28,17 @@ import os
 
 import agricola.cards
 
-from agricola.actions import CommitBreed, CommitPlow, FireTrigger, Stop
+from agricola.actions import (
+    CommitBreed, CommitFoodPayment, CommitPlow, FireTrigger, Stop,
+)
 from agricola.cards.dung_collector import CARD_ID
 from agricola.cards.harvest_windows import BREEDING_OUTCOME_AUTOS
-from agricola.cards.specs import OCCUPATIONS
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
 from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestBreed, PendingPlow
+from agricola.pending import PendingFoodPayment, PendingHarvestBreed, PendingPlow
 from agricola.replace import fast_replace
 from agricola.resources import Animals
 from agricola.setup import setup
@@ -154,6 +159,7 @@ def test_registered_as_outcome_auto_and_breeding_outcome_trigger():
     entry = next(e for e in TRIGGERS.get("breeding_outcome", ())
                  if e.card_id == CARD_ID)
     assert entry.mandatory is False        # "you can" — an optional trigger
+    assert CARD_ID in FOOD_PAYMENT_RESUMES  # the 1 food is liquidatable (ruling 82)
 
 
 def test_on_play_is_a_noop():
@@ -224,15 +230,49 @@ def test_one_newborn_below_threshold_no_trigger():
 # Eligibility gates: food and a plowable cell
 # ---------------------------------------------------------------------------
 
-def test_not_offered_without_food():
+def test_not_offered_without_food_or_liquidation_source():
     """2 newborns latched, but feeding consumed all the food (4 food covers
-    exactly the 4-food requirement): food 0 < 1, so the trigger is withheld —
-    a fired trigger could not pay."""
+    exactly the 4-food requirement) and nothing is liquidatable (no crops; the
+    animals are not cookable without a cooking improvement): the 1 food is not
+    payable by any route, so the trigger is withheld — a fired trigger could
+    not pay."""
     state = _to_p0_breed_frame(_breed_state(sheep=2, boar=2, food=4))
     state = step(state, _max_breed(legal_actions(state)))
     assert state.players[0].resources.food == 0
     assert state.players[0].card_state.get(CARD_ID)[1] == 2   # latched...
     assert legal_actions(state) == [Stop()]                   # ...but withheld
+
+
+def test_zero_food_with_cookable_grain_raises_the_fee():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): feeding drains the food to
+    0, but a grain in supply (always cookable 1:1) makes the 1 food raisable —
+    the trigger IS offered; firing pushes a raise-only PendingFoodPayment, and
+    the committed bundle debits and plows identically to the on-hand path."""
+    state = _breed_state(sheep=2, boar=2, food=4)
+    state = with_resources(state, 0, food=4, grain=1)         # + 1 cookable grain
+    state = _to_p0_breed_frame(state)
+    state = step(state, _max_breed(legal_actions(state)))
+    assert state.players[0].resources.food == 0               # feeding took all 4
+    assert state.players[0].card_state.get(CARD_ID)[1] == 2   # latched
+
+    acts = legal_actions(state)
+    assert FireTrigger(card_id=CARD_ID) in acts               # grain-raisable
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == CARD_ID
+
+    pay = CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)
+    assert pay in legal_actions(state)
+    state = step(state, pay)                                  # cook grain, resume
+    assert state.players[0].resources.food == 0               # raised 1, paid 1
+    assert state.players[0].resources.grain == 0
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingPlow)
+    assert top.initiated_by_id == f"card:{CARD_ID}"
+
+    state = step(state, CommitPlow(row=2, col=4))
+    assert state.players[0].farmyard.grid[2][4].cell_type == CellType.FIELD
 
 
 def test_not_offered_without_plowable_cell():

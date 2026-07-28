@@ -5,22 +5,28 @@ Card text: "Immediately before each time you use the 'Grain Utilization',
 
 Implemented as an OPTIONAL `before_action_space` trigger over the three named
 spaces: on the before-phase of any of them the owner may FireTrigger("thresher")
-to swap 1 food for 1 grain. Eligibility gates on food >= 1 and `triggers_resolved`
-limits it to at most once per space use. Tests drive the real engine placement
-flow (PlaceWorker → FireTrigger → the space's own sub-action), not frame poking.
+to swap 1 food for 1 grain. The 1 food rides the shared food-payment path
+(ruling 82, 2026-07-26; corrected 2026-07-27): eligibility is liquidation-aware
+(`_liquidatable_to`), the food-on-hand fire pays directly, and a food-short fire
+pushes a raise-only PendingFoodPayment whose resume debits and grants.
+`triggers_resolved` limits it to at most once per space use. Tests drive the
+real engine placement flow (PlaceWorker → FireTrigger → the space's own
+sub-action), not frame poking.
 """
 import agricola.cards.thresher  # noqa: F401  (registers the card)
 
 from agricola.actions import (
-    ChooseSubAction, CommitPlow, FireTrigger, PlaceWorker, Stop,
+    ChooseSubAction, CommitFoodPayment, CommitPlow, FireTrigger, PlaceWorker, Stop,
 )
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES
 from agricola.cards.triggers import TRIGGERS, CARDS
 from agricola.constants import CellType
 from agricola.legality import legal_actions
+from agricola.pending import PendingFoodPayment
 from agricola.replace import fast_replace
 from agricola.setup import CardPool, setup_env
 from agricola.state import Cell, get_space, with_space
-from tests.factories import with_grid, with_resources
+from tests.factories import with_animals, with_grid, with_majors, with_resources
 from tests.test_utils import run_actions
 
 _POOL = CardPool(
@@ -57,6 +63,7 @@ def test_registers_before_action_space_trigger():
     entry = CARDS["thresher"]
     assert entry.event == "before_action_space"
     assert entry.mandatory is False  # optional / declinable
+    assert "thresher" in FOOD_PAYMENT_RESUMES  # the 1 food is liquidatable
 
 
 # --------------------------------------------------------------------------- #
@@ -160,14 +167,61 @@ def test_offered_on_cultivation():
 # Eligibility boundaries
 # --------------------------------------------------------------------------- #
 
-def test_not_offered_without_food():
-    """No food (< 1) → the buy is not offered (never a dead-end FireTrigger)."""
+def test_not_offered_without_food_or_liquidation_source():
+    """0 food AND nothing liquidatable (no crops/animals) → the 1 food is not
+    payable by any route, so the buy is not offered (never a dead-end
+    FireTrigger)."""
     s = fast_replace(_card_state(), current_player=0)
     s = _own(s, 0, occupations=("thresher",))
-    s = with_resources(s, 0, food=0)   # cannot pay the 1-food cost
+    s = with_resources(s, 0, food=0)   # 0 food, no goods to cook
 
     s = run_actions(s, [PlaceWorker(space="farmland")])
     assert FireTrigger(card_id="thresher") not in legal_actions(s)
+
+
+def test_zero_food_with_cookable_sheep_raises_the_fee():
+    """Ruling 82 (2026-07-26; corrected 2026-07-27): 0 food but a sheep + an
+    owned Fireplace → the at-any-time conversions can raise the 1 food, so the
+    buy IS offered; firing pushes a raise-only PendingFoodPayment, and the
+    committed bundle completes the buy identically to the on-hand path."""
+    s = fast_replace(_card_state(), current_player=0)
+    s = _own(s, 0, occupations=("thresher",))
+    s = with_resources(s, 0, food=0)
+    s = with_animals(s, 0, sheep=1)
+    s = with_majors(s, owner_by_idx={0: 0})   # a Fireplace (sheep → 2 food)
+
+    s = run_actions(s, [PlaceWorker(space="farmland")])
+    assert FireTrigger(card_id="thresher") in legal_actions(s)
+
+    s = run_actions(s, [FireTrigger(card_id="thresher")])
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1 and top.resume_kind == "thresher"
+
+    pay = CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0, cattle=0)
+    assert pay in legal_actions(s)
+    s = run_actions(s, [pay])                 # cook the sheep, resume debits 1
+    p = s.players[0]
+    assert p.resources.food == 1              # raised 2, paid 1
+    assert p.resources.grain == 1             # the buy completed
+    assert p.animals.sheep == 0               # the sheep was cooked
+    # The host is back on top with the trigger resolved (once per use).
+    assert FireTrigger(card_id="thresher") not in legal_actions(s)
+    assert ChooseSubAction(name="plow") in legal_actions(s)
+
+
+def test_direct_path_pushes_no_frame():
+    """Food on hand → the fire debits and grants in one step; no
+    PendingFoodPayment is pushed."""
+    s = fast_replace(_card_state(), current_player=0)
+    s = _own(s, 0, occupations=("thresher",))
+    s = with_resources(s, 0, food=2)
+
+    s = run_actions(s, [PlaceWorker(space="farmland"),
+                        FireTrigger(card_id="thresher")])
+    assert not any(isinstance(f, PendingFoodPayment) for f in s.pending_stack)
+    assert s.players[0].resources.food == 1
+    assert s.players[0].resources.grain == 1
 
 
 def test_non_owner_not_offered():
