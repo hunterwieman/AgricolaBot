@@ -211,7 +211,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A61 Winnowing Fan** · cost: 1 Reed · prereq: Baking Improvement
   - _After the field phase of each harvest, you can use a baking improvement but only to turn exactly 1 grain into food. (This is not considered a "Bake Bread" action.)_
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT` — Optional harvest hook after the field phase (A-OWN is mandatory on own-turn hooks, which labelA missed); the effect converts 1 grain to food at the owned baking improvement's rate — it USES an improvement, it does not add/change one, so E-BAKESPEC does not apply.
-- ✅ **A62 Beer Keg** · cost: 1 Wood · prereq: 2 Grain in Your Supply
+- ✅ **A62 Beer Keg** · cost: 1 Wood · prereq: 2 Grain in Your Supply · ruling (2026-07-27: the 2 prereq grain are `prereq_reserved` on the spec — a Wood-Expert-style food payment may neither count them as liquidation fuel nor cook them at the raise frame; conversions notionally precede the play)
   - _In the feeding phase of each harvest, you can use this card to exchange 1/2/3 grain for 0/1/2 bonus points and exactly 3 food._
   - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE` — Optional exchange DURING the feeding phase — the 3 food must be available to pay feeding, so it fires before the feeding resolves (T-BEFORE); grain→food+bonus-points is a conversion producing goods, and points earned through an action legitimately combine HOOK+E-SCORE. A-OWN is mandatory.
 - ✅ **A63 Dutch Windmill** · cost: 2 Wood,2 Stone
@@ -335,7 +335,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B17 Forest Plow** · cost: 1 Wood *(implemented 2026-07-20, ruling 69: fires AFTER the take — a per-card override of the T-BEFORE default; the EXOTIC deposit is a plain board edit of the space's `accumulated`, Nail Basket's idiom)*
   - _Each time you use a wood accumulation space, you can pay 2 wood to plow 1 field. Place the paid wood on the accumulation space (for the next visitor).  [CLARIFICATION: You may take less than 2 wood from the space and still use this card’s effect.]_
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB EXOTIC` — 'Each time you use' -> T-BEFORE by ruling; optional pay-2-wood-to-plow is a granted sub-action with an ordinary resource cost (no E-COSTMOD — nothing about a build's cost changes; and the wood is paid from supply per the clarification, so no ST-PROV). The one uncaptured mechanic is depositing the paid wood ONTO the accumulation space for the next visitor (goods added to a board space) -> EXOTIC.
-- ✅ **B18 Grassland Harrow** · cost: 2 Wood · prereq: 2 Occupations, 1 Building Resource in Your Supply
+- ✅ **B18 Grassland Harrow** · cost: 2 Wood · prereq: 2 Occupations, 1 Building Resource in Your Supply After Payment · ruling (2026-07-27: catalog transcription corrected against the physical card — the prerequisite carries an "After Payment" qualifier the JSON had dropped; the building-resource half is therefore a per-PAYMENT gate (`register_play_minor_payment_gate`, built for this card): legal iff SOME payment's post-debit state keeps >= 1 building resource, only qualifying payments offered)
   - _Add 1 to the current round for each building resource in your supply and place 1 field on the corresponding round space. A the start of the round, you can plow the field._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB` — Removed L-GEOMBOARD: placing a field on a future round space is scheduling (E-SCHED), not action-board position/adjacency geometry.
 - ✅ **B19 Moldboard Plow** · cost: 2 Wood · prereq: 1 Occupation
@@ -350,7 +350,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - 🚫 **B22 Walking Boots** · prereq: At Most 4 People
   - _You immediately get 2 food. You must immediately place a person from your supply. If you do, in the next returning home phase, you must remove that person from play.  [ERRATA: 《RECOMMENDED ERRATA: This card must be played in the work phase.》  ERRATA: remove the “If you do” clause.]  [CLARIFICATION: Consequently, you may never grow to 5 people.]_
   - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS E-EXTRAPLACE E-PEOPLE ST-STORE` — On play: 2 food + a mandatory immediate extra placement (E-EXTRAPLACE) of a temporary person (E-PEOPLE). The errata'd mandatory removal fires at the next returning-home phase — a real delayed game-event fire -> HOOK S-ROUNDEND F-AUTO. People are fungible, so no need to know which SPACE the worker occupied (not ST-PLACELOG); a pending-removal flag (ST-STORE) suffices.
-- ⬜ **B23 Final Scenario** · prereq: Round 13 or Before
+- ✅ **B23 Final Scenario** · prereq: Round 13 or Before · ruling 86 arc (use-while-unrevealed: the owner places on the still-unrevealed Farm Redevelopment via UNREVEALED_ACCESS_EXTENSIONS; nothing mutated, the round-14 reveal stays ordinary)
   - _Place the action space card for round 14 face up in front of you. Only you can use it until it is placed on the game board._
   - `ONPLAY EXOTIC L-CARDSPACE L-HIDDEN` — Reserve the round-14 action-space card as an owner-private space.
 - ⬜ **B24 Lasso** · cost: 1 Reed
@@ -1113,7 +1113,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E20 Iron Hoe** · cost: 1 Wood
   - _At the end of each work phase, if you occupy both the "Grain Seeds" and "Vegetable Seeds" action spaces, you can plow 1 field._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB ST-PLACELOG` — Removed L-GEOMBOARD: occupying two specific NAMED spaces (Grain/Vegetable Seeds) is not board position/order/adjacency; occupancy tracked via ST-PLACELOG.
-- ⬜ **E21 Sheep Rug** · cost: 1 Sheep · prereq: 4 Sheep
+- ✅ **E21 Sheep Rug** · cost: 1 Sheep · prereq: 4 Sheep · ruling (2026-07-27: survey-confirmed correct as printed — the prerequisite is checked BEFORE payment, so its cost sheep is legal tender toward the 4; a printed COST spending a prereq-read good is not the §0.5 reservation failure and declares no `prereq_reserved`)
   - _You can use any "Wish for Children" action space, even if it is occupied by another player's person._
   - `PASSIVE L-OCCUPY` — May use any Wish for Children space even if occupied.
 - 🚫 **E22 Guest Room** · cost: 4 Wood,1 Reed
@@ -1167,7 +1167,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E38 Rod Collection** · prereq: 3 Occupations
   - _Each time you use "Fishing", you can place up to 2 wood on this card, irretrievably. During scoring, each such wood is worth 1 bonus point, except the 1st, 4th, 7th, and 10th._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SCORE ST-COUNTER` — "Each time you use Fishing" is an optional own-action space hook firing before the action (T-BEFORE per ruling); the irretrievable wood is never consumed, only counted for the skip-1st/4th/7th/10th bonus formula → ST-COUNTER, not ST-STACK.
-- ✅ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar
+- ✅ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar · ruling (2026-07-27: the prereq boar is `prereq_reserved` on the spec — a Wood-Expert-style food payment may neither count it as cooking fuel nor cook it at the raise frame; conversions notionally precede the play)
   - _Each harvest, you can exchange exactly 1 clay for your choice of 2 food or 1 bonus point._
   - `ATWILL CAP-HARVEST E-CONVERT E-SCORE ST-COUNTER` — Optional once-per-harvest exchange (ATWILL+CAP-HARVEST); clay->2-food is E-CONVERT (food is the conversion output, not separate E-GOODS); clay->bonus-point is action-earned E-SCORE whose accumulated points need a per-card running count (ST-COUNTER).
 - ✅ **E40 Bee Statue** · cost: 2 Clay

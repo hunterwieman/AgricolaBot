@@ -1099,3 +1099,4 @@ from agricola.cards import alchemists_lab  # noqa: F401
 from agricola.cards import pioneering_spirit  # noqa: F401
 from agricola.cards import archway  # noqa: F401
 from agricola.cards import fishing_net  # noqa: F401
+from agricola.cards import final_scenario  # noqa: F401

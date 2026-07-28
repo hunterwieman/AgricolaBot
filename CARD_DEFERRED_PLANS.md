@@ -19,6 +19,59 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Final Scenario B23 — design + rulings (2026-07-28; BUILT same day)
+
+Card text: "Place the action space card for round 14 face up in front of you. Only you
+can use it until it is placed on the game board." Stage 6 is a ONE-round stage, so the
+round-14 card is always **Farm Redevelopment**, publicly, from setup (user) — no
+hidden-information or chance dimension exists.
+
+**BUILT 2026-07-28** on `legality.UNREVEALED_ACCESS_EXTENSIONS` +
+`register_unrevealed_access` exactly as designed below (the card is a pure standing
+legality read — no on-play, no CardStore, `revealed` never touched). The geometry
+contract in item 2 needs no code: it falls out of the representation.
+
+**Chosen representation (user-directed): use-while-unrevealed, keyed on the SPACE.**
+The space stays UNREVEALED; the card grants its owner a scoped availability widening —
+"the owner may place on `farm_redevelopment` while it is unrevealed and Final Scenario
+is in play" — at the PREDICATE level (inside the availability check, so `can_renovate`
+still gates, and the relocation movers inherit it for the owner automatically). What
+this buys: the opponent's exclusion is free (unrevealed already blocks them — no
+forbid), round 14's `RevealCard` proceeds through the completely ordinary nature step
+("until it is placed on the game board" is literal — the widening just goes moot when
+`revealed` flips), and reveal-readers ("the newly revealed action space card") see a
+genuine round-14 reveal, no ruling needed. The widening is the FIRST hole in the
+"unrevealed spaces are unplaceable" invariant — build it as a loud small registry in
+the availability check, never an inline card check. Space-keyed on purpose (the user:
+"specifically the farm redevelopment space, not the round 14 space… we don't want to
+deal with round order dynamics"); docstring caveat: assumes stage 6 stays one round.
+
+**Rulings banked:**
+1. The owner MAY use the space in the very round Final Scenario is played (user,
+   2026-07-28: "yes they may").
+2. **"Place it in front of you" strips the board GEOMETRY until round 14** (user):
+   while the card is in front of its owner, the round-14 slot is physically empty —
+   geometry- and round-slot-keyed readers (Legworker C117 adjacency, Sweep B120 /
+   Seatmate B129 round slots, Brook B56 board positions) must NOT see Farm
+   Redevelopment at the round-14 position, in either direction (the early use gains
+   no adjacency; the early-placed worker occupies no board position for others'
+   adjacency reads). **This falls out NATURALLY under the chosen representation**
+   (user's analysis, 2026-07-28, correcting an earlier driver claim): those readers
+   will be built on a CARD-ORDER TABLE derived from the reveal record ("card X
+   revealed at round N ⇒ it sits at slot N" — Seatmate's slot 13 independently
+   forces this, since stage 5's two-card order decides which card sits there and no
+   static set can be written), and an unrevealed Farm Redevelopment never enters
+   that table — the use-while-unrevealed design preserves the equivalence
+   `revealed ≡ physically on the board` that the table is built on. (The rejected
+   early-reveal representation is exactly what would have BROKEN it — a
+   revealed-at-play card entering the table at slot 14 nine rounds early.)
+   Identity-keyed wordings (use-hooks, Bassinet, occupancy readers, yield reactors)
+   compose correctly for free either way. The one standing design commitment for
+   the geometry readers' eventual build: position/order membership derives from the
+   reveal record, never a static slot guess; static space-id sets are legitimate
+   ONLY for order-independent whole-stage unions (New Market's "round spaces 8-11"
+   = all of stages 3+4 — set membership, not geometry).
+
 ## RESOLVED (2026-07-27, same day) — Archway × "the last action space you use"
 
 **User ruling (verbatim): "after_work is during the work phase so yes. A fired Steam
@@ -146,6 +199,21 @@ through `engine.py`'s probe — deliberately not done.
    from the raise bundles — the same reservation mechanism the cost side already uses
    (Sheep Inspector's cost sheep). Fixed same day: truffle_slicer's eligibility gate and
    pushed raise frame both reserve the condition boar.
+
+**Ruling 84 addendum (2026-07-27, the prerequisite survey).** Item 6's principle extended
+to play PREREQUISITES — the 85 prereq-bearing implemented minors surveyed for a
+prerequisite-read good the play's own payment could consume (a cost made food-payable by
+Wood Expert's conversion):
+- **2 live members, fixed via `prereq_reserved`** (a new optional `Cost` on the minor
+  spec, folded into the gate's reservation and the pushed frame's `reserved`): Beer Keg's
+  2 prereq grain, Paintbrush's prereq boar.
+- **The direct-cost overlap ruled correct as printed** (sheep_rug: prerequisite checked
+  BEFORE payment, so its cost sheep is legal tender toward the "4 Sheep" — not the
+  reservation failure, no `prereq_reserved`).
+- **One transcription error surfaced**: grassland_harrow's physical card reads "1 Building
+  Resource in Your Supply **After Payment**" (the catalog JSON had dropped the qualifier;
+  corrected) — a post-payment, per-PAYMENT gate (`register_play_minor_payment_gate`, the
+  minor-side analog of the ruling-75 pair-gate), not a reserved pre-play read.
 
 ## Ruling 86 (2026-07-27) — card action spaces: tolls, occupancy, and the destination universe
 

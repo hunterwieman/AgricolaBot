@@ -168,6 +168,21 @@ def register_occupancy_override(fn: Callable) -> None:
 # Empty in the Family game -> the fast path pays one truthiness test.
 SPACE_BLOCK_EXTENSIONS: list[Callable] = []
 
+# Unrevealed-access extensions (Final Scenario B23 — the banked design in
+# CARD_DEFERRED_PLANS.md): ``fn(state, placer_idx, space_id) -> bool`` grants
+# `placer_idx` placement access to a space `_is_available` would otherwise
+# reject as unrevealed. The space's own action-legality predicate and the
+# occupancy checks still apply on top; `revealed` itself is NEVER touched, so
+# every reader of it (the refill loop, the round-N reveal step, reveal-order
+# displays, the future card-order geometry table) sees the truth. Empty in the
+# Family game.
+UNREVEALED_ACCESS_EXTENSIONS: list[Callable] = []
+
+
+def register_unrevealed_access(fn: Callable) -> None:
+    """Register an unrevealed-access grant (called at card-module import)."""
+    UNREVEALED_ACCESS_EXTENSIONS.append(fn)
+
 
 def register_space_block(fn: Callable) -> None:
     """Add a card-supplied predicate that BLOCKS placement on a space that holds
@@ -408,13 +423,23 @@ def count_baking_improvements(state: GameState, player_idx: int) -> int:
 
 def _is_available(state: GameState, space: str) -> bool:
     """Cross-cutting check: the current player may place a worker here — the
-    space is revealed and either unoccupied, or a card grants an occupancy
-    exemption for it. The occupancy-override registry is consulted ONLY on the
-    occupied branch, so the common unoccupied path (and the entire Family game)
-    pay nothing."""
+    space is revealed (or a card grants the current player unrevealed access —
+    the UNREVEALED_ACCESS_EXTENSIONS seam) and either unoccupied, or a card
+    grants an occupancy exemption for it. The occupancy-override registry is
+    consulted ONLY on the occupied branch, so the common unoccupied path (and
+    the entire Family game) pay nothing."""
     sp = get_space(state.board, space)
     if not sp.revealed:
-        return False
+        # The FIRST hole in the unrevealed-spaces-are-unplaceable invariant
+        # (Final Scenario B23 — its owner may use the still-unrevealed Farm
+        # Redevelopment space; the round-14 reveal proceeds normally and this
+        # grant simply goes moot). Granting access falls THROUGH to the
+        # ordinary occupancy checks below — never a bare True. Empty registry
+        # → the Family (and cardless) fast path is one boolean test.
+        if not (UNREVEALED_ACCESS_EXTENSIONS and any(
+                fn(state, state.current_player, space)
+                for fn in UNREVEALED_ACCESS_EXTENSIONS)):
+            return False
     if sp.workers == (0, 0):
         # A workerless space can still be "considered occupied" by a card marker
         # (Job Contract's Day Laborer — ruling 81 item 3). Empty registry → free.

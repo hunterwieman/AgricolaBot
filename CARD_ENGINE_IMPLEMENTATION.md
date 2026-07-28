@@ -360,10 +360,27 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   liquidation-aware `register_placement_forbid` gate, the "board_space_toll"
   raise resume re-entering the initiate, and the machinery-set
   "<card_id>:board_toll_paid" owner flag driving its returning-home 2-food
-  deposit). Still open in the relocation family: the standing-number readers
-  (Second Spouse, Midwife, Mummy's Boy — 3+/4+), Henpecked Husband's
-  stored-space → ledger migration, and the deferred siblings (Studio Boat C39
-  — user-deferred; Final Scenario B23; the 3+/4+ card spaces).
+  deposit). **Final Scenario B23** landed 2026-07-28 on a new seam,
+  `legality.UNREVEALED_ACCESS_EXTENSIONS` + `register_unrevealed_access`
+  (`fn(state, placer_idx, space_id)`) — the first deliberate hole in the
+  "unrevealed spaces are unplaceable" invariant, consulted at `_is_available`'s
+  unrevealed branch and FALLING THROUGH to the ordinary occupancy checks (never a
+  bare True, or the owner could double-place). The card is a pure standing legality
+  read — no on-play, no CardStore, `revealed` never touched — so round 14's
+  `RevealCard` stays completely ordinary ("until it is placed on the game board" is
+  literal, and the grant goes moot at the flip), and every reveal reader (refill,
+  the nature step, "newly revealed" cards, the future reveal-derived card-ORDER
+  table the Legworker/Sweep/Seatmate geometry readers will use) sees the truth. That
+  last point is load-bearing and was the user's analysis: because the design
+  preserves `revealed ≡ physically on the board`, the ruled "place it in front of
+  you strips the board geometry until round 14" falls out NATURALLY — the space
+  never enters the position record early. Space-keyed, never a round-order read
+  (stage 6 is a one-round stage, so the round-14 card is always Farm
+  Redevelopment); the owner may use it in the round the card is played (user).
+  Census: **239 + 341 = 580**. Still open in the relocation family: the
+  standing-number readers (Second Spouse, Midwife, Mummy's Boy — 3+/4+), Henpecked
+  Husband's stored-space → ledger migration, and the deferred siblings (Studio Boat
+  C39 — user-deferred; the 3+/4+ card spaces).
 - **The 2026-07-27 last-use-commitment latch landed (the Steam Machine × loaner-offer
   foreclosure — the commit-on-fire item, closed).** Steam Machine's "the last action space
   you use" was gated on `people_home == 0`, which an *unanswered supply-loaner offer*
