@@ -195,7 +195,7 @@ def test_use_sweeps_all_wood_to_supply():
     assert _card_wood(s, 0) == 0                  # the whole stack was taken
     s = step(s, Stop())
     assert not s.pending_stack
-    assert card_space_occupied(s.players[0], CARD_ID)   # used this round
+    assert card_space_occupied(s, CARD_ID)   # used this round
 
 
 def test_empty_card_not_placeable():

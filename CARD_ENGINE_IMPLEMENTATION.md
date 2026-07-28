@@ -221,6 +221,41 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-27 food-payment classification pass (ruling 84, the food-price sweep) +
+  the harvest tail (ruling 85).** The pass makes ruling 82 universal: all **572
+  implemented card texts** swept for food-as-a-price (a four-agent semantic sweep
+  cross-checked by keyword list, code-idiom grep, and the ruling-82 survey), the
+  **72-module union audited** with every defect verdict driver-verified. **22 plain
+  food-on-hand gates rebuilt on the raise shape the same day** — acquirer,
+  basket_carrier, credit, cube_cutter, dung_collector, excavator, farm_store,
+  food_merchant, forest_trader, furniture_carpenter, green_grocer, haydryer, merchant,
+  new_purchase, plow_builder (standalone fire), stone_importer, supply_boat, thresher,
+  treegardener, truffle_slicer, value_assets, winter_caretaker — including two same-day
+  user rulings: **Credit A54** at 0 food offers the pay-or-beg choice (the three-tier
+  end_of_round shape: auto-pay / `PendingCardChoice(("pay", "beg"))` / auto-beg) and
+  **Confidant B93** may cook mid-play to afford a bigger placement count N (the raw
+  `food >= N` pre-gate removed; the counts ride the play-variant surcharge machinery).
+  **10 `food >= N` condition reads confirmed legitimate** and docstring-noted (angler,
+  case_builder, forest_stone, furniture_maker, kindling_gatherer, maintenance_premium,
+  portmonger, small_animal_breeder, social_benefits, tree_cutter — reads of own supply /
+  the stamped take / a card's own reservoir; nothing charged). 39 modules already
+  correct; ruling 82's 17-module survey superseded (one mis-sort, eight missing
+  members). Engine seam: **`legality._liquidatable_to` is now harvest-aware** — inside
+  a harvest instant the eligibility gate delegates to the same frontier the raise frame
+  enumerates (in-span converters + ruling-39 floors), closing a gate↔frontier gap.
+  **Ruling 85, same day — the harvest tail**: the post-breed cooking floor (ruling 39)
+  LAPSES at end_of_harvest, and the converter span CLOSES after after_breeding — the
+  standalone conversion choice's final home is the breed phase's last opportunity,
+  immediately before end_of_harvest — both keyed on the harvest walk's cursor, NOT a
+  new Phase member; Winter Caretaker can therefore cook a just-bred animal to pay its
+  end_of_harvest buy. Plus the produce-vs-spend surface split (`CONVERTER_SPAN_EVENTS`
+  trims the four food-PRODUCING span carriers — the craft majors' exchanges, Braid
+  Maker, Paintbrush, Stone Carver — off end_of_harvest, while the three food-SPENDING
+  fees — Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee — keep it
+  per ruling 36; the split line itself is an implementer classification flagged for
+  user review). Family/C++ untouched. Census unchanged — no new cards: **239
+  occupations + 334 minors = 573**. Full suite green incl. the C++ gates at both
+  landings: 7072 at ruling 84, **7080 at ruling 85**.
 - **The 2026-07-27 standing-worker ledger + Straw Hat E10 (ruling 83) — the relocation
   family opens.** The ruling-79 identity ledger deferred to "the relocation batch" is
   BUILT: `PlayerState.standing_workers` holds (minted number, location) pairs — appended
@@ -246,11 +281,47 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   ways (ruling 83 item 3): `last_use_committed` set → the relocation variants are
   suppressed (food only); unset → Steam Machine's own trigger surfaces at an
   accumulation-space destination with no Straw Hat code. Census after: **239
-  occupations + 334 minors = 573**. Still open in the relocation family: Archway D51
-  (blocked on the card-action-space infrastructure — 9 sibling cards to design
-  against, plus the Archway × last-use open question), the standing-number readers
-  (Second Spouse, Midwife, Mummy's Boy — 3+/4+), and Henpecked Husband's stored-space →
-  ledger migration.
+  occupations + 334 minors = 573**. Same day, the card-action-space arc opened
+  (**ruling 86**): the family is ELEVEN cards (for-all: Chapel A39, Forest Inn B42,
+  Alchemists Lab E81, Forest Owner C162, Archway D51; for-you-only: the already-built
+  Collector C104 + Pioneering Spirit D23, Hardworking Man D127, Elder Baker E161,
+  Forest Tallyman A162 — the virtual Forest/Clay-Pit gap space; accumulation: the
+  already-built Tree Inspector D116). Rulings: a toll ("must first pay you…") gates
+  the non-owner's placement outright; FOOD tolls take the ruling-82 raise shape and
+  the toll lands with the OWNER (the engine's first player-to-player payment —
+  Chapel's grain toll stays a plain gate, nothing converts into grain); for-all
+  occupancy is standard one-worker-per-round (exemption cards compose as on board
+  spaces); Forest Inn's gate is carryability (5+ wood for anyone, toll besides for a
+  non-owner); **card spaces join the relocation/jump destination universe**; and the
+  toll × before-window ordering is a recorded, currently-VACUOUS boundary (no
+  catalog card grants goods in a card-space use's before window — survey in ruling
+  86). Landed the same day — **Infra A + the destination extension**: the
+  `CardActionSpaceSpec` owner/placer split (`use_fn(state, placer, owner, picks)` /
+  `placeable_fn(state, placer, owner)` + `for_all`), aggregate occupancy
+  (`card_space_occupied(state, id)` — either player's marker), `played_card_owner`,
+  the enumerator's for-all branch, `engine.initiate_card_space_use` (the card-space
+  analog of `initiate_space_use`, shared by placement and relocation),
+  `relocate_and_use(..., "card:<id>", picks)` + the ledger-preserving board→card
+  move, `FireTrigger.picks` (the wide payload — one fire per combination, mirroring
+  PlaceWorker.picks; Straw Hat → Collector surfaces C(10,6)=210), Straw Hat's
+  destination universe extended to card spaces, and `return_card_space_worker` now
+  notifying the return chokepoint itself (the ledger drops + returned-hooks fire on
+  card-space returns — the HH / Sheep Inspector card branches were silently
+  skipping both). Same day, **the toll seam landed with Chapel A39** (rulings
+  86.7/86.8: toll receipts are OBTAINS for the payee; the toll is owed per use
+  however the worker arrives and fires BEFORE the before-window benefits —
+  non-owner legality = toll affordable AND the owner's check): `toll` on the spec,
+  `toll_payable` gating both the placement enumerator and Straw Hat's arrival
+  variants on the pre-use state, `pay_card_space_toll` transferring payer→owner
+  inside `initiate_card_space_use` ahead of the host push (the future
+  obtain-reactor fire site), a registration guard refusing FOOD tolls until their
+  raise path lands, and `scoring.register_scoring_any_player`
+  (ownership-independent terms) for Chapel's use-banked 3 points. Census:
+  **239 + 335 = 574**. Still open in the relocation family: the food-toll raise
+  path (Forest Inn B42, Alchemists Lab E81), Archway D51 (the for-all build + the
+  Archway × last-use open question), the standing-number readers (Second Spouse,
+  Midwife, Mummy's Boy — 3+/4+), and Henpecked Husband's stored-space → ledger
+  migration.
 - **The 2026-07-27 last-use-commitment latch landed (the Steam Machine × loaner-offer
   foreclosure — the commit-on-fire item, closed).** Steam Machine's "the last action space
   you use" was gated on `people_home == 0`, which an *unanswered supply-loaner offer*

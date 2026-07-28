@@ -496,3 +496,4 @@ tuple shapes — e.g. Bartering Hut's `(animal, w, c, r, s)` as
   - `_pending_detail` and `render_pending` in `play.py` (item 4)
 - These fixes are independent. You can apply 1, 2, 3, 4 in any order, then
   smoke-test, then tackle 5–10 piecemeal.
+- Card-space FireTrigger buttons (Straw Hat -> Collector): 210 per-combination buttons render flat in the decision panel; needs the same picker treatment as Collector's own wide placements (whatever that treatment is today). Labels are disambiguated by the picks suffix already.

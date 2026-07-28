@@ -31,6 +31,8 @@ byte-identical, C++ gates untouched.
 from __future__ import annotations
 
 from agricola.cards.capacity_mods import register_empty_pasture
+from agricola.constants import ACCUMULATION_SPACES
+from agricola.resolution import ATOMIC_HANDLERS
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.replace import fast_replace
@@ -39,7 +41,10 @@ from agricola.scoring import register_scoring
 from agricola.state import GameState
 
 CARD_ID = "beaver_colony"
-REED_SPACES = frozenset({"reed_bank"})
+# Content-based (user directive 2026-07-27, the Kindling Gatherer shape): reed
+# can sit on other accumulation spaces (Outer Districts Director), so hook every
+# ATOMIC accumulation space (markets self-host) and read the taken-delta.
+REED_SPACES = frozenset(s for s in ACCUMULATION_SPACES if s in ATOMIC_HANDLERS)
 
 
 def _prereq(state: GameState, idx: int) -> bool:
@@ -63,10 +68,8 @@ def _reed_eligible(state: GameState, idx: int) -> bool:
     signature is (state, owner_idx)). The `space_id in REED_SPACES` check pins to the
     reed_bank host — atomic, so it carries a `taken` (a non-atomic frame never matches
     the pin, so `taken` is always present here)."""
-    top = state.pending_stack[-1]
-    if getattr(top, "space_id", None) not in REED_SPACES:
-        return False
-    return top.taken.reed >= 1
+    taken = getattr(state.pending_stack[-1], "taken", None)
+    return taken is not None and taken.reed >= 1
 
 
 def _reed_apply(state: GameState, idx: int) -> GameState:

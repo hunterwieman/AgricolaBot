@@ -487,8 +487,6 @@ def _apply_place_card_space_worker(state: GameState, action: PlaceWorker) -> Gam
       placement's payload — Collector's goods combination) rides the host
       frame from the placement to the Proceed work step.
     """
-    from agricola.cards.card_spaces import place_card_space_worker
-
     card_id = action.space.split(":", 1)[1]
     ap = state.current_player
     p = state.players[ap]
@@ -496,18 +494,52 @@ def _apply_place_card_space_worker(state: GameState, action: PlaceWorker) -> Gam
     # placement number (ruling 79 — the PHYSICAL ordinal) and enters the
     # standing-worker ledger at location "card:<id>". No mode gate needed:
     # card spaces exist only in CARDS mode (empty registry in Family).
-    p = place_card_space_worker(
-        fast_replace(p, people_home=p.people_home - 1,
+    p = fast_replace(p, people_home=p.people_home - 1,
                      placements_this_round=p.placements_this_round + 1,
                      standing_workers=p.standing_workers
-                     + ((p.placements_this_round + 1, f"card:{card_id}"),)),
-        card_id)
+                     + ((p.placements_this_round + 1, f"card:{card_id}"),))
     state = fast_replace(state, players=tuple(
         p if i == ap else state.players[i] for i in range(len(state.players))))
+    return initiate_card_space_use(state, ap, card_id, action.picks)
+
+
+def initiate_card_space_use(state: GameState, placer_idx: int, card_id: str,
+                            picks) -> GameState:
+    """Run a CARD action space's use for `placer_idx` — the card-space analog of
+    `initiate_space_use`, WITHOUT any placement bookkeeping (no people_home /
+    ordinal / ledger change): set the on-card occupancy marker (the PLACING
+    player's CardStore) and host the use with the generic atomic-host lifecycle
+    (before-autos at the push, the registered `use_fn` at Proceed, the
+    after-window, Stop) — so the use fires `before_/after_action_space` with
+    `space_id = "card:<id>"`.
+
+    Two callers: `_apply_place_card_space_worker` (after the placement
+    bookkeeping above) and the relocation movers (ruling 86 item 5 — Straw
+    Hat, and Archway when built — whose jump onto a card space moves an
+    already-placed worker there via `worker_moves.relocate_and_use`).
+
+    A non-owner arriving on a tolled for-all space pays HERE — before the host
+    push fires any before-window effect (ruling 86 item 8: the toll precedes
+    every benefit of the use, owed per use however the worker arrived; the
+    arrival enumerators already gated on payability)."""
+    from agricola.cards.card_spaces import (
+        CARD_ACTION_SPACES, pay_card_space_toll, place_card_space_worker,
+        played_card_owner,
+    )
+
+    spec = CARD_ACTION_SPACES[card_id]
+    if spec.toll is not None:
+        owner = played_card_owner(state, card_id)
+        if owner != placer_idx:
+            state = pay_card_space_toll(state, placer_idx, owner, spec.toll)
+    p = place_card_space_worker(state.players[placer_idx], card_id)
+    state = fast_replace(state, players=tuple(
+        p if i == placer_idx else state.players[i]
+        for i in range(len(state.players))))
     state = push(state, PendingActionSpace(
-        player_idx=ap, initiated_by_id=f"space:{action.space}",
-        picks=action.picks))
-    return apply_auto_effects(state, "before_action_space", ap)
+        player_idx=placer_idx, initiated_by_id=f"space:card:{card_id}",
+        picks=picks))
+    return apply_auto_effects(state, "before_action_space", placer_idx)
 
 
 def _fire_subaction_before_auto(state: GameState, prev_depth: int) -> GameState:
@@ -619,10 +651,17 @@ def _apply_fire_trigger(
     #
     # A play-variant trigger (Scholar) surfaces FireTriggers carrying a `variant`
     # and its apply_fn takes `(state, idx, variant)`; thread it through only when a
-    # variant is present so every plain `(state, idx)` apply_fn is unaffected.
+    # variant is present so every plain `(state, idx)` apply_fn is unaffected. A
+    # picks-bearing variant fire (ruling 86 — a relocation onto a WIDE card space,
+    # Straw Hat → Collector) additionally threads `picks`; only apply_fns whose
+    # variants_fn emitted (variant, picks) tuples ever receive it.
     prev_depth = len(state.pending_stack)
     if action.variant is not None:
-        applied = entry.apply_fn(state, new_top.player_idx, action.variant)
+        if action.picks is not None:
+            applied = entry.apply_fn(
+                state, new_top.player_idx, action.variant, action.picks)
+        else:
+            applied = entry.apply_fn(state, new_top.player_idx, action.variant)
     else:
         applied = entry.apply_fn(state, new_top.player_idx)
     return _fire_subaction_before_auto(applied, prev_depth)
@@ -911,12 +950,20 @@ def _apply_proceed(state: GameState) -> GameState:
             if top.space_id.startswith("card:"):
                 # CARD action space (ruling 74 — card_spaces.py): the space's
                 # work is the registered use_fn, the ATOMIC_HANDLERS slot of a
-                # card space. It receives the host's owner and the placement's
-                # `picks` payload carried on the frame. Family-inert (the frame
-                # is card-only and the id shape only arises from the registry).
-                from agricola.cards.card_spaces import CARD_ACTION_SPACES
-                spec = CARD_ACTION_SPACES[top.space_id.split(":", 1)[1]]
-                state = spec.use_fn(state, top.player_idx, top.picks)
+                # card space. It receives the ACTING player (the host's
+                # player_idx — whose worker stands on the card), the card's
+                # OWNER (the two differ on a `for_all` space — ruling 86), and
+                # the placement's `picks` payload carried on the frame.
+                # Family-inert (the frame is card-only and the id shape only
+                # arises from the registry).
+                from agricola.cards.card_spaces import (
+                    CARD_ACTION_SPACES, played_card_owner,
+                )
+                cid = top.space_id.split(":", 1)[1]
+                spec = CARD_ACTION_SPACES[cid]
+                owner = played_card_owner(state, cid)
+                assert owner is not None, f"card space {cid!r} has no owner"
+                state = spec.use_fn(state, top.player_idx, owner, top.picks)
             else:
                 state = ATOMIC_HANDLERS[top.space_id](state)
         # Stamp the goods the acting player obtained from the space (Resources delta

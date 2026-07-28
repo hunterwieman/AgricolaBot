@@ -163,7 +163,7 @@ def test_occupied_blocks_second_use_and_alternation_runs():
     cs = run_actions(cs, [first, Proceed(), Stop()])
     # The turn ended -> alternation rotated to P1 (people_home keyed).
     assert cs.current_player == 1
-    assert card_space_occupied(cs.players[0], "collector")
+    assert card_space_occupied(cs, "collector")
     # P1 places somewhere; back to P0: the occupied card space is not offered.
     cs = run_actions(cs, [PlaceWorker(space="day_laborer")])
     assert cs.current_player == 0
@@ -187,7 +187,7 @@ def test_reset_full_round_loop():
     assert cs.phase is Phase.PREPARATION
     # The reset ran: everyone is home, and the on-card marker is cleared.
     assert cs.players[0].people_home == cs.players[0].people_total
-    assert not card_space_occupied(cs.players[0], "collector")
+    assert not card_space_occupied(cs, "collector")
     # Complete the reveal; round 2 begins and Collector is placeable again —
     # now at its 2nd-use width, C(10,7) = 120.
     reveal = [a for a in legal_actions(cs)][0]
@@ -243,7 +243,7 @@ def test_henpecked_return_from_card_space():
         Proceed(),
     ])
     assert cs.players[0].people_home == 1
-    assert not card_space_occupied(cs.players[0], "collector")
+    assert not card_space_occupied(cs, "collector")
     cs = run_actions(cs, [Stop(), Proceed(), Stop()])          # end the build turn
     cs = run_actions(cs, [PlaceWorker(space="fishing")])       # P1
     # The vacated card space is OPEN again (occupancy is solely worker

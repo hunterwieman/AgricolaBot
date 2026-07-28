@@ -238,6 +238,69 @@ def test_steam_machine_not_reoffered_when_already_committed():
     assert [f.variant for f in _sh_fires(s)] == ["food"]
 
 
+# --- Card-space destinations (ruling 86 item 5) ------------------------------
+
+def test_tree_inspector_card_space_is_a_destination():
+    """An owned, stocked, un-occupied card space is a relocation destination;
+    the use resolves hosted (Proceed takes the stack), the ledger entry follows
+    the person, and the card is occupied for the round."""
+    s = _sh_state()
+    p = s.players[0]
+    s = _edit_player(s, 0, occupations=p.occupations | {"tree_inspector"},
+                     card_state=p.card_state.set("tree_inspector", 3))
+    s = _walk_to_window(s)
+    assert any(f.variant == "card:tree_inspector" for f in _sh_fires(s))
+
+    wood_before = s.players[0].resources.wood
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="card:tree_inspector"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingActionSpace)
+    assert top.space_id == "card:tree_inspector"
+    s = step(s, Proceed())
+    p = s.players[0]
+    assert p.resources.wood == wood_before + 3         # the whole stack taken
+    assert (1, "card:tree_inspector") in p.standing_workers   # number preserved
+    assert get_space(s.board, "farmland").workers[0] == 0     # vacated
+    from agricola.cards.card_spaces import card_space_occupied
+    assert card_space_occupied(s, "tree_inspector")
+    s = step(s, Stop())
+    assert isinstance(s.pending_stack[-1], PendingHarvestWindow)
+
+
+def test_collector_card_space_offers_wide_picks_destinations():
+    """A picks-bearing card space surfaces one FireTrigger per goods
+    combination (mirroring its own placements); firing one resolves the full
+    Collector use for the mover."""
+    s = _sh_state()
+    p = s.players[0]
+    s = _edit_player(s, 0, occupations=p.occupations | {"collector"})
+    s = _walk_to_window(s)
+    coll = [f for f in _sh_fires(s) if f.variant == "card:collector"]
+    assert len(coll) == 210                    # C(10, 6) — one fire per combo
+
+    target = ("wood", "clay", "reed", "stone", "grain", "veg")
+    fire = next(f for f in coll if f.picks == target)
+    res_before = s.players[0].resources
+    s = step(s, fire)
+    s = step(s, Proceed())
+    p = s.players[0]
+    assert p.resources.wood == res_before.wood + 1
+    assert p.resources.veg == res_before.veg + 1
+    assert p.begging_markers == 1              # part of the action
+    assert p.card_state.get("collector") == 1  # the use counter advanced
+    assert (1, "card:collector") in p.standing_workers
+
+
+def test_occupied_card_space_not_a_destination():
+    s = _sh_state()
+    p = s.players[0]
+    s = _edit_player(s, 0, occupations=p.occupations | {"tree_inspector"},
+                     card_state=(p.card_state.set("tree_inspector", 2)
+                                 .set("card_space_worker:tree_inspector", 1)))
+    s = _walk_to_window(s)
+    assert not any(f.variant == "card:tree_inspector" for f in _sh_fires(s))
+
+
 # --- The ordinal divergence pin (ruling 79 item 4) ---------------------------
 
 def test_catcher_reads_the_moved_workers_preserved_number():

@@ -953,7 +953,9 @@ def _action_params(action: Action) -> dict:
     if isinstance(action, ChooseSubAction):
         return {"name": action.name}
     if isinstance(action, FireTrigger):
-        return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
+        return {"card_id": action.card_id, "variant": getattr(action, "variant", None),
+                "picks": (list(action.picks)
+                          if getattr(action, "picks", None) else None)}
     if isinstance(action, Stop):
         return {}
     if isinstance(action, CommitSow):
@@ -1080,7 +1082,14 @@ def _web_action_display(action: Action) -> str:
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
         if variant:
-            return f"{name}: {_trigger_variant_label(variant, action.card_id)}"
+            label = f"{name}: {_trigger_variant_label(variant, action.card_id)}"
+            # A picks-bearing fire (a relocation onto a WIDE card space —
+            # Straw Hat → Collector): append the goods so the per-combination
+            # buttons read distinctly.
+            picks = getattr(action, "picks", None)
+            if picks:
+                label += f" ({', '.join(picks)})"
+            return label
         return name
     # A card-field sow or a Tinsmith-boosted sow (Cards mode): name the card(s)
     # and the +1-crop boost so distinct sow options read distinctly ("Sow

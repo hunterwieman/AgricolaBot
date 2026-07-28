@@ -443,9 +443,18 @@ class FireTrigger:
     and `_apply_fire_trigger` threads the variant into the trigger's apply_fn. Plain
     triggers leave it None (backward-compatible) and their apply_fn takes
     `(state, idx)`.
+
+    `picks` is the wide-choice payload a variant can carry — the same concept as
+    `PlaceWorker.picks`, for fires whose route lands on a WIDE choice (ruling 86:
+    a relocation onto a picks-bearing card space — Straw Hat → Collector — is one
+    FireTrigger per (destination, picks) pair, mirroring how the space's own
+    placements surface). Cards opt in by emitting (variant, picks) tuples from
+    their variants_fn; plain and variant-only triggers leave it None and are
+    byte-identical to before.
     """
     card_id: str
     variant: str | None = None
+    picks: tuple | None = None
 
 
 @dataclass(frozen=True)

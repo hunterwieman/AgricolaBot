@@ -135,13 +135,14 @@ def _discard(state: GameState, idx: int) -> GameState:
 # (3) The action space — sweep the stack to the owner's supply
 # ---------------------------------------------------------------------------
 
-def _placeable(state: GameState, owner_idx: int) -> list:
+def _placeable(state: GameState, placer_idx: int, owner_idx: int) -> list:
     """One plain placement while the card holds wood; an EMPTY accumulation
-    space is not placeable (the engine's board-space prune, mirrored)."""
+    space is not placeable (the engine's board-space prune, mirrored). "For
+    you only": placer == owner always (the machinery's ownership gate)."""
     return [None] if _wood(state.players[owner_idx]) > 0 else []
 
 
-def _use(state: GameState, owner_idx: int, picks) -> GameState:
+def _use(state: GameState, placer_idx: int, owner_idx: int, picks) -> GameState:
     """The space's action: take ALL the wood on the card (the accumulation-
     space rule — a use sweeps the whole stack). `picks` is always None (a
     plain, non-wide placement)."""

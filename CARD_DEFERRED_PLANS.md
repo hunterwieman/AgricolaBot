@@ -52,6 +52,187 @@ Two refinements found 2026-07-27 while flagging Market Master:
    eligibility now consults the latch. The reverse order (return first, then no bake) was
    already correct via `people_home`. Both orders pinned in `tests/test_card_steam_machine.py`.
 
+## Ruling 85 (2026-07-27) — the harvest tail: the cooking floor lapses at end_of_harvest; the last-chance conversion offer
+
+(User, restated from their words.) The post-breed cooking prohibition (ruling 39's floor) **stops
+applying at the "at the end of the harvest" moment** — equivalently, the breed phase ends just
+before it (a new phase holding the end_of_harvest + after_harvest moments is acceptable if the
+representation needs one) — so Winter Caretaker CAN cook a just-bred animal to pay for its
+vegetable. And the player's standalone choice to activate each of their available harvest
+conversions gets its **final home at the last conversion opportunity of the breed phase,
+immediately before end_of_harvest**; the converters are closed after it. This supersedes the
+2026-07-03 annotation that end_of_harvest is itself "the last chance for in-harvest conversions"
+(the last chance moves one step earlier; the floor lapses there instead). **BUILT
+(2026-07-27), same day.** As landed: `post_breed_floors` and `in_conversion_span` lapse/close
+on the harvest walk's cursor at end_of_harvest — NOT a new Phase member (the enum is shared
+with Family and the C++ twin; the tail windows deliberately keep running under the breed
+phase's Phase value, and a Family harvest's cursor never reaches the new branches). The
+free-span surface split (`CONVERTER_SPAN_EVENTS` = the span minus end_of_harvest, a default-off
+keyword on `register_free_span_trigger`) trims the four food-PRODUCING carriers — the craft
+majors' span exchanges, Braid Maker's reed→2-food clause, Paintbrush (its bonus-point route
+rides the same printed exchange, so both trim), Stone Carver — while the three food-SPENDING
+carriers (Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee) keep
+end_of_harvest per ruling 36. **Two implementer classifications flagged for user review**: the
+produce-vs-spend line itself, and Paintbrush's point route trimming with its conversion.
+Winter Caretaker's converter-route pin is rewritten to the ruled play (standalone-fire the
+Joinery at after_breeding, then buy at end_of_harvest — where a just-bred animal is now also
+cookable). Known cosmetic residue (verified, no rules impact): the walk's eligibility probes
+run cursor-cleared, so a player whose ONLY payment route was a now-closed converter can still
+receive a Proceed-only tail-window frame — a singleton agents auto-skip; no legal move is
+deleted and nothing offered is unexecutable. Fixing it means threading the walk position
+through `engine.py`'s probe — deliberately not done.
+
+## Ruling 84 (2026-07-27) — the food-payment classification pass: every implemented food price rides the raise shape
+
+1. **The sweep + the fix wave.** All 572 implemented card texts were read for food-as-a-price
+   (a four-agent semantic sweep, cross-checked by a keyword list, a code-idiom grep, and the
+   ruling-82 survey), and the 72-module union audited against ruling 82 with every defect verdict
+   driver-verified. Result: **22 plain-gate defects, all rebuilt on the raise shape the same
+   day** — acquirer, basket_carrier, credit, cube_cutter, dung_collector, excavator, farm_store,
+   food_merchant, forest_trader, furniture_carpenter, green_grocer, haydryer, merchant,
+   new_purchase, plow_builder (standalone fire only), stone_importer, supply_boat, thresher,
+   treegardener, truffle_slicer, value_assets, winter_caretaker. **10 condition reads confirmed
+   fine** (docstring-noted): angler, case_builder, forest_stone, furniture_maker,
+   kindling_gatherer, maintenance_premium, portmonger, small_animal_breeder, social_benefits,
+   tree_cutter. 39 modules already correct. Ruling 82's recorded "17-module survey" is
+   **superseded**: small_animal_breeder was a mis-sort (its gate reads food, never charges it),
+   and eight defect members were missing from it (new_purchase, excavator, cube_cutter,
+   food_merchant, truffle_slicer, merchant, forest_trader, supply_boat).
+2. **Credit A54** (user, verbatim): "with 0 food, the player should be given both options:
+   raise-and-pay and beg. With 1+ food, they must pay." Built as the three-tier end_of_round
+   shape: auto-pay / mandatory-with-choice (`PendingCardChoice(("pay", "beg"))`, the Childless
+   idiom) / auto-beg.
+3. **Confidant B93** (user): asked whether a player may cook mid-play to afford a bigger
+   placement count N — "Yes, obviously they may." The raw `food >= N` pre-gate is removed; the
+   counts ride the liquidation-aware play-variant surcharge machinery (the Stable Sergeant
+   shape). The old docstring's "(gated food >= N)" citation was the build record's own text,
+   not ruling text — re-attributed.
+4. **Ruling 37's scope, clarified by the user**: it governs the food-RAISING machinery only —
+   rider-output buys stay out of the conversion frontier ("never a row of the CommitConvert
+   Pareto frontier") — and says nothing about how such a buy's own fee is paid. Furniture
+   Carpenter's and Basket Carrier's span-surface fees are therefore ordinary ruling-82 fees;
+   their FEED-seam offers stay on-hand-gated, harmless because the span surface preserves every
+   legal line.
+5. **The eligibility gate is harvest-aware** (engine, `legality._liquidatable_to`): inside a
+   harvest instant it now delegates to the same frontier the raise frame enumerates (in-span
+   converters + ruling-39 floors), closing a gate↔frontier gap no pre-wave card had reached.
+6. **Flagged, implementer's lean stands unless ruled otherwise**: Truffle Slicer's "if you have
+   at least 1 wild boar" is a fire-time read, so a raise bundle may legally cook the qualifying
+   boar (the condition held when the effect was invoked).
+
+## Ruling 86 (2026-07-27) — card action spaces: tolls, occupancy, and the destination universe
+
+The Stage-3 rulings for the card-created action-space family (Chapel A39, Forest Inn
+B42, Alchemists Lab E81, Forest Owner C162, Archway D51 — "for all"; Collector C104,
+Pioneering Spirit D23, Hardworking Man D127, Elder Baker E161, Forest Tallyman A162 —
+"for you only"; Tree Inspector D116 — the accumulation variant):
+
+1. **Toll gating.** "If another player uses it, they must first pay you 1 grain/food"
+   gates the non-owner's placement entirely — "if they cannot pay it is not legal"
+   (user, verbatim) — and is paid at placement time, before the action resolves.
+2. **Food tolls take the raise shape** (ruling 82: cooking mid-payment is a legal
+   route), and the toll — including raised food — lands with the OWNER: the engine's
+   first player-to-player payment (everything else burns to the general supply).
+3. **For-all occupancy is standard occupancy**: one worker total per round, either
+   player's — "unless a different card allows a player to place their worker on an
+   occupied space (e.g. brotherly love)" (user), i.e. the occupancy-exemption
+   machinery composes with card spaces exactly as with board spaces.
+4. **Forest Inn's placement gate is carryability**: the action IS the exchange, so
+   any placer (owner included) needs 5+ wood to place at all; a non-owner needs the
+   toll besides.
+5. **Card spaces join the relocation/jump destination universe**: "Straw Hat,
+   Archway, and others should allow the jumping worker to move to one of these
+   action spaces as well as the normal action spaces on the board" (user, verbatim).
+   Scope note: the shipped jump cards are all named-space pairs (Swagman's pair,
+   Job Contract's pair, Full Peasant's, Large-Scale Farmer's), so the live members
+   are the generic-destination movers — Straw Hat now, Archway when built.
+6. **The toll × before-window ordering — RULED 2026-07-27 (superseding this item's
+   original deferral; see item 8).** The survey below stands as the member record.
+   Original boundary note: The user's question: a generic before-`action_space` effect
+   granting food could interact with a food toll, and the order (toll first vs grant
+   first) would decide placement legality at the margin. Surveyed both directions
+   (2026-07-27): **no implemented or catalog card fires a goods-granting
+   before-window effect on a card space's use.** Every generic-scope before-granter
+   is keyed to BOARD features — round-slot spaces (New Market D55, Wholesaler B137,
+   Bean Counter D158, Knapper A124, Master Workman A126), named spaces (the whole
+   implemented before_action_space roster), an action the toll spaces lack (Wood
+   Barterer D119 — fences/rooms), board adjacency (Legworker C117), or ordinal ×
+   board category (Catcher A107, Building Expert A163); Sowing Master D109 is
+   after-window. So the toll gate reads the pre-use state today, and the first card
+   that grants goods in a card-space use's before window re-opens the ordering as a
+   rules question (it is the improvement-layer enabling-grant question — Wood
+   Workshop B75 vs the affordability gates — at the action-space layer).
+
+7. **Toll receipts ARE "obtaining" for the payee's reactors** (user, 2026-07-27:
+   "yes"): the owner receiving a toll obtains that good — Chapel's grain toll fires
+   the owner's Hayloft-Barn-class grain reactors, a food toll the food reactors — so
+   the toll transfer must route through the standard goods-gain chokepoint, never a
+   silent field bump.
+8. **The toll is owed PER USE, however the worker arrives** (user: "yes" — pierced
+   placements, Bassinet/Mummy's-Boy extras, and Straw Hat / Archway relocations all
+   pay), **and the toll fires BEFORE the before-action-space benefits** (user: "the
+   benefits from mattock, Work Certificate, etc. are not able to help pay the
+   toll"). Consequence, in the user's words: "the legality check for the non-owners
+   is a can afford payment AND the legality check for the owner" — toll
+   affordability is read on the PRE-use state (liquidation-aware for food tolls per
+   item 2; plain have-it for grain), conjoined with the space's own action-legality
+   predicate. Fishing Net C51's printed clarifications independently pin the same
+   model on its board-space toll ("Others must have 1 food before using"; proceeds
+   may not pay the owner).
+
+**Appendix (2026-07-27) — the read-everything interaction survey.** After the keyword
+sweep provably missed the reaction class (the user's Kindling Gatherer catch), two
+agents read all 840 catalog texts against the five for-all spaces (read counts audited
+420+420; exclusion lists reviewed; spot-checks verified verbatim). The surface:
+
+- **Yield-reactors** (the `taken`-delta stamp / obtain events / after-windows):
+  Kindling Gatherer E118 (Forest Inn's exchange food + Archway's food) composes
+  as-written — its after-window eligibility reads the host's `taken.food`, which the
+  card-space Proceed path stamps. **Beaver Colony E33 and Mattock E77 do NOT** —
+  both are implemented against static named-board-space sets (reed_bank /
+  quarries), an encoding that was exact while the board held the only reed/stone
+  sources; Alchemists Lab's dynamic yield needs each to grow a content-based leg
+  (the `taken`-delta shape) AT THE LAB'S BUILD, or they under-fire. Also: Syrup Tap
+  E47, Wolf E103, Claypipe A53, Material Hub C81, Hayloft Barn B21, Agricultural
+  Labourer C120, Work Certificate A82, Steam Machine C25, Child Ombudsman D92
+  (check each's encoding at the relevant build); Shaving Horse A48 is wontfix.
+- **Occupancy/arrival interactions** (the pierce-and-extra-placement family reaching
+  card spaces): Lazy Sowman A94, Bassinet A25 (its printed clarification names a card
+  space as a valid target), Brotherly Love D24, Mummy's Boy A130 [3+], Little Peasant
+  B151 [4+] (blanket "not considered occupied for you"), Spin Doctor D151 [4+],
+  Parrot Breeder C150 [4+], Rock Beater E150 [4+] ("providing stone and…" —
+  definitional question at its build); Basket Chair C22, Sheep Inspector D93,
+  Henpecked Husband D94, Godly Spouse D150 move/return workers OFF card spaces.
+- **Settled by existing rulings, no new question**: a vacated card space RE-OPENS
+  (the Tea Time ruling — occupancy is solely worker presence — which
+  `return_card_space_worker` already implements); a Straw-Hat/Archway-mediated use
+  IS a use and fires the destination's hooks (rulings 81/83); "round spaces N–M"
+  wordings are board slots and never card spaces.
+- **Toll-model siblings** (design inputs for the toll seam — build it SPACE-GENERIC):
+  Fishing Net C51 puts the identical "must first pay you" toll on a BOARD space, with
+  printed clarifications pinning the model — "Others must have 1 food before using"
+  (the toll gates the use) and "Food from the 'Fishing' action space may not be used
+  to pay the card owner" (no paying from proceeds); Forest Guardian B138 is the same
+  transfer on 5+-wood accumulation takes; Chairman D139 a Meeting-Place-only payout.
+- **Machinery-family siblings found**: Final Scenario B23 (a round card becomes an
+  OWNER-ONLY card-hosted space until placed on the board) and Studio Boat C39 (in
+  1–3p games — clarification confirmed — the card IS a for-all ACCUMULATION card
+  space), so accumulation-ness and reachability are PER-SPEC properties, never
+  assumptions about card spaces as a class.
+
+**Open questions from the survey (need the user before/at the relevant builds):**
+(a) Do TOLL RECEIPTS count as "obtaining/getting" a good for the payee's reactors
+(Hayloft Barn's grain from a Chapel toll; Wolf; Agricultural Labourer; Kindling
+Gatherer / Syrup Tap on food/wood tolls)? One adjudication covers the family.
+(b) Is the toll owed PER USE however the worker arrives — pierced placements (Lazy
+Sowman, Little Peasant, Brotherly Love, Bassinet, Mummy's Boy, Parrot Breeder) and
+relocations (Straw Hat / Archway moving onto another player's toll space) — or only
+on ordinary placements? (c) Per-card definitionals deferred to each build: Rock
+Beater's "providing", Wares Salesman E144's "a card that lets them turn building
+resources into food" (× Forest Inn), Pioneer E105's "the most recent action space
+card", Legworker C117's adjacency (undefined for card spaces), Material Hub's
+"takes" vs exchange proceeds.
+
 ## Ruling 83 (2026-07-27) — Straw Hat: the unconditional food branch, inherited jump readings, the Steam Machine commitment both ways
 
 Settles **Straw Hat E10** ("At the end of the work phases of rounds 3 and 6, you can move
@@ -604,52 +785,27 @@ Herbal Garden, Beaver Colony, Hook Knife, Ox Skull, and Cookery Lesson (§1) lef
 
 ---
 
-## PRIORITY: three mis-timed harvest cards awaiting the user's disposition (2026-07-02)
+## RESOLVED (marked 2026-07-27): the three mis-timed harvest cards were all re-timed
 
-**The problem.** A 2026-07-02 fidelity audit found three **implemented, live** harvest cards whose
-printed timing is *not* the feeding phase but which were implemented as feeding-phase conversions
-(entries in the `HARVEST_CONVERSIONS` registry, surfaced during HARVEST_FEED). The implementing
-sessions justified the shift with neutrality arguments written into their own docstrings ("the
-established, accepted approximation") — **never ratified by the user**, and the user has since
-ruled (CARD_AUTHORING_GUIDE.md §0.1; CARD_ENGINE_IMPLEMENTATION.md §6, first ruling) that such
-shifts are never acceptable: a card is implemented exactly as printed or it is deferred. The
-audit was systematic (a census of every non-builtin `HARVEST_CONVERSIONS` registrant and every
-`HARVEST_FIELD_CARDS` member against its printed text, plus a repo-wide self-ratification-language
-lint) — **these three are the complete set**; every other harvest card is faithful.
+A 2026-07-02 fidelity audit found three implemented harvest cards whose printed timing was not
+the feeding phase but which were built as FEED-seam conversions, with self-ratifying docstring
+justifications the user never approved. This section long said "awaiting the user's disposition"
+/ "no faithful hook exists yet" — **stale on both counts** once the harvest-window ladder landed;
+all three now sit on their printed instants (code-verified 2026-07-27 during the ruling-84 pass):
 
-**The three cards and their exact deltas:**
+- **cube_cutter** — the `field_phase` during-window (printed "In the field phase"); its
+  1-wood + 1-food price now also rides the ruling-82 raise shape with the wood reserved from
+  liquidation.
+- **winter_caretaker** — the `end_of_harvest` window (printed "At the end of each harvest");
+  its 2-food buy now rides the raise shape (ruling 84), and ruling 85 governs what is cookable
+  there.
+- **elephantgrass_plant** — its printed after-harvest instant (the module docstring carries the
+  mis-timing history).
 
-1. **`cube_cutter`** (occupation, C98). Text: *"In the field phase of each harvest, you can use
-   this card to exchange exactly 1 wood and 1 food for 1 bonus point."* Implemented during FEED.
-   The shift is **permissive**: at FEED the player can first cook wood→food (Joinery / craft
-   conversions fire in FEED) and pay *that* food; at the printed field-phase timing the food must
-   already be on hand before any feeding conversions run.
-   **Remedy available TODAY**: the field phase now has an optional-choice host — commit 9c785e7
-   built `PendingHarvestField` trigger surfacing (with a Proceed decline) for Stable Manure, under
-   a user ruling. Re-time cube_cutter onto a `harvest_field` optional trigger (keep once-per-
-   harvest bookkeeping; the VP bank in CardStore + `register_scoring` stays as-is), drop its
-   `HARVEST_CONVERSIONS` entry, and rewrite the docstring with the faithful timing.
-
-2. **`winter_caretaker`** (occupation). Text: *"At the end of each harvest, you can buy exactly
-   1 vegetable for 2 food."* Implemented during FEED. The shift is **restrictive**: food gained in
-   the breed phase (`breeding_food_gained`) cannot be used, and the buy competes with feeding.
-   **No faithful hook exists yet** — "end of each harvest" is post-BREED, which is exactly the
-   territory of the user-gated round-end / after-feeding designs below (`PendingRoundEnd` /
-   the `PendingHarvestFeed` after-phase). Options: re-defer (Farm Store precedent), or hold until
-   that machinery is approved and built, then re-time.
-
-3. **`elephantgrass_plant`** (minor). Text: *"Immediately after each harvest, you can use this
-   card to exchange exactly 1 reed for 1 bonus point."* Implemented during FEED. No concrete
-   behavioral delta was found (reed does not move during FEED/BREED) — but per the fidelity
-   ruling that is a reason to ask, not to keep. Same options as winter_caretaker (its faithful
-   window is the same post-harvest instant), **or** the user may explicitly ratify the FEED seam
-   for this card with a dated ruling.
-
-**Per-card dispositions available to the user:** (a) **re-time** onto the correct hook
-(cube_cutter: possible now; the other two: after the round-end/after-feeding build);
-(b) **re-defer** — the Farm Store precedent: move module + test to `archive/deferred_cards/`,
-unwire from `agricola/cards/__init__.py`, record here; (c) **ratify as-is** with an explicit
-dated ruling added to the docstring.
+No allowlist residue: `tests/test_card_fidelity_lint.py`'s ALLOWLIST is verified empty
+(2026-07-27). One gap the ruling-84 pass exposed: the lint's phrase patterns never caught
+Truffle Slicer's "Tier-2 simplification" or Confidant's "deliberately NOT
+liquidation-raisable" — tightening them with the ruling-84 phrases is queued hygiene.
 
 **Mechanics for whichever session executes** (all card-only — Family byte-identity and the C++
 gates are untouched): each card's entry in the `ALLOWLIST` of

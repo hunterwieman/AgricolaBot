@@ -12,7 +12,7 @@ a non-reed/stone space (Forest) does not fire it, and the not-owned no-op.
 """
 import pytest
 
-from agricola.actions import PlaceWorker
+from agricola.actions import PlaceWorker, Proceed
 from agricola.cards.specs import MINORS
 from agricola.cards.triggers import AUTO_EFFECTS, OWN_ACTION_HOOK_CARDS, should_host_space
 from agricola.engine import step
@@ -58,12 +58,12 @@ def _stock(state, space_id):
 def test_registration_and_hook():
     assert "mattock" in MINORS
     assert MINORS["mattock"].cost == Cost(resources=Resources(wood=1))
-    autos = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", [])}
+    autos = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", [])}
     assert "mattock" in autos
-    for space in _YIELDING:
+    for space in set(_YIELDING) | {"forest", "clay_pit", "fishing"}:
         assert "mattock" in OWN_ACTION_HOOK_CARDS.get(space, set())
-    # Not the wood / clay / grain spaces.
-    for other in ("forest", "clay_pit", "grain_seeds"):
+    # Not the non-accumulation spaces, and not the self-hosting markets.
+    for other in ("grain_seeds", "day_laborer", "sheep_market"):
         assert "mattock" not in OWN_ACTION_HOOK_CARDS.get(other, set())
 
 
@@ -77,9 +77,11 @@ def test_grants_one_clay_on_reed_stone_spaces(space):
     assert should_host_space(s, space, 0)
     before = s.players[0].resources.clay
     s = step(s, PlaceWorker(space=space))
-    # Hosted before-phase: the auto fired at the push. +1 clay (the accumulated
-    # reed/stone lands later at Proceed, so it can't confound clay).
     assert isinstance(s.pending_stack[-1], PendingActionSpace)
+    assert s.players[0].resources.clay == before        # nothing before the take
+    s = step(s, Proceed())
+    # After-window content read (user directive 2026-07-27): the take yielded
+    # reed/stone, so +1 clay — wherever the goods came from.
     assert s.players[0].resources.clay == before + 1
 
 
@@ -92,8 +94,9 @@ def test_no_fire_on_forest():
     s = _own(_state())
     before = s.players[0].resources.clay
     s = step(s, PlaceWorker(space="forest"))
-    assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
-    assert s.players[0].resources.clay == before
+    assert isinstance(s.pending_stack[-1], PendingActionSpace)  # hook widened
+    s = step(s, Proceed())
+    assert s.players[0].resources.clay == before   # wood-only take: no fire
 
 
 def test_not_owned_no_clay():

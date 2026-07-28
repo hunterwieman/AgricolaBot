@@ -140,16 +140,70 @@ def _move_board_worker(state: GameState, idx: int, from_space: str,
 
 
 def relocate_and_use(state: GameState, idx: int, from_space: str,
-                     to_space: str) -> GameState:
+                     to_space: str, picks=None) -> GameState:
     """The jump: move the acting worker `from_space` -> `to_space`, fire the
     relocated hooks (stored referents follow the person), then run the
     destination's full action. Mints no placement number (ruling 79 — the worker
     keeps its number). Callers (the jump cards' apply fns) have already verified
     eligibility: the destination's own action must be legal (never a dead-end) and
     any unoccupied-destination condition holds at the trigger time (ruling 81
-    item 2)."""
+    item 2).
+
+    A `to_space` of the form "card:<id>" is a CARD action space destination
+    (ruling 86 item 5 — Straw Hat / Archway may move onto card spaces): the
+    worker leaves the board for the card's occupancy marker (the mover's
+    CardStore), the ledger entry follows, and the use is hosted via
+    `engine.initiate_card_space_use` — `picks` is that use's wide payload
+    (Collector's goods choice), None for a plain card space and always None
+    for a board destination."""
+    if to_space.startswith("card:"):
+        state = _move_board_worker_to_card(state, idx, from_space,
+                                           to_space.split(":", 1)[1])
+        for _card_id, fn in WORKER_RELOCATED_HOOKS:
+            state = fn(state, idx, from_space, to_space)
+        from agricola.engine import initiate_card_space_use   # avoid import cycle
+        return initiate_card_space_use(state, idx,
+                                       to_space.split(":", 1)[1], picks)
+    assert picks is None, "picks is a card-space-destination payload only"
     state = _move_board_worker(state, idx, from_space, to_space)
     for _card_id, fn in WORKER_RELOCATED_HOOKS:
         state = fn(state, idx, from_space, to_space)
     from agricola.engine import initiate_space_use   # local: avoid import cycle
     return initiate_space_use(state, to_space)
+
+
+def _move_board_worker_to_card(state: GameState, idx: int, from_space: str,
+                               card_id: str) -> GameState:
+    """Move one of player `idx`'s board worker markers onto a CARD action
+    space: decrement the vacated board space (it re-opens — occupancy is
+    solely worker presence) and rewrite the mover's standing-worker ledger
+    entry to "card:<id>" (the number is preserved — ruling 79 item 3). The
+    on-card occupancy marker itself is set by `initiate_card_space_use` (the
+    same division as a card-space placement: bookkeeping here, marker+host
+    there)."""
+    src = get_space(state.board, from_space)
+    assert src.workers[idx] >= 1, (
+        f"no worker of player {idx} on {from_space!r} to move")
+
+    def _bump(workers, i, delta):
+        return tuple(w + (delta if j == i else 0) for j, w in enumerate(workers))
+
+    spaces = list(state.board.action_spaces)
+    from agricola.constants import SPACE_INDEX
+    spaces[SPACE_INDEX[from_space]] = fast_replace(
+        src, workers=_bump(src.workers, idx, -1))
+    state = fast_replace(state, board=fast_replace(
+        state.board, action_spaces=tuple(spaces)))
+
+    p = state.players[idx]
+    matches = [e for e in p.standing_workers if e[1] == from_space]
+    if matches:
+        assert len(matches) == 1, (
+            f"two numbered workers of player {idx} at {from_space!r}: {matches}")
+        num = matches[0][0]
+        p = fast_replace(p, standing_workers=tuple(
+            (n, f"card:{card_id}" if n == num else loc)
+            for n, loc in p.standing_workers))
+        state = fast_replace(state, players=tuple(
+            p if i == idx else state.players[i] for i in range(len(state.players))))
+    return state

@@ -19,10 +19,25 @@ MAJOR_IMPROVEMENT_POINTS = [1, 1, 1, 1, 4, 2, 3, 2, 2, 2]
 # and the family total — the value the C++ differential checks — is unchanged.
 SCORING_TERMS: list[tuple[str, Callable]] = []
 
+# Ownership-INDEPENDENT scoring terms: summed for EVERY player, whether or not
+# they own the card (the triggers' `any_player` precedent). For effects a card
+# grants to whoever USES it — Chapel A39's "a player who uses it gets 3 bonus
+# points" banks on the USER, who may not be the owner, so the `_owns`-gated
+# list above cannot score them. Each fn reads the scoring player's OWN banked
+# state (0 when they never used the card). Empty in the Family game → 0.
+SCORING_TERMS_ANY: list[tuple[str, Callable]] = []
+
 
 def register_scoring(card_id: str, fn: Callable) -> None:
     """Register a card's end-game scoring term (called at card-module import)."""
     SCORING_TERMS.append((card_id, fn))
+
+
+def register_scoring_any_player(card_id: str, fn: Callable) -> None:
+    """Register an ownership-independent scoring term — `fn(state, idx)` is
+    summed for BOTH players (each reads their own banked state; see
+    SCORING_TERMS_ANY)."""
+    SCORING_TERMS_ANY.append((card_id, fn))
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +293,11 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
     card_points = sum(
         fn(state, player_idx) for card_id, fn in SCORING_TERMS
         if _owns(ps, card_id)
+    )
+    # Ownership-independent terms (SCORING_TERMS_ANY — use-banked points like
+    # Chapel's): every player's own banked state, no ownership gate.
+    card_points += sum(
+        fn(state, player_idx) for _card_id, fn in SCORING_TERMS_ANY
     )
     # Mutually-exclusive scoring groups: for each group the player owns >=1
     # member of, count only the single best-scoring owned member (the "you can

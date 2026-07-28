@@ -76,17 +76,18 @@ def _uses(player_state) -> int:
     return player_state.card_state.get(CARD_ID, 0)
 
 
-def _placeable(state: GameState, owner_idx: int) -> list:
+def _placeable(state: GameState, placer_idx: int, owner_idx: int) -> list:
     """The wide placement variants: every combination of ``6 + uses`` distinct
     goods from the 10-good menu, one picks tuple each (C(10, 6/7/8/9) —
-    none Pareto-comparable, no pruning). Empty after the 4th use."""
+    none Pareto-comparable, no pruning). Empty after the 4th use. "For you
+    only": placer == owner always (the machinery's ownership gate)."""
     uses = _uses(state.players[owner_idx])
     if uses >= _MAX_USES:
         return []
     return [tuple(c) for c in combinations(GOODS, _BASE_GOODS + uses)]
 
 
-def _use(state: GameState, owner_idx: int, picks) -> GameState:
+def _use(state: GameState, placer_idx: int, owner_idx: int, picks) -> GameState:
     """The space's action: 1 of each picked good + 1 begging marker (part of
     the action, per the ruling), and the use counter advances. Resources land
     directly; animals go through ``grant_animals`` in the same synchronous

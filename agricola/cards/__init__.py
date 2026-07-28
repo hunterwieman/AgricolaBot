@@ -1090,3 +1090,7 @@ from agricola.cards import full_peasant  # noqa: F401
 #     relocation (Archway's after_work sibling awaits the card-action-space
 #     infrastructure). ---
 from agricola.cards import straw_hat  # noqa: F401
+# --- The for-all card-action-space arc (ruling 86): tolls gate non-owner
+#     arrivals (paid before the use's benefits), for_all spaces + the
+#     ownership-independent scoring list. Chapel is the first consumer. ---
+from agricola.cards import chapel  # noqa: F401

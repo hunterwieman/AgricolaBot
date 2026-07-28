@@ -55,6 +55,7 @@ read (the mover stands on it).
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_play_variant_trigger
 from agricola.cards.worker_moves import relocate_and_use
@@ -80,8 +81,19 @@ def _variants(state: GameState, idx: int) -> list:
     exist only while a person of the owner stands on Farmland and no use has
     been committed as the phase's last (ruling 83 item 3 — a fired Steam
     Machine forecloses the move, leaving the food); each must be strictly
-    unoccupied AND legal per its own placement predicate, probed as the owner."""
-    variants = ["food"]
+    unoccupied AND legal per its own placement predicate, probed as the owner.
+
+    CARD action spaces join the destination universe (ruling 86 item 5 —
+    "Straw Hat, Archway, and others should allow the jumping worker to move to
+    one of these action spaces as well as the normal action spaces on the
+    board"): each registered, played, un-occupied card space the owner could
+    place on ("for you only" = own cards; a `for_all` card = either player's),
+    one variant per `placeable_fn` entry — a picks-bearing entry (Collector's
+    wide goods choice) surfaces as a (variant, picks) tuple, one FireTrigger
+    per combination, mirroring the space's own placements. When the toll seam
+    lands (ruling 86 items 1/2), the non-owner filter here additionally gates
+    on the toll being payable, exactly like a placement."""
+    variants: list = ["food"]
     p = state.players[idx]
     if (get_space(state.board, "farmland").workers[idx] >= 1
             and not p.last_use_committed):
@@ -90,22 +102,56 @@ def _variants(state: GameState, idx: int) -> list:
             sid for sid, predicate in CARD_GAME_LEGALITY.items()
             if not space_occupied(state, sid) and predicate(probe)
         ]
+        from agricola.cards.card_spaces import (
+            CARD_ACTION_SPACES, card_space_occupied, played_card_owner,
+            toll_payable,
+        )
+        for card_id in sorted(CARD_ACTION_SPACES):
+            spec = CARD_ACTION_SPACES[card_id]
+            owner = played_card_owner(state, card_id)
+            if owner is None:
+                continue                       # in a hand / undealt — no space
+            if owner != idx and not spec.for_all:
+                continue                       # "for you only"
+            if (owner != idx and spec.toll is not None
+                    and not toll_payable(state, idx, spec.toll)):
+                continue                       # ruling 86: the toll gates the
+                                               # arrival however the worker moves
+            if card_space_occupied(state, card_id):
+                continue
+            dest = f"card:{card_id}"
+            for picks in spec.placeable_fn(state, idx, owner):
+                variants.append(dest if picks is None else (dest, picks))
     return variants
 
 
-def _apply(state: GameState, idx: int, variant: str) -> GameState:
+def _apply(state: GameState, idx: int, variant: str, picks=None) -> GameState:
     """Fire one branch: the 1 food, or move the Farmland person to `variant`
-    and take that action (the shared jump helper — the ledger entry follows the
-    person, the destination resolves fully above this window's host)."""
+    and take that action (the shared jump helper — the ledger entry follows
+    the person, the destination resolves fully above this window's host). A
+    "card:<id>" variant is a card-space destination (ruling 86 item 5);
+    `picks` is its wide payload (Collector), threaded by the picks-bearing
+    FireTrigger."""
     if variant == "food":
         p = state.players[idx]
         p = fast_replace(p, resources=p.resources + Resources(food=1))
         return fast_replace(state, players=tuple(
             p if i == idx else state.players[i] for i in range(len(state.players))))
     state = fast_replace(state, current_player=idx)
-    return relocate_and_use(state, idx, "farmland", variant)
+    return relocate_and_use(state, idx, "farmland", variant, picks=picks)
+
+
+def _action_label(variant: str):
+    """Terse per-variant labels for the web UI's trigger buttons."""
+    if variant == "food":
+        return "get 1 food"
+    if variant.startswith("card:"):
+        return f"move to {variant.split(':', 1)[1].replace('_', ' ').title()}"
+    from agricola.constants import SPACE_DISPLAY_NAMES
+    return f"move to {SPACE_DISPLAY_NAMES.get(variant, variant)}"
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(reed=1)))
 register("end_of_work", CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
+register_action_labeler(CARD_ID, _action_label)
