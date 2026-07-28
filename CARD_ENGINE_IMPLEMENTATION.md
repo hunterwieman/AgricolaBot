@@ -337,11 +337,33 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   obtain-reactor fire site), a registration guard refusing FOOD tolls until their
   raise path lands, and `scoring.register_scoring_any_player`
   (ownership-independent terms) for Chapel's use-banked 3 points. Census:
-  **239 + 335 = 574**. Still open in the relocation family: the food-toll raise
-  path (Forest Inn B42, Alchemists Lab E81), Archway D51 (the for-all build + the
-  Archway × last-use open question), the standing-number readers (Second Spouse,
-  Midwife, Mummy's Boy — 3+/4+), and Henpecked Husband's stored-space → ledger
-  migration.
+  **239 + 335 = 574**. Same day, **the arc completed — five more cards (census
+  239 + 340 = 579)**: the FOOD-toll raise path (ruling 86 items 2/8:
+  `toll_payable` gains the liquidation-aware food leg; food-short arrivals push
+  the raise frame whose resume pays the raised food to the OWNER and completes
+  the arrival via the factored `_complete_card_space_arrival` — the
+  "card_space_toll" machinery resume, arrival context stashed in the payer's
+  CardStore) with **Forest Inn B42** (tier picks 5/7/9 wood → 8 wood + 2/4/7
+  food; play-round-≤6 prereq) and **Alchemists Lab E81** (dynamic held-types
+  yield — the pinned proof of the Mattock/Beaver-Colony content rewrite);
+  **Pioneering Spirit D23** (owner-only round-windowed space: a standard
+  renovate 3-5, a veg/boar/cattle pick 6-8, dead otherwise); **Archway D51**
+  (for-all park: +1 food, then the `after_work` move on the Straw Hat idiom —
+  `is_owned_fn` = the PARKED player, the shared
+  `worker_moves.relocation_destinations` enumerator factored out of Straw Hat,
+  a card-SOURCE branch in `relocate_and_use`; the last-use coupling per the
+  resolved ruling: a fired Steam Machine forecloses the move, a move onto an
+  accumulation space re-opens Steam Machine); and **Fishing Net C51** (ruling
+  86 item 9 — the first BOARD-space toll: `BOARD_SPACE_TOLLS` +
+  `register_board_space_toll`, paid at the TOP of `initiate_space_use` ahead
+  of hosting/before-window/atomic effect for every arrival mode, a
+  liquidation-aware `register_placement_forbid` gate, the "board_space_toll"
+  raise resume re-entering the initiate, and the machinery-set
+  "<card_id>:board_toll_paid" owner flag driving its returning-home 2-food
+  deposit). Still open in the relocation family: the standing-number readers
+  (Second Spouse, Midwife, Mummy's Boy — 3+/4+), Henpecked Husband's
+  stored-space → ledger migration, and the deferred siblings (Studio Boat C39
+  — user-deferred; Final Scenario B23; the 3+/4+ card spaces).
 - **The 2026-07-27 last-use-commitment latch landed (the Steam Machine × loaner-offer
   foreclosure — the commit-on-fire item, closed).** Steam Machine's "the last action space
   you use" was gated on `people_home == 0`, which an *unanswered supply-loaner offer*
@@ -2403,6 +2425,17 @@ moment food is owed. The design decision (FOOD_PAYMENT_DESIGN.md): liquidation i
 conversion inside `effective_payments` — that pipeline is subtract-only and resource-only, so it
 structurally cannot bank overshoot (a cooked boar yields 2–3 food against a 1-food debt) or
 spend animals. Instead, a produce-then-pay layer sits above it:
+
+**The layer's semantic contract (ruled 2026-07-27).** A `PendingFoodPayment` raised at a
+gate simulates conversions that notionally happened BEFORE the gating trigger or play — the
+described game's sequence is cook-then-trigger; the engine's fire-then-raise order is a
+deferral for optionality only. The contract every consumer inherits: **the post-raise state
+must still satisfy everything the gate checked.** Enforcement is the reservation seam —
+`reserved` on the frame plus `reserved_animals` in `_liquidatable_to` — which must carry
+every gate-read quantity liquidation could consume: cost-read goods (Sheep Inspector's cost
+sheep) and condition-read goods (Truffle Slicer's condition boar) alike. A new consumer
+whose gate reads a liquidatable quantity MUST reserve it; the reasoning and the per-card
+check live in CARD_AUTHORING_GUIDE.md §0.5.
 
 **The affordability gate.** `_payable(state, idx, p, cost, reserved_animals)` = plain
 `_can_afford` OR (`cost.food > 0` and `_liquidatable_to`). `_liquidatable_to` requires every

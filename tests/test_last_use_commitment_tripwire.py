@@ -62,8 +62,13 @@ def test_adoptive_parents_unbuilt_must_consult_the_latch_when_it_lands():
         "CONSULT last_use_committed — see this file's docstring")
 
 
-def test_archway_unbuilt_must_consult_the_latch_when_it_lands():
-    assert "archway" not in MINORS, (
-        "Archway has registered: its relocation branch must CONSULT "
-        "last_use_committed exactly like Straw Hat's (ruled 2026-07-27: "
-        "after_work is during the work phase) — see this file's docstring")
+def test_archway_consults_the_latch():
+    """The tripwire's demand, now BUILT (2026-07-27, same day): Archway's
+    relocation branch consults `last_use_committed` exactly like Straw Hat's
+    (the ruled after_work-is-during-the-work-phase coupling). This pin holds
+    the module wiring; the behavioral tests live in test_card_archway.py
+    (foreclosure suppresses the window; a move re-opens Steam Machine)."""
+    assert "archway" in MINORS
+    from agricola.cards.archway import _variants
+    import inspect
+    assert "last_use_committed" in inspect.getsource(_variants)

@@ -693,7 +693,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C50 Stable Yard** · prereq: 3 Stables and 3 Pastures
   - _When you play this card, you immediately get 1 food for each completed round left to play. At any time, you can exchange 1 sheep plus 1 wild boar for 1 cattle._
   - `ONPLAY E-GOODS ATWILL E-CONVERT E-ANIMALS` — On play get 1 food per remaining round; at any time exchange 1 sheep+1 boar for 1 cattle (provides an animal needing accommodation).
-- ⬜ **C51 Fishing Net** · cost: 1 Reed
+- ✅ **C51 Fishing Net** · cost: 1 Reed · ruling 86 item 9 (first board-space toll: paid pre-window at initiate_space_use; liquidation-aware forbid; returning-home deposit)
   - _Each time another player uses the "Fishing" accumulation space, they must first pay you 1 food. Then, in the returning home phase of that round, place 2 food on "Fishing".  [CLARIFICATION: Others must have 1 food before using “Fishing”.  Food from the “Fishing” action space may not be used to pay the card owner.  The 2 food is only placed for rounds in which another player used “Fishing”.]_
   - `HOOK A-OPP F-AUTO S-SPACE T-BEFORE E-OPPTRANSFER S-ROUNDEND T-AFTER E-SCHED ST-STORE` — Two hooks: opponent's Fishing use → they 'must first pay' 1 food (T-BEFORE, S-SPACE, F-AUTO, A-OPP, E-OPPTRANSFER), then at returning-home of that round 2 food is placed on Fishing (S-ROUNDEND, T-AFTER; E-SCHED is the nearest code for placing goods for future collection, though the target is the accumulation space, not a round space). ST-STORE covers the 'was Fishing used by another this round' flag; ST-PROV adds nothing beyond that flag, so dropped.
 - ⬜ **C52 Huntsman's Hat** · cost: 1 Reed · prereq: Cooking Improvement
@@ -864,7 +864,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D22 Work Permit** · cost: 1 Food · prereq: At Least 1 Building Resource in Your Supply
   - _Add 1 to the current round for each building resource you have and place 1 person from your supply on the corresponding round space. In that round, you can use the person._
   - `ONPLAY E-SCHED E-EXTRAPLACE` — Schedules an extra person onto a count-derived round space -- scheduling + extra placement, not board geometry -> L-GEOMBOARD removed.
-- ⬜ **D23 Pioneering Spirit**
+- ✅ **D23 Pioneering Spirit** · ruling 86 (owner-only round-windowed card space: renovation 3-5, goods pick 6-8, dead otherwise)
   - _This card is an action space for you only. In rounds 3-5, it provides a "renovation" action. In rounds 6-8, it provides your choice of 1 vegetable, wild boar, or cattle._
   - `PASSIVE L-CARDSPACE E-GRANTSUB E-GOODS E-ANIMALS` — A personal action space is an always-on structural change -> PASSIVE + L-CARDSPACE (label A had no ACTIVATION and F-MANDCHOICE without HOOK, which is invalid); 'renovation' is a primitive sub-action -> E-GRANTSUB; later rounds give a vegetable (E-GOODS) or boar/cattle (E-ANIMALS). Round bands 3-5/6-8 are fixed, not geometry.
 - ⬜ **D24 Brotherly Love** · cost: 1 Food
@@ -948,7 +948,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D50 Foreign Aid** · prereq: Play in Round 11 or Before
   - _When you play this card, you immediately get 6 food. You may no longer use the action spaces of rounds 12 to 14._
   - `ONPLAY E-GOODS PASSIVE EXOTIC` — ONPLAY +6 food (E-GOODS), plus a permanent always-on rule change (PASSIVE) forbidding the player's use of rounds-12-14 spaces — a self-restricting legality rule no L-/E-code captures, so EXOTIC. E-TAKEBACK (label A) is wrong: nothing previously granted/promised is reclaimed; access to normal board spaces is removed.
-- ⬜ **D51 Archway** · cost: 2 Clay · prereq: No Occupations
+- ✅ **D51 Archway** · cost: 2 Clay · prereq: No Occupations · ruling 86 (for-all park space; after_work move on the Straw Hat idiom; last-use coupling per the resolved ruling)
   - _This card is an action space for all. A player who uses it immediately gets 1 food. Immediately before the returning home phase, they can use an unoccupied action space with the person from this card._
   - `HOOK L-CARDSPACE S-SPACE S-ROUNDEND T-BEFORE F-AUTO F-TRIG A-OWN A-OPP E-GOODS E-GRANTACT E-WORKERMANIP ST-PLACELOG` — Action space for all (both actors): use gives 1 food (F-AUTO); immediately before returning home (S-ROUNDEND, T-BEFORE) the placed person may (F-TRIG) use an UNoccupied space — worker reuse (E-WORKERMANIP+E-GRANTACT+ST-PLACELOG per B150), so labelA's L-OCCUPY is wrong.
 - ⬜ **D52 Rolling Pin** · cost: 1 Wood · prereq: 1 Occupation

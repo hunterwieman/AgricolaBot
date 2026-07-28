@@ -139,6 +139,70 @@ def _move_board_worker(state: GameState, idx: int, from_space: str,
     return state
 
 
+def relocation_destinations(state: GameState, idx: int) -> list:
+    """The legal "an unoccupied action space" destinations for player `idx`'s
+    relocation (rulings 83/86 item 5 — Straw Hat, Archway): every BOARD space
+    that is strictly unoccupied (`legality.space_occupied` — the occupancy-
+    READING definition; an exemption card never un-occupies) and legal per its
+    own placement predicate probed as the mover, plus every reachable CARD
+    space (owner-only = own cards; `for_all` = either player's; a toll gates
+    the arrival — ruling 86 items 1/8) — one entry per placement variant, a
+    plain space_id or a ("card:<id>", picks) pair for wide card spaces.
+    Foreclosure (`last_use_committed`) is the CALLER's gate — each mover's
+    ruling names its own suppressed branch."""
+    from agricola.cards.card_spaces import (
+        CARD_ACTION_SPACES, board_space_tolls_due, card_space_occupied,
+        played_card_owner, toll_payable,
+    )
+    from agricola.legality import CARD_GAME_LEGALITY, space_occupied
+    from agricola.resources import Cost, Resources
+
+    def _board_tolls_ok(sid):
+        due = board_space_tolls_due(state, idx, sid)
+        if not due:
+            return True
+        total = Resources()
+        for _c, _o, toll in due:
+            total = total + toll.resources
+        return toll_payable(state, idx, Cost(resources=total))
+
+    probe = fast_replace(state, current_player=idx)
+    out: list = [
+        sid for sid, predicate in CARD_GAME_LEGALITY.items()
+        if not space_occupied(state, sid) and predicate(probe)
+        and _board_tolls_ok(sid)
+    ]
+    for card_id in sorted(CARD_ACTION_SPACES):
+        spec = CARD_ACTION_SPACES[card_id]
+        owner = played_card_owner(state, card_id)
+        if owner is None:
+            continue
+        if owner != idx and not spec.for_all:
+            continue
+        if (owner != idx and spec.toll is not None
+                and not toll_payable(state, idx, spec.toll)):
+            continue
+        if card_space_occupied(state, card_id):
+            continue
+        dest = f"card:{card_id}"
+        for picks in spec.placeable_fn(state, idx, owner):
+            out.append(dest if picks is None else (dest, picks))
+    return out
+
+
+def _clear_card_space_marker(state: GameState, idx: int, card_id: str) -> GameState:
+    """Take player `idx`'s worker marker OFF a card space (a relocation is
+    leaving — no `people_home` credit, unlike a return home)."""
+    p = state.players[idx]
+    key = f"card_space_worker:{card_id}"
+    n = p.card_state.get(key, 0)
+    assert n >= 1, f"no worker of player {idx} on card space {card_id!r}"
+    store = p.card_state.remove(key) if n == 1 else p.card_state.set(key, n - 1)
+    p = fast_replace(p, card_state=store)
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+
+
 def relocate_and_use(state: GameState, idx: int, from_space: str,
                      to_space: str, picks=None) -> GameState:
     """The jump: move the acting worker `from_space` -> `to_space`, fire the
@@ -156,6 +220,39 @@ def relocate_and_use(state: GameState, idx: int, from_space: str,
     `engine.initiate_card_space_use` — `picks` is that use's wide payload
     (Collector's goods choice), None for a plain card space and always None
     for a board destination."""
+    if from_space.startswith("card:"):
+        # CARD-space source (Archway's parked person): the marker leaves the
+        # card and the ledger entry follows; the board never held this worker.
+        state = _clear_card_space_marker(state, idx, from_space.split(":", 1)[1])
+        p = state.players[idx]
+        matches = [e for e in p.standing_workers if e[1] == from_space]
+        if matches:
+            assert len(matches) == 1
+            num = matches[0][0]
+            new_loc = to_space if to_space.startswith("card:") else to_space
+            p = fast_replace(p, standing_workers=tuple(
+                (n, new_loc if n == num else loc)
+                for n, loc in p.standing_workers))
+            state = fast_replace(state, players=tuple(
+                p if i == idx else state.players[i]
+                for i in range(len(state.players))))
+        if not to_space.startswith("card:"):
+            dst = get_space(state.board, to_space)
+            workers = tuple(w + (1 if j == idx else 0)
+                            for j, w in enumerate(dst.workers))
+            from agricola.constants import SPACE_INDEX
+            spaces = list(state.board.action_spaces)
+            spaces[SPACE_INDEX[to_space]] = fast_replace(dst, workers=workers)
+            state = fast_replace(state, board=fast_replace(
+                state.board, action_spaces=tuple(spaces)))
+        for _card_id, fn in WORKER_RELOCATED_HOOKS:
+            state = fn(state, idx, from_space, to_space)
+        from agricola.engine import initiate_card_space_use, initiate_space_use
+        if to_space.startswith("card:"):
+            return initiate_card_space_use(state, idx,
+                                           to_space.split(":", 1)[1], picks)
+        assert picks is None, "picks is a card-space-destination payload only"
+        return initiate_space_use(state, to_space)
     if to_space.startswith("card:"):
         state = _move_board_worker_to_card(state, idx, from_space,
                                            to_space.split(":", 1)[1])

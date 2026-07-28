@@ -97,31 +97,8 @@ def _variants(state: GameState, idx: int) -> list:
     p = state.players[idx]
     if (get_space(state.board, "farmland").workers[idx] >= 1
             and not p.last_use_committed):
-        probe = fast_replace(state, current_player=idx)
-        variants += [
-            sid for sid, predicate in CARD_GAME_LEGALITY.items()
-            if not space_occupied(state, sid) and predicate(probe)
-        ]
-        from agricola.cards.card_spaces import (
-            CARD_ACTION_SPACES, card_space_occupied, played_card_owner,
-            toll_payable,
-        )
-        for card_id in sorted(CARD_ACTION_SPACES):
-            spec = CARD_ACTION_SPACES[card_id]
-            owner = played_card_owner(state, card_id)
-            if owner is None:
-                continue                       # in a hand / undealt — no space
-            if owner != idx and not spec.for_all:
-                continue                       # "for you only"
-            if (owner != idx and spec.toll is not None
-                    and not toll_payable(state, idx, spec.toll)):
-                continue                       # ruling 86: the toll gates the
-                                               # arrival however the worker moves
-            if card_space_occupied(state, card_id):
-                continue
-            dest = f"card:{card_id}"
-            for picks in spec.placeable_fn(state, idx, owner):
-                variants.append(dest if picks is None else (dest, picks))
+        from agricola.cards.worker_moves import relocation_destinations
+        variants += relocation_destinations(state, idx)
     return variants
 
 

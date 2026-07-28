@@ -133,9 +133,19 @@ through `engine.py`'s probe — deliberately not done.
 5. **The eligibility gate is harvest-aware** (engine, `legality._liquidatable_to`): inside a
    harvest instant it now delegates to the same frontier the raise frame enumerates (in-span
    converters + ruling-39 floors), closing a gate↔frontier gap no pre-wave card had reached.
-6. **Flagged, implementer's lean stands unless ruled otherwise**: Truffle Slicer's "if you have
-   at least 1 wild boar" is a fire-time read, so a raise bundle may legally cook the qualifying
-   boar (the condition held when the effect was invoked).
+6. **RULED (user, 2026-07-27) — the implementer's lean is overturned**: for Truffle Slicer,
+   "the player may not cook the boar to pay for the effect. Why? The literal rules based
+   interpretation is that the player raises the food, then triggers the effect. For
+   'optionality' reasons we wait until the last moment for the player to convert, but
+   technically that last moment should be before triggering the effect. In our code, we
+   trigger the effect, then raise the food, then resolve the effect, and this is the first
+   situation in which this order matters." The general principle: conversions notionally
+   PRECEDE the trigger — a raise frame simulates conversions that happened before the
+   condition was read, so the post-raise state must still satisfy everything the trigger
+   checked. A condition that reads a liquidatable quantity therefore RESERVES that quantity
+   from the raise bundles — the same reservation mechanism the cost side already uses
+   (Sheep Inspector's cost sheep). Fixed same day: truffle_slicer's eligibility gate and
+   pushed raise frame both reserve the condition boar.
 
 ## Ruling 86 (2026-07-27) — card action spaces: tolls, occupancy, and the destination universe
 

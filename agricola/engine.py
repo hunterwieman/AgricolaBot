@@ -424,6 +424,44 @@ def initiate_space_use(state: GameState, space_id: str) -> GameState:
     completely, and the walk returns to the source. Factoring this out of the
     placement path is what lets a card initiate a full space use mid-turn.
     """
+    # BOARD-space tolls (ruling 86 item 9 — Fishing Net): paid HERE, before the
+    # hosting / before-window / atomic effect, whatever the arrival mode (this
+    # is the single entry every placement, jump, and relocation routes
+    # through). Food-short → the raise frame (the arrival enumerators gated on
+    # liquidation-aware payability), whose resume re-enters this function as
+    # the payer. Empty registry → one dict lookup, the Family fast path.
+    from agricola.cards.card_spaces import board_space_tolls_due
+    due = board_space_tolls_due(state, state.current_player, space_id)
+    if due:
+        from agricola.cards.card_spaces import (
+            _BOARD_TOLL_STASH_KEY, pay_card_space_toll,
+        )
+        from agricola.pending import PendingFoodPayment
+        from agricola.resources import Cost
+        ap = state.current_player
+        total_food = sum(t.resources.food for _c, _o, t in due)
+        if state.players[ap].resources.food >= total_food:
+            for card_id, owner, toll in due:
+                state = pay_card_space_toll(state, ap, owner, toll)
+                # Flag the owner's card: "another player used the space this
+                # round" (Fishing Net's returning-home deposit reads+clears).
+                o = state.players[owner]
+                state = fast_replace(state, players=tuple(
+                    fast_replace(o, card_state=o.card_state.set(
+                        f"{card_id}:board_toll_paid", True))
+                    if i == owner else state.players[i]
+                    for i in range(len(state.players))))
+        else:
+            p = state.players[ap]
+            p = fast_replace(p, card_state=p.card_state.set(
+                _BOARD_TOLL_STASH_KEY, space_id))
+            state = fast_replace(state, players=tuple(
+                p if i == ap else state.players[i]
+                for i in range(len(state.players))))
+            return push(state, PendingFoodPayment(
+                player_idx=ap, food_needed=total_food,
+                resume_kind="board_space_toll", reserved=Cost()))
+
     # Card-mode Meeting Place is a non-atomic, SELF-HOSTING space: its handler pushes
     # a PendingMeetingPlace frame that fires before_/after_action_space on its own
     # lifecycle (before at push, after at the Proceed flip). It must therefore NOT

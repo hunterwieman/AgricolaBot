@@ -150,6 +150,48 @@ def toll_payable(state: GameState, payer_idx: int, toll) -> bool:
                             Resources(food=t.food))
 
 
+# BOARD-space tolls (ruling 86 item 9 — Fishing Net C51: "must first pay you
+# 1 food" on a board space, the same model as the card-space tolls): paid at
+# the arrival inside `engine.initiate_space_use`, BEFORE the space's hosting /
+# before-window / atomic effect, gating every arrival mode (placement, jump,
+# relocation) when unpayable. space_id -> [(card_id, Cost)].
+BOARD_SPACE_TOLLS: dict[str, list] = {}
+
+
+def register_board_space_toll(card_id: str, space_id: str, toll) -> None:
+    BOARD_SPACE_TOLLS.setdefault(space_id, []).append((card_id, toll))
+
+
+def board_space_tolls_due(state: GameState, placer_idx: int, space_id: str) -> list:
+    """The tolls `placer_idx` owes to use this BOARD space right now —
+    [(card_id, owner_idx, Cost)] for each registered toll card someone ELSE
+    has played. Empty for the owner, un-played cards, and every Family call."""
+    out = []
+    for card_id, toll in BOARD_SPACE_TOLLS.get(space_id, ()):
+        owner = played_card_owner(state, card_id)
+        if owner is not None and owner != placer_idx:
+            out.append((card_id, owner, toll))
+    return out
+
+
+# The board-toll raise's arrival context (mirrors the card-space stash).
+_BOARD_TOLL_STASH_KEY = "board_space_toll:ctx"
+
+
+def _board_toll_resume(state: GameState, idx: int) -> GameState:
+    """The board-toll raise resume: the raised food is in supply — re-enter
+    `initiate_space_use` as the payer (the tolls now pay inline, then the
+    space runs; the toll stays ahead of every use effect)."""
+    from agricola.engine import initiate_space_use
+    p = state.players[idx]
+    space_id = p.card_state.get(_BOARD_TOLL_STASH_KEY)
+    p = fast_replace(p, card_state=p.card_state.remove(_BOARD_TOLL_STASH_KEY))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+    state = fast_replace(state, current_player=idx)
+    return initiate_space_use(state, space_id)
+
+
 # The food-toll raise's arrival context (engine.initiate_card_space_use
 # stashes (card_id, picks) here; _toll_resume pops it) — a machinery-owned
 # CardStore key on the PAYER, colon-namespaced like the worker markers.
@@ -323,3 +365,4 @@ def clear_card_space_workers(state: GameState) -> GameState:
 # context rides the stash, so one registration serves them all).
 from agricola.cards.specs import register_food_payment_resume  # noqa: E402
 register_food_payment_resume("card_space_toll", _toll_resume)
+register_food_payment_resume("board_space_toll", _board_toll_resume)
