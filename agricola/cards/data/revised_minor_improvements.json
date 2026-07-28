@@ -1721,7 +1721,7 @@
     "name": "Grassland Harrow",
     "cost": "2 Wood",
     "vps": null,
-    "prerequisites": "2 Occupations, 1 Building Resource in Your Supply",
+    "prerequisites": "2 Occupations, 1 Building Resource in Your Supply After Payment",
     "passing_left": null,
     "card_category": "Farm Planner",
     "text": "Add 1 to the current round for each building resource in your supply and place 1 field on the corresponding round space. At the start of the round, you can plow the field."

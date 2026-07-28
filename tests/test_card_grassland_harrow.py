@@ -3,31 +3,47 @@
 Card text: "Add 1 to the current round for each building resource in your supply and
 place 1 field on the corresponding round space. At the start of the round, you can plow
 the field."
-Cost: 2 Wood. Prerequisite: 2 Occupations, 1 Building Resource in Your Supply.
+Cost: 2 Wood. Prerequisite: 2 Occupations, 1 Building Resource in Your Supply After
+Payment (transcription corrected against the physical card, user 2026-07-27 — the
+catalog JSON had dropped the "After Payment" qualifier).
 
 A Handplow (A19) variant: a deferred, optional round-start plow that rides on the
 card-only `future_rewards` (FutureReward), differing in that (a) the round offset is
-VARIABLE — "1 per building resource in your supply" rather than a fixed 5 — and (b) it
-carries two prerequisites (≥2 occupations + ≥1 building resource). Mirrors
-`test_cards_category8.py`'s Handplow coverage.
+VARIABLE — "1 per building resource in your supply" rather than a fixed 5 — and (b) its
+building-resource prerequisite reads the supply AFTER the play cost is debited: a
+per-PAYMENT gate (`register_play_minor_payment_gate`), so the play is legal iff SOME
+payment's post-debit state keeps >= 1 building resource and only qualifying payments
+are offered. Mirrors `test_cards_category8.py`'s Handplow coverage plus the gate suite.
 """
 from __future__ import annotations
 
-import agricola.cards.grassland_harrow  # noqa: F401
+import json
+from pathlib import Path
 
-from agricola.actions import FireTrigger, Proceed
-from agricola.cards.specs import MINORS, prereq_met
+import agricola.cards.grassland_harrow  # noqa: F401
+import agricola.cards.wood_expert  # noqa: F401  (the food-for-wood conversion, for
+#                                     the per-payment gate tests)
+
+from agricola.actions import CommitFoodPayment, CommitPlayMinor, FireTrigger, Proceed
+from agricola.cards.specs import MINORS, PLAY_MINOR_PAYMENT_GATES, prereq_met
 from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _complete_preparation, step
-from agricola.legality import _can_plow, legal_actions
-from agricola.pending import PendingHarvestWindow, PendingPlow
+from agricola.legality import _can_plow, legal_actions, playable_minors
+from agricola.pending import (
+    PendingFoodPayment,
+    PendingHarvestWindow,
+    PendingPlayMinor,
+    PendingPlow,
+)
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup
 from agricola.state import Cell, FutureReward
+from tests.factories import with_pending_stack
 
 CARD_ID = "grassland_harrow"
+_DATA = Path(__file__).resolve().parent.parent / "agricola" / "cards" / "data"
 
 
 # ---------------------------------------------------------------------------
@@ -71,9 +87,21 @@ def test_registered():
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost(resources=Resources(wood=2))
     assert spec.min_occupations == 2
-    assert spec.prereq is not None
+    # The building-resource half of the prerequisite is POST-PAYMENT (corrected
+    # transcription, user 2026-07-27): a per-payment gate, not a `prereq=` HAVE-check.
+    assert spec.prereq is None
+    assert CARD_ID in PLAY_MINOR_PAYMENT_GATES
     # The deferred plow is an OPTIONAL round_space_collection trigger (not a forced auto).
     assert CARD_ID in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
+
+
+def test_catalog_row_carries_corrected_prerequisite():
+    """The catalog transcription was corrected against the physical card (user
+    2026-07-27): the prerequisite reads "... After Payment"."""
+    row = next(r for r in json.load(open(_DATA / "revised_minor_improvements.json"))
+               if r["name"] == "Grassland Harrow")
+    assert row["prerequisites"] == (
+        "2 Occupations, 1 Building Resource in Your Supply After Payment")
 
 
 # ---------------------------------------------------------------------------
@@ -122,38 +150,105 @@ def test_on_play_clamps_past_round_14():
     assert all(CARD_ID not in r.effect_card_ids for r in fr)
 
 
-def test_on_play_zero_building_resources_schedules_current_round():
-    # n == 0 → field placed on the (already-entered) current round; a wasted but legal
-    # play. The current-round slot is in range, so schedule_effect writes it, but it is
-    # never re-hosted (preparation already passed).
-    s = setup(0)
-    s = fast_replace(s, round_number=5)
-    s = _set_resources(s, 0)                          # no building resources
-    out = MINORS[CARD_ID].on_play(s, 0)
-    fr = out.players[0].future_rewards
-    assert CARD_ID in fr[4].effect_card_ids          # round 5 (current), slot 4
+# (The pre-correction module had an "n == 0 schedules the current round — a wasted but
+# legal play" test here. Under the corrected post-payment prerequisite, n >= 1 on every
+# reachable play: a payment leaving zero building resources is filtered by the gate, so
+# the n == 0 case is unreachable and the test was removed with it.)
 
 
 # ---------------------------------------------------------------------------
-# Prerequisites
+# Prerequisites — the occupation half (pre-play) + the per-payment gate
 # ---------------------------------------------------------------------------
 
 def test_prereq_requires_two_occupations():
+    # The occupation-count half stays an ordinary pre-play check (min_occupations=2);
+    # prereq_met no longer reads resources (the building-resource half is the
+    # per-payment gate below).
     s = setup(0)
-    s = _set_resources(s, 0, wood=1)                  # building-resource part met
     assert not prereq_met(MINORS[CARD_ID], _give_occ_count(s, 0, 1), 0)
     assert prereq_met(MINORS[CARD_ID], _give_occ_count(s, 0, 2), 0)
     assert prereq_met(MINORS[CARD_ID], _give_occ_count(s, 0, 3), 0)  # >= 2
 
 
-def test_prereq_requires_one_building_resource():
-    s = _give_occ_count(setup(0), 0, 2)              # occupation part met
-    # No building resources → fails (food/grain/veg do not count).
-    s0 = _set_resources(s, 0, food=9, grain=3, veg=3)
-    assert not prereq_met(MINORS[CARD_ID], s0, 0)
-    # Exactly 1 building resource (clay) → passes.
-    s1 = _set_resources(s, 0, clay=1)
-    assert prereq_met(MINORS[CARD_ID], s1, 0)
+def _at_play_frame(occupations=("_occ0", "_occ1"), **res):
+    """A state at a PendingPlayMinor with Grassland Harrow in player 0's hand, the
+    given occupations played (2 fakes by default — the occupation prereq), and the
+    given resources."""
+    s = setup(0)
+    p = fast_replace(s.players[0],
+                     hand_minors=frozenset({CARD_ID}),
+                     occupations=frozenset(occupations),
+                     resources=Resources(**res))
+    s = fast_replace(s, players=(p, s.players[1]), current_player=0)
+    return with_pending_stack(s, (PendingPlayMinor(
+        player_idx=0, initiated_by_id="space:meeting_place_cards"),))
+
+
+def _play_commits(state):
+    return [a for a in legal_actions(state)
+            if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
+
+
+def test_exactly_cost_wood_not_playable():
+    # Exactly 2 wood, nothing else: the pre-correction module wrongly allowed this
+    # (>= 1 building resource BEFORE payment) — but paying the 2-wood cost leaves
+    # zero building resources, so the corrected post-payment prerequisite fails and
+    # the card is NOT playable.
+    s = _at_play_frame(wood=2)
+    assert CARD_ID not in playable_minors(s, 0)
+
+
+def test_playable_with_one_building_resource_beyond_the_cost():
+    # 2 wood + 1 clay: the 2-wood payment leaves the clay → playable, and only the
+    # qualifying payment is offered.
+    s = _at_play_frame(wood=2, clay=1)
+    assert CARD_ID in playable_minors(s, 0)
+    commits = _play_commits(s)
+    assert [c.payment for c in commits] == [Resources(wood=2)]
+    out = step(s, commits[0])
+    p = out.players[0]
+    assert CARD_ID in p.minor_improvements
+    assert (p.resources.wood, p.resources.clay) == (0, 1)
+    # n = 1 building resource post-payment → field on round 1 + 1 = 2 (slot 1).
+    assert CARD_ID in p.future_rewards[1].effect_card_ids
+
+
+def test_playable_with_three_wood():
+    # 3 wood: pay 2, 1 remains → playable.
+    s = _at_play_frame(wood=3)
+    assert CARD_ID in playable_minors(s, 0)
+    commits = _play_commits(s)
+    assert [c.payment for c in commits] == [Resources(wood=2)]
+    out = step(s, commits[0])
+    p = out.players[0]
+    assert p.resources.wood == 1
+    assert CARD_ID in p.future_rewards[1].effect_card_ids      # n = 1 → round 2
+
+
+def test_wood_expert_food_route_only_qualifying_payment_offered():
+    # With Wood Expert (2 wood -> 1 food) and 2 wood + 1 grain + 0 food: the bare
+    # 2-wood payment would leave zero building resources — filtered out — while the
+    # 1-food payment (raised by cooking the grain) keeps both wood → playable ONLY
+    # via the food route, and the gate's food-short probe / the frame agree.
+    s = _at_play_frame(occupations=("wood_expert", "_occ1"), wood=2, grain=1)
+    assert CARD_ID in playable_minors(s, 0)
+    commits = _play_commits(s)
+    assert [c.payment for c in commits] == [Resources(food=1)]
+    s = step(s, commits[0])
+
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1
+    bundles = legal_actions(s)
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    s = step(s, bundles[0])                                    # cook the grain
+
+    p = s.players[0]
+    assert CARD_ID in p.minor_improvements
+    assert p.resources.wood == 2       # both wood survive
+    assert (p.resources.grain, p.resources.food) == (0, 0)     # raised 1, debited 1
+    # n = 2 building resources post-payment → field on round 1 + 2 = 3 (slot 2).
+    assert CARD_ID in p.future_rewards[2].effect_card_ids
 
 
 # ---------------------------------------------------------------------------

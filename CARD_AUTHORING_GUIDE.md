@@ -240,8 +240,19 @@ with the read quantity kept, and no offered bundle consumes it. The two exemplar
 two sides of one rule: Sheep Inspector's cost sheep (the sheep the resume will debit is
 never fuel) and Truffle Slicer's condition boar. The same test extends to play
 PREREQUISITES — a prerequisite-read good the play's own payment could consume (e.g. a
-wood cost made food-payable by Wood Expert's conversion) — whose member survey and ruling
-are pending.
+wood cost made food-payable by Wood Expert's conversion). The 85-module prerequisite
+survey found two live members, both fixed the same day (ruled 2026-07-27) by declaring
+**`prereq_reserved`** on the minor spec — a `Cost` of prerequisite-read goods that
+`_play_minor_ctx` folds into the gate's reservation and `_execute_play_minor` folds into
+the pushed frame's `reserved`: Beer Keg's 2 prereq grain and Paintbrush's prereq boar.
+Two boundary verdicts from the same survey: a printed COST that spends a prereq-read
+good is NOT this failure — the prerequisite is checked before payment, so the cost good
+is legal tender toward it (Sheep Rug's cost sheep counting toward its "4 Sheep"; ruled
+correct as printed, no `prereq_reserved`) — and one member turned out to be a catalog
+TRANSCRIPTION error: Grassland Harrow's physical card qualifies its prerequisite "1
+Building Resource in Your Supply **After Payment**", making it a post-payment,
+per-payment gate (`register_play_minor_payment_gate` — its own seam, §0.4's
+bundle-filtering shape, not a reservation) rather than a reserved pre-play read.
 
 The implementer's check, on every card that charges a cost: between the gate and the
 debit, does anything I read name a quantity the payment could consume? If yes, reserve

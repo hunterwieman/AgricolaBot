@@ -74,12 +74,25 @@ class CostCtx:
     #                                      stone simply disqualifies the improvement (the
     #                                      printed Stonecutter clarification). None = no
     #                                      constraint (every non-Stone-Company action).
-    reserved_animals: Animals = Animals()  # animal portion of THIS cost — reserved before
-    #                                        counting animals as food-liquidation fuel, so
-    #                                        liquidation never double-spends an animal the cost
-    #                                        itself needs (FOOD_PAYMENT_DESIGN.md §4). Resource-
-    #                                        only payments don't carry animals, so the modifier
-    #                                        pipeline ignores it; only `_liquidatable_to` reads it.
+    reserved_animals: Animals = Animals()  # animals set aside before counting animals as
+    #                                        food-liquidation fuel: the animal portion of THIS
+    #                                        cost (so liquidation never double-spends an animal
+    #                                        the cost itself needs — FOOD_PAYMENT_DESIGN.md §4)
+    #                                        plus, for play_minor, any prereq-reserved animals
+    #                                        (spec.prereq_reserved — user ruling 2026-07-27,
+    #                                        conversions notionally precede the play; folded in
+    #                                        by `_play_minor_ctx`). Resource-only payments don't
+    #                                        carry animals, so the modifier pipeline ignores it;
+    #                                        only `_liquidatable_to` reads it.
+    reserved_resources: Resources = Resources()  # resource goods set aside from liquidation
+    #                                        fuel BEYOND the payment itself — today the
+    #                                        play-minor `spec.prereq_reserved.resources` (Beer
+    #                                        Keg's 2 prereq grain; same ruling as above). The
+    #                                        payment's own non-food components need no entry
+    #                                        here: `_liquidatable_to` reserves the candidate
+    #                                        cost's resources intrinsically. Like
+    #                                        `reserved_animals`, only `_liquidatable_to` reads
+    #                                        it; empty everywhere outside play_minor.
 
 
 def _goods_key(r: Resources) -> tuple:

@@ -62,7 +62,16 @@ _VARIANTS = ((1, 0), (2, 1), (3, 2))
 
 def _prereq(state: GameState, idx: int) -> bool:
     """Prerequisite: at least 2 grain in your supply (a HAVE-check at play time,
-    not a cost; the grain is NOT spent to play the card)."""
+    not a cost; the grain is NOT spent to play the card).
+
+    The 2 grain are also declared `prereq_reserved` on the spec (user ruling
+    2026-07-27; CARD_AUTHORING_GUIDE.md §0.5 — a raise frame simulates conversions
+    that notionally happened BEFORE the play, so the post-raise state must still
+    satisfy everything the gate checked): when the play cost carries food (Wood
+    Expert converts the 1-wood cost to 1 food), the food-raising liquidation may
+    neither count these 2 grain as fuel at the affordability gate nor cook them at
+    the PendingFoodPayment frame — a player whose only cookable goods are the
+    prerequisite grain cannot play via the food route."""
     return state.players[idx].resources.grain >= 2
 
 
@@ -103,7 +112,10 @@ def _score(state: GameState, idx: int) -> int:
     return state.players[idx].card_state.get(CARD_ID, 0)
 
 
-register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq, vps=0)
+# prereq_reserved: the 2 prerequisite grain are reserved from any food-raising
+# liquidation on the play (user ruling 2026-07-27; see _prereq's docstring).
+register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq,
+               prereq_reserved=Cost(resources=Resources(grain=2)), vps=0)
 
 for _grain, _points in _VARIANTS:
     register_harvest_conversion(HarvestConversionSpec(

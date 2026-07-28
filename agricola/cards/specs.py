@@ -124,6 +124,35 @@ def register_play_minor_variant(card_id: str, variants_fn: Callable) -> None:
     PLAY_MINOR_VARIANTS[card_id] = variants_fn
 
 
+# The per-PAYMENT play gate for minors (user ruling 2026-07-27 — Grassland Harrow's
+# corrected prerequisite "1 Building Resource in Your Supply AFTER PAYMENT"). A plain
+# prerequisite is a pre-play HAVE-check (`prereq_met`); this registry handles the rarer
+# shape whose check reads the state AFTER the play cost has been debited — so playability
+# depends on WHICH payment is chosen, and the play is legal iff SOME payment's post-debit
+# state passes, with only qualifying payments offered at the commit. The minor-side
+# analog of the occupation (variant x payment) pair-gate above (ruling 75): the gate is
+# consulted per payment on a SIMULATED post-debit state at both decision points —
+# `playable_minors`' existence check / the play-minor commit enumerator
+# (`_minor_payment_ok`), and, when the payment's food is short, per liquidation bundle
+# (the food-short probe there + `_filter_minor_payment_gate_bundles` at the
+# PendingFoodPayment frame) — the two sides sharing one simulation so a food-short
+# payment is offered iff at least one bundle survives, and the frame then offers exactly
+# the surviving bundles. Empty in the Family game and for every plain-prereq card.
+PLAY_MINOR_PAYMENT_GATES: dict[str, Callable] = {}
+
+
+def register_play_minor_payment_gate(card_id: str, gate_fn: Callable) -> None:
+    """Register a minor's per-payment play gate (called at card-module import).
+
+    `gate_fn(post_state, idx, payment) -> bool` — `post_state` is the SIMULATED state
+    as it will stand after the play's full cost debit (the chosen resource `payment`
+    plus the chosen alternative's animal portion subtracted; on the food-shortfall
+    path, additionally after the candidate liquidation bundle has been applied) — i.e.
+    the state the card's on_play will run on. Return False to withhold this payment
+    (or, at PendingFoodPayment, this liquidation bundle)."""
+    PLAY_MINOR_PAYMENT_GATES[card_id] = gate_fn
+
+
 # ---------------------------------------------------------------------------
 # Post-food-payment continuations (FOOD_PAYMENT_DESIGN.md §6)
 # ---------------------------------------------------------------------------
@@ -235,6 +264,26 @@ class MinorSpec:
     prereq          — optional custom predicate (state, idx) -> bool for every
                       OTHER prerequisite shape (farm geometry, house material,
                       round timing, supply comparisons, improvements-count, …).
+    prereq_reserved — goods a PREREQUISITE reads that food-liquidation could
+                      consume (user ruling 2026-07-27; CARD_AUTHORING_GUIDE.md
+                      §0.5 / CARD_ENGINE_IMPLEMENTATION.md §5.3: a raise frame
+                      simulates conversions that notionally happened BEFORE the
+                      play, so the post-raise state must still satisfy
+                      everything the gate checked — including this spec's
+                      prerequisite). Folded into the play's reservation on BOTH
+                      sides: the affordability gate excludes these goods as
+                      conversion fuel (`_liquidatable_to`, via the play-minor
+                      CostCtx), and the executor's food-shortfall frame adds
+                      them to `PendingFoodPayment.reserved` so no offered
+                      bundle cooks them (Beer Keg's 2 prereq grain under a
+                      Wood-Expert food payment; Paintbrush's prereq boar).
+                      Default empty — the prerequisite reads nothing
+                      liquidatable, the near-universal case. NOTE: additive on
+                      top of the printed cost's own goods; a card whose printed
+                      COST spends the prereq-read good does NOT declare it
+                      (Sheep Rug — prereq checked before payment, its cost
+                      sheep is legal tender; ruled correct as printed
+                      2026-07-27).
     passing_left    — a traveling minor: executed then passed to the opponent,
                       NEVER kept in the tableau.
     vps             — printed victory points (scored when kept; 0/None -> 0).
@@ -248,6 +297,7 @@ class MinorSpec:
     min_occupations: int = 0
     max_occupations: Optional[int] = None
     prereq: Optional[Callable] = None
+    prereq_reserved: Cost = Cost()
     passing_left: bool = False
     vps: int = 0
     on_play: Callable = _noop_on_play
@@ -266,6 +316,7 @@ def register_minor(
     min_occupations: int = 0,
     max_occupations: Optional[int] = None,
     prereq: Optional[Callable] = None,
+    prereq_reserved: Cost = Cost(),
     passing_left: bool = False,
     vps: int = 0,
     on_play: Callable = _noop_on_play,
@@ -277,8 +328,29 @@ def register_minor(
     MINORS[card_id] = MinorSpec(
         card_id=card_id, cost=cost, alt_costs=alt_costs, cost_labels=cost_labels,
         cost_fn=cost_fn, min_occupations=min_occupations,
-        max_occupations=max_occupations, prereq=prereq, passing_left=passing_left,
+        max_occupations=max_occupations, prereq=prereq,
+        prereq_reserved=prereq_reserved, passing_left=passing_left,
         vps=vps, on_play=on_play,
+    )
+
+
+def play_minor_reserved(spec: MinorSpec, payment, chosen_animals) -> Cost:
+    """The full reservation for playing `spec` with resource `payment` + the chosen
+    alternative's `chosen_animals` — the goods a food-raising liquidation must NOT
+    consume. Two components: the cost's own convertible goods (the payment's non-food
+    resources + its animal portion — FOOD_PAYMENT_DESIGN.md §5, no double-spend) plus
+    the spec's `prereq_reserved` (prerequisite-read goods; user ruling 2026-07-27 —
+    conversions notionally precede the play, so they may not consume what the
+    prerequisite gate checked).
+
+    The ONE construction behind both sides of the contract: `_execute_play_minor`
+    builds the pushed `PendingFoodPayment.reserved` from it, and the play-minor
+    payment-gate probe (`legality._minor_payment_ok`) mirrors the frame through it —
+    shared so the gate and the frame can never disagree about which bundles exist."""
+    from agricola.replace import fast_replace
+    return Cost(
+        resources=fast_replace(payment, food=0) + spec.prereq_reserved.resources,
+        animals=chosen_animals + spec.prereq_reserved.animals,
     )
 
 

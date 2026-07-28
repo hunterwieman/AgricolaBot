@@ -14,20 +14,30 @@ import agricola.cards.beer_keg  # noqa: F401
 
 import dataclasses
 
-from agricola.actions import CommitConvert, CommitHarvestConversion
+import agricola.cards.wood_expert  # noqa: F401  (the food-for-wood conversion, for the
+#                                     prereq-reservation tests)
+from agricola.actions import (
+    CommitConvert,
+    CommitFoodPayment,
+    CommitHarvestConversion,
+    CommitPlayMinor,
+)
 from agricola.cards.beer_keg import CARD_ID
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.constants import Phase
 from agricola.engine import _initiate_harvest_feed, step
-from agricola.legality import legal_actions
-from agricola.resources import Resources
+from agricola.legality import legal_actions, playable_minors
+from agricola.pending import PendingFoodPayment, PendingPlayMinor
+from agricola.replace import fast_replace
+from agricola.resources import Cost, Resources
 from agricola.scoring import SCORING_TERMS
 from agricola.state import GameState
 from agricola.setup import setup
 
 from tests.factories import (
     with_minors,
+    with_pending_stack,
     with_phase,
     with_resources,
 )
@@ -92,6 +102,79 @@ def test_prereq_requires_two_grain():
     assert prereq_met(spec, state, 0) is True
     state = with_resources(state, 0, grain=5)
     assert prereq_met(spec, state, 0) is True
+
+
+# --- Prerequisite reservation (user ruling 2026-07-27) ----------------------
+# The spec declares `prereq_reserved = 2 grain`: a food-raising liquidation on the
+# play (Wood Expert converts the 1-wood cost to 1 food) may neither count the 2
+# prerequisite grain as fuel at the affordability gate nor cook them at the
+# PendingFoodPayment frame — conversions notionally precede the play
+# (CARD_AUTHORING_GUIDE.md §0.5), so the post-raise state must still satisfy the
+# prerequisite the gate checked.
+
+def _play_state(**res):
+    """A state at a PendingPlayMinor with Beer Keg in player 0's hand, Wood Expert
+    played (the wood->food cost conversion active), and the given resources."""
+    state = setup(seed=0)
+    p = fast_replace(state.players[0],
+                     hand_minors=frozenset({CARD_ID}),
+                     occupations=frozenset({"wood_expert"}),
+                     resources=Resources(**res))
+    state = fast_replace(state, players=(p, state.players[1]), current_player=0)
+    return with_pending_stack(state, (PendingPlayMinor(
+        player_idx=0, initiated_by_id="space:meeting_place_cards"),))
+
+
+def test_prereq_reserved_on_spec():
+    assert MINORS[CARD_ID].prereq_reserved == Cost(resources=Resources(grain=2))
+
+
+def test_food_route_not_playable_when_only_fuel_is_prereq_grain():
+    # 0 wood / 0 food / exactly 2 grain: the prerequisite passes, but the only
+    # payment Wood Expert offers (1 food) could be raised only by cooking the
+    # prerequisite grain — reserved, so NOT playable.
+    state = _play_state(grain=2)
+    assert prereq_met(MINORS[CARD_ID], state, 0)
+    assert CARD_ID not in playable_minors(state, 0)
+
+
+def test_food_route_plays_off_free_grain_and_prereq_grain_survives():
+    # With a 3rd (free) grain the food route is playable: the bundle may cook only
+    # the free grain, and the 2 prerequisite grain survive the play.
+    state = _play_state(grain=3)
+    assert CARD_ID in playable_minors(state, 0)
+    commits = [a for a in legal_actions(state)
+               if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
+    assert [c.payment for c in commits] == [Resources(food=1)]   # no wood on hand
+    state = step(state, commits[0])
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 1
+    assert top.reserved == Cost(resources=Resources(grain=2))    # the prereq grain
+    bundles = legal_actions(state)
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+    state = step(state, bundles[0])                              # only the free grain
+
+    p = state.players[0]
+    assert CARD_ID in p.minor_improvements
+    assert p.resources.grain == 2      # the prerequisite grain survived the raise
+    assert p.resources.food == 0       # raised 1, debited 1
+
+
+def test_ordinary_wood_payment_unaffected_by_reservation():
+    # With the printed wood on hand the wood payment plays as before; the food
+    # route is (correctly) not offered — its raise could only cook prereq grain.
+    state = _play_state(wood=1, grain=2)
+    assert CARD_ID in playable_minors(state, 0)
+    commits = [a for a in legal_actions(state)
+               if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
+    assert [c.payment for c in commits] == [Resources(wood=1)]
+    state = step(state, commits[0])
+    p = state.players[0]
+    assert CARD_ID in p.minor_improvements
+    assert p.resources.wood == 0
+    assert p.resources.grain == 2      # untouched
 
 
 # --- Eligibility / offering -------------------------------------------------

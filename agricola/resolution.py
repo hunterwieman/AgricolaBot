@@ -625,11 +625,16 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     picked at enumeration — §3.4); the animal cost (if any) rides on the spec.
 
     Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the payment's food exceeds food on
-    hand, RESERVE the cost's convertible goods (its non-food resources + animals) and push a
-    PendingFoodPayment to raise the shortfall into supply (no debit), then re-run this play.
-    Reserving keeps the frame from cooking a good the cost still needs (no double-spend); on the
-    re-run the food is sufficient, so it debits the full cost and plays normally."""
-    from agricola.cards.specs import MINORS
+    hand, RESERVE the cost's convertible goods (its non-food resources + animals) PLUS the
+    spec's `prereq_reserved` (prerequisite-read goods — user ruling 2026-07-27: conversions
+    notionally precede the play, so the post-raise state must still satisfy the prerequisite
+    the gate checked; Beer Keg's 2 grain, Paintbrush's boar) and push a PendingFoodPayment to
+    raise the shortfall into supply (no debit), then re-run this play. The reservation is
+    `play_minor_reserved` — the same construction the affordability gate probes with —
+    keeping the frame from cooking a good the cost still needs (no double-spend) or a good
+    the prerequisite read; on the re-run the food is sufficient, so it debits the full cost
+    and plays normally."""
+    from agricola.cards.specs import MINORS, play_minor_reserved
     cid = action.card_id
     spec = MINORS[cid]
     p = state.players[idx]
@@ -641,10 +646,9 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     chosen_animals = (action.cost.animals if action.cost is not None
                       else spec.cost.animals)
     if p.resources.food < pay.food:                  # raise the shortfall, then re-run
-        reserved = Cost(resources=fast_replace(pay, food=0), animals=chosen_animals)
         return push(state, PendingFoodPayment(
             player_idx=idx, food_needed=pay.food, resume_kind="rerun",
-            reserved=reserved, action=action))
+            reserved=play_minor_reserved(spec, pay, chosen_animals), action=action))
     p = fast_replace(
         p, resources=p.resources - pay, animals=p.animals - chosen_animals,
         hand_minors=p.hand_minors - {cid},

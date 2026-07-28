@@ -70,7 +70,7 @@ from agricola.cards.harvest_conversions import (
 from agricola.cards.harvest_windows import register_free_span_trigger
 from agricola.cards.specs import register_minor
 from agricola.replace import fast_replace
-from agricola.resources import Cost, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.scoring import register_scoring
 from agricola.state import GameState
 
@@ -82,7 +82,17 @@ _VARIANTS = ["food", "point"]
 
 def _prereq(state: GameState, idx: int) -> bool:
     """Prerequisite: 1 Wild Boar — a HAVE-check at play time (the boar is not
-    spent to play the card)."""
+    spent to play the card).
+
+    The boar is also declared `prereq_reserved` on the spec (user ruling
+    2026-07-27; CARD_AUTHORING_GUIDE.md §0.5 — a raise frame simulates
+    conversions that notionally happened BEFORE the play, so the post-raise
+    state must still satisfy everything the gate checked): when the play cost
+    carries food (Wood Expert converts the 1-wood cost to 1 food), the
+    food-raising liquidation may neither count the boar as cooking fuel at the
+    affordability gate nor cook it at the PendingFoodPayment frame — a player
+    whose only cookable good is the prerequisite boar cannot play via the food
+    route."""
     return state.players[idx].animals.boar >= 1
 
 
@@ -151,7 +161,10 @@ def _score(state: GameState, idx: int) -> int:
 
 
 # Cost 1 wood; prerequisite 1 wild boar; no printed VP (the points are earned).
-register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq, vps=0)
+# prereq_reserved: the prerequisite boar is reserved from any food-raising
+# liquidation on the play (user ruling 2026-07-27; see _prereq's docstring).
+register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq,
+               prereq_reserved=Cost(animals=Animals(boar=1)), vps=0)
 
 # Surface 1 — the FEED payment frame: one spec for both variants (food_out=0;
 # the chosen output is granted in the side effect). Surface 2 — the raise

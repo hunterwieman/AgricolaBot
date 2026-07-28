@@ -669,16 +669,21 @@ def _can_afford(p: PlayerState, cost: Resources) -> bool:
 def _liquidatable_to(
     state: GameState, idx: int, p: PlayerState, cost: Resources,
     reserved_animals: Animals = Animals(),
+    reserved_resources: Resources = Resources(),
 ) -> bool:
     """True iff `cost` (a resource payment) is affordable when the food component may be
     raised mid-turn by converting crops/animals to food (FOOD_PAYMENT_DESIGN.md §4).
 
     The non-food components must be on hand outright (liquidation only ever *produces*
-    food). The animal portion of the surrounding cost — `reserved_animals` — is set aside
-    before counting animals as conversion fuel, so liquidation never spends an animal the
-    cost itself needs. The max-producible-food math here MUST agree with
-    `food_payment_frontier`'s feasibility (same rates over the same goods) so a card the
-    gate marks playable always yields a non-empty payment frontier at execution."""
+    food). Two reservations are set aside before counting goods as conversion fuel, so
+    liquidation never spends what the surrounding play still needs: `reserved_animals`
+    (the cost's animal portion — and, for play_minor, prereq-reserved animals) and
+    `reserved_resources` (prereq-reserved resource goods beyond the cost itself, e.g.
+    Beer Keg's 2 prereq grain; user ruling 2026-07-27 — conversions notionally precede
+    the play, so the post-raise state must still satisfy what the gate checked). The
+    max-producible-food math here MUST agree with `food_payment_frontier`'s feasibility
+    (same rates over the same reduced goods) so a card the gate marks playable always
+    yields a non-empty payment frontier at execution."""
     if not _can_afford(p, fast_replace(cost, food=0)):       # non-food must be on hand
         return False
     if not _can_afford_minor_animals(p, reserved_animals):
@@ -701,13 +706,14 @@ def _liquidatable_to(
         # the gate and the frame agree by construction.
         avail = fast_replace(
             p,
-            resources=p.resources - fast_replace(cost, food=0),
+            resources=p.resources - fast_replace(cost, food=0) - reserved_resources,
             animals=p.animals - reserved_animals,
         )
         return bool(food_payment_frontier(
             avail, owe, cooking_rates(state, idx),
             span_converters=converters, animal_floors=floors))
-    rem = p.resources - fast_replace(cost, food=0)            # food untouched; non-food reserved
+    # Food untouched; the cost's non-food components + prereq-reserved goods set aside.
+    rem = p.resources - fast_replace(cost, food=0) - reserved_resources
     sR, bR, cR, vR = cooking_rates(state, idx)
     max_food = (
         rem.grain + rem.veg * vR
@@ -721,13 +727,15 @@ def _liquidatable_to(
 def _payable(
     state: GameState, idx: int, p: PlayerState, cost: Resources,
     reserved_animals: Animals = Animals(),
+    reserved_resources: Resources = Resources(),
 ) -> bool:
     """A resource payment is affordable now, possibly by liquidating crops/animals to
     cover its food component. A `food == 0` cost takes the plain `_can_afford` fast path
     (every Family build cost) and never touches the liquidation frontier — the perf/clarity
     guard of FOOD_PAYMENT_DESIGN.md §4; only a food-bearing card cost consults liquidation."""
     return _can_afford(p, cost) or (
-        cost.food > 0 and _liquidatable_to(state, idx, p, cost, reserved_animals)
+        cost.food > 0 and _liquidatable_to(state, idx, p, cost,
+                                           reserved_animals, reserved_resources)
     )
 
 
@@ -814,7 +822,9 @@ def effective_payments(state, idx: int, ctx) -> list:
     #    `_payable` accepts a food-short-but-liquidatable payment (food raised at execution via
     #    PendingFoodPayment) so it must agree with `can_pay`'s gate — else a card the gate marks
     #    playable would emit zero pay buttons (FOOD_PAYMENT_DESIGN.md §4 gate↔frontier agreement).
-    affordable: list = [c for c in cands if _payable(state, idx, p, c, ctx.reserved_animals)]
+    affordable: list = [c for c in cands
+                        if _payable(state, idx, p, c,
+                                    ctx.reserved_animals, ctx.reserved_resources)]
     if ctx.min_spend is None:
         # A ReturnImprovement route spends no resources, so it can never satisfy a
         # min-spend constraint; under one, routes are excluded outright.
@@ -830,7 +840,8 @@ def can_pay(state, idx: int, ctx) -> bool:
     route, stopping at the first affordable one."""
     p = state.players[idx]
     if (meets_min_spend(ctx.base, ctx.min_spend)
-            and _payable(state, idx, p, ctx.base, ctx.reserved_animals)):
+            and _payable(state, idx, p, ctx.base,
+                         ctx.reserved_animals, ctx.reserved_resources)):
         return True
     from agricola.cards.cost_mods import (
         apply_reductions, base_routes, expand_conversions, formula_mods,
@@ -841,7 +852,8 @@ def can_pay(state, idx: int, ctx) -> bool:
             # The min-spend constraint reads the POST-modifier payment (mirrors
             # effective_payments' 3b — gate↔frontier agreement).
             if (meets_min_spend(reduced, ctx.min_spend)
-                    and _payable(state, idx, p, reduced, ctx.reserved_animals)):
+                    and _payable(state, idx, p, reduced,
+                                 ctx.reserved_animals, ctx.reserved_resources)):
                 return True
     if ctx.min_spend is not None:
         return False    # routes spend no resources — never qualify under a constraint
@@ -1687,14 +1699,25 @@ def _play_minor_ctx(card_id: str, cost, state: GameState, idx: int,
 
     The resource portion is the cost-modifier `base`; the animal portion is NOT
     modifiable by cost cards and rides on `reserved_animals` so food-liquidation
-    affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4). `min_spend` is a granted
-    action's minimum-spend constraint (Stone Company), threaded from the frame.
-    `granted_by` is the granting card's provenance ("card:<id>") when this play rides
-    a card grant — the build_major/renovate pattern, wired for play_minor by ruling 74
-    (Furnisher's grant-scoped -1 wood); every non-granted path passes None."""
+    affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4). The spec's
+    `prereq_reserved` (prerequisite-read goods liquidation could consume — user ruling
+    2026-07-27, conversions notionally precede the play) is folded in here too: its
+    animals join `reserved_animals`, its resources ride `reserved_resources` — so the
+    affordability gate never counts a prerequisite-read good as conversion fuel,
+    matching the reservation `_execute_play_minor` pushes on the raise frame
+    (`play_minor_reserved`). `min_spend` is a granted action's minimum-spend
+    constraint (Stone Company), threaded from the frame. `granted_by` is the granting
+    card's provenance ("card:<id>") when this play rides a card grant — the
+    build_major/renovate pattern, wired for play_minor by ruling 74 (Furnisher's
+    grant-scoped -1 wood); every non-granted path passes None."""
+    from agricola.cards.specs import MINORS  # local import: load-order safe
+    spec = MINORS.get(card_id)
+    prereq_reserved = spec.prereq_reserved if spec is not None else Cost()
     return CostCtx(
         "play_minor", cost.resources, card_id=card_id,
-        reserved_animals=cost.animals, min_spend=min_spend, granted_by=granted_by,
+        reserved_animals=cost.animals + prereq_reserved.animals,
+        reserved_resources=prereq_reserved.resources,
+        min_spend=min_spend, granted_by=granted_by,
     )
 
 
@@ -1727,8 +1750,18 @@ def playable_minors(state: GameState, idx: int, *,
 
     `min_spend`: a granted action's minimum-spend constraint (Stone Company's "must
     spend at least 1 stone") — a minor is playable under it only via a qualifying
-    payment (threaded into `can_pay` through the ctx)."""
-    from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
+    payment (threaded into `can_pay` through the ctx).
+
+    A card with a registered per-payment gate (`PLAY_MINOR_PAYMENT_GATES` — Grassland
+    Harrow's post-payment "1 Building Resource in Your Supply After Payment", user
+    ruling 2026-07-27) is playable iff SOME payment's simulated post-debit state
+    passes the gate — the existence check enumerates `effective_payments` and probes
+    each through `_minor_payment_ok` (the same per-payment test the commit enumerator
+    filters with), instead of the cheaper `can_pay` existence view. Ungated cards
+    (everything else, and the whole Family game) keep the `can_pay` path."""
+    from agricola.cards.specs import (  # local import: load-order safe
+        MINORS, PLAY_MINOR_PAYMENT_GATES, prereq_met,
+    )
     p = state.players[idx]
     result = []
     for cid in sorted(p.hand_minors & MINORS.keys()):
@@ -1737,14 +1770,19 @@ def playable_minors(state: GameState, idx: int, *,
         spec = MINORS[cid]
         if not prereq_met(spec, state, idx):
             continue
-        if any(
-            can_pay(state, idx, _play_minor_ctx(cid, cost, state, idx,
-                                                min_spend=min_spend,
-                                                granted_by=granted_by))
-            and _can_afford_minor_animals(p, cost.animals)
-            for cost in _minor_cost_alternatives(spec, state, idx)
-        ):
+        gated = cid in PLAY_MINOR_PAYMENT_GATES
+        for cost in _minor_cost_alternatives(spec, state, idx):
+            ctx = _play_minor_ctx(cid, cost, state, idx,
+                                  min_spend=min_spend, granted_by=granted_by)
+            if not (can_pay(state, idx, ctx)
+                    and _can_afford_minor_animals(p, cost.animals)):
+                continue
+            if gated and not any(
+                    _minor_payment_ok(state, idx, spec, pm, cost.animals)
+                    for pm in effective_payments(state, idx, ctx)):
+                continue
             result.append(cid)
+            break
     return result
 
 
@@ -3336,6 +3374,10 @@ def _enumerate_pending_play_minor(
     # debits exactly that payment. A card with no alternatives + no cost card yields the
     # single printed cost, unchanged. The animal cost (if any) rides on the spec, checked
     # per-alternative inside `effective_payments` via the ctx's reserved_animals.
+    # A card with a registered per-payment gate (PLAY_MINOR_PAYMENT_GATES — Grassland
+    # Harrow's post-payment prerequisite) additionally has each payment checked on the
+    # simulated post-debit state (`_minor_payment_ok`), so only qualifying payments are
+    # offered; `playable_minors` guaranteed at least one survives.
     from agricola.cards.specs import MINORS, PLAY_MINOR_VARIANTS  # load-order safe
     p = state.players[top.player_idx]
     # Composite-only minors (Wooden Shed) are enumerable only when THIS play-minor frame
@@ -3374,6 +3416,12 @@ def _enumerate_pending_play_minor(
             label = spec.cost_labels[i] if spec.cost_labels else None
             for payment in effective_payments(state, top.player_idx, ctx):
                 if variants_fn is None:
+                    # Per-payment gate (post-payment prerequisite): withhold a
+                    # payment whose simulated post-debit state fails. No-op
+                    # (dict miss) for ungated cards.
+                    if not _minor_payment_ok(state, top.player_idx, spec,
+                                             payment, cost.animals):
+                        continue
                     actions.append(CommitPlayMinor(
                         card_id=cid, payment=payment, cost=commit_cost, variant=label))
                     continue
@@ -3383,10 +3431,13 @@ def _enumerate_pending_play_minor(
                 # the surcharge folds into `payment` so the executor's debit and
                 # food-shortfall guard need no special handling. Cost modifiers
                 # never see the surcharge (payments were enumerated from the
-                # card's own cost above).
+                # card's own cost above). The per-payment gate tests the TOTAL —
+                # the vector the commit carries and the executor debits.
                 for v, surcharge in variants_fn(state, top.player_idx):
                     total = payment + surcharge
-                    if _payable(state, top.player_idx, p, total):
+                    if (_payable(state, top.player_idx, p, total)
+                            and _minor_payment_ok(state, top.player_idx, spec,
+                                                  total, cost.animals)):
                         actions.append(CommitPlayMinor(
                             card_id=cid, payment=total,
                             cost=commit_cost, variant=v))
@@ -3568,6 +3619,100 @@ def _filter_variant_pair_bundles(
     return kept
 
 
+# ---------------------------------------------------------------------------
+# The play-minor per-PAYMENT gate (user ruling 2026-07-27 — Grassland Harrow)
+# ---------------------------------------------------------------------------
+# The minor-side analog of the (variant × payment) pair-gate above, for a minor whose
+# PREREQUISITE reads the state AFTER the play cost is debited (the corrected Grassland
+# Harrow: "1 Building Resource in Your Supply After Payment"). Playability is
+# per-payment — the play is legal iff SOME payment's post-debit state passes, and only
+# qualifying payments are offered — so the gate (`PLAY_MINOR_PAYMENT_GATES`, specs.py)
+# is consulted at the same two decision points as the occupation gate:
+#   1. enumeration (`playable_minors`' existence check + the play-minor commit
+#      enumerator), per payment on the simulated post-debit state (`_minor_payment_ok`);
+#   2. the PendingFoodPayment enumerator, per liquidation bundle, when the stored
+#      resume commit is such a play (`_filter_minor_payment_gate_bundles`) — so a
+#      bundle whose post-resume state fails the gate is withheld too.
+# Both sides run the SAME simulation (`_post_liquidation_minor_state`), so a food-short
+# payment is offered iff at least one bundle survives, and the frame then offers
+# exactly the surviving bundles — no dead ends.
+
+
+def _post_liquidation_minor_state(
+    state: GameState, idx: int, commit: CommitFoodPayment | None,
+    payment: Resources, chosen_animals: Animals,
+) -> GameState:
+    """Simulate the state a minor's on_play would see: optionally one liquidation
+    bundle (mirroring `_execute_food_payment` exactly — `commit=None` skips it, the
+    food-on-hand path), then the play's full goods debit (the resource `payment` +
+    the chosen alternative's animal portion), mirroring `_execute_play_minor`. The
+    hand→tableau move is NOT simulated — a payment gate reads supply, not cards."""
+    post = state if commit is None else _apply_liquidation_bundle(state, idx, commit)
+    p2 = post.players[idx]
+    return _with_player(post, idx, fast_replace(
+        p2, resources=p2.resources - payment, animals=p2.animals - chosen_animals))
+
+
+def _minor_payment_ok(
+    state: GameState, idx: int, spec, payment, chosen_animals: Animals,
+) -> bool:
+    """The enumeration-side minor payment gate: may `payment` (the total resource
+    vector the commit will debit) be offered for playing `spec`? True when the card
+    has no registered gate (every other card — one dict miss). With sufficient food
+    the post-debit state is determinate — simulate the debit and ask the gate. On the
+    food-shortfall path (the commit will detour through PendingFoodPayment) the
+    payment is offered iff SOME liquidation bundle leaves the gate satisfied — the
+    frame's enumerator then filters to exactly those bundles, so the payment never
+    dead-ends. The probe's reserved cost is `play_minor_reserved` — the identical
+    construction `_execute_play_minor` pushes, so gate and frame agree."""
+    from agricola.cards.specs import PLAY_MINOR_PAYMENT_GATES, play_minor_reserved
+    gate = PLAY_MINOR_PAYMENT_GATES.get(spec.card_id)
+    if gate is None:
+        return True
+    if not isinstance(payment, Resources):
+        return False    # a non-resource route has no post-debit supply to qualify
+    p = state.players[idx]
+    if p.resources.food >= payment.food:
+        return gate(_post_liquidation_minor_state(
+            state, idx, None, payment, chosen_animals), idx, payment)
+    reserved = play_minor_reserved(spec, payment, chosen_animals)
+    return any(
+        gate(_post_liquidation_minor_state(state, idx, c, payment, chosen_animals),
+             idx, payment)
+        for c in _food_payment_commits(state, idx, payment.food, reserved))
+
+
+def _filter_minor_payment_gate_bundles(
+    state: GameState, top: PendingFoodPayment, commits: list,
+) -> list:
+    """The frame-side minor payment gate: when the stored resume commit is a
+    gate-registered CommitPlayMinor, keep only the liquidation bundles whose
+    post-resume (post-bundle, post-debit) state passes the gate. Every other frame
+    passes through unfiltered. Asserted non-empty: the enumeration-side gate offered
+    the food-short payment only after finding a surviving bundle, so emptiness is a
+    gate↔frontier mismatch."""
+    from agricola.cards.specs import MINORS, PLAY_MINOR_PAYMENT_GATES
+    if top.resume_kind != "rerun" or not isinstance(top.action, CommitPlayMinor):
+        return commits
+    gate = PLAY_MINOR_PAYMENT_GATES.get(top.action.card_id)
+    if gate is None:
+        return commits
+    payment = top.action.payment
+    chosen_animals = (top.action.cost.animals if top.action.cost is not None
+                      else MINORS[top.action.card_id].cost.animals)
+    kept = [
+        c for c in commits
+        if gate(_post_liquidation_minor_state(
+                    state, top.player_idx, c, payment, chosen_animals),
+                top.player_idx, payment)
+    ]
+    assert kept, (
+        f"minor payment gate emptied the food-payment frontier: "
+        f"card={top.action.card_id} payment={payment} — gate↔frontier mismatch"
+    )
+    return kept
+
+
 def _food_payment_commits(
     state: GameState, idx: int, food_needed: int, reserved: Cost,
 ) -> list[CommitFoodPayment]:
@@ -3659,7 +3804,9 @@ def _enumerate_pending_food_payment(
     goods, so an empty frontier here is a gate↔frontier mismatch and must fail loud. When
     the stored resume commit is a pair-gated variant play (user ruling 75, 2026-07-21),
     the bundles are additionally filtered to those whose post-resume state keeps the
-    variant's granted effect doable (`_filter_variant_pair_bundles`)."""
+    variant's granted effect doable (`_filter_variant_pair_bundles`); when it is a
+    payment-gated minor play (user ruling 2026-07-27 — Grassland Harrow), to those whose
+    post-resume state passes the gate (`_filter_minor_payment_gate_bundles`)."""
     commits = _food_payment_commits(
         state, top.player_idx, top.food_needed, top.reserved)
     assert commits, (
@@ -3667,6 +3814,7 @@ def _enumerate_pending_food_payment(
         f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
     )
     commits = _filter_variant_pair_bundles(state, top, commits)
+    commits = _filter_minor_payment_gate_bundles(state, top, commits)
     return _filter_preserve_check_bundles(state, top, commits)
 
 
