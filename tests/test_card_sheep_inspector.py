@@ -273,6 +273,58 @@ def test_not_offered_when_two_food_is_unreachable():
     assert _si_triggers(legal_actions(s)) == set()
 
 
+def test_cost_sheep_reserved_not_offered_when_only_the_sheep_cooks():
+    """The reservation boundary sharp: 0 food, exactly 1 sheep, a Fireplace
+    (sheep → 2 food, which WOULD exactly cover the fee), nothing else cookable
+    (the placements take wood and reed only). The only raise bundle would cook
+    the cost's own sheep — reserved (`reserved_animals=Animals(sheep=1)` in
+    eligibility; the conversions notionally precede the payment, so the sheep
+    the cost debits must survive the raise) -> NOT offered."""
+    from tests.factories import with_majors
+    s = _state(sheep=1, food=0)
+    s = with_majors(s, owner_by_idx={0: 0})      # Fireplace: sheep IS cookable
+    s = _use_space(s, "forest")                  # wood: not cookable
+    s = step(s, Stop())
+    s = step(s, PlaceWorker(space="clay_pit"))   # P1, atomic
+    s = _use_space(s, "reed_bank")               # reed: not cookable
+    p = s.players[0]
+    assert p.resources.food == 0 and p.resources.grain == 0 and p.resources.veg == 0
+    assert p.animals.sheep == 1                  # a target (Forest) exists, but
+    assert _si_triggers(legal_actions(s)) == set()   # the fee is unraisable
+
+
+def test_cost_sheep_reserved_second_sheep_funds_the_fee():
+    """0 food, 2 sheep, a Fireplace: the NON-reserved sheep is legal fuel
+    (sheep → 2 food = the whole fee), so the return IS offered; the frame
+    carries the reservation, every bundle cooks at most the one free sheep,
+    and the cost sheep survives the raise to be debited by the resume
+    (2 sheep − 1 cooked − 1 paid = 0)."""
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    from tests.factories import with_majors
+    s = _state(sheep=2, food=0)
+    s = with_majors(s, owner_by_idx={0: 0})      # Fireplace: sheep IS cookable
+    s = _use_space(s, "forest")
+    s = step(s, Stop())
+    s = step(s, PlaceWorker(space="clay_pit"))   # P1, atomic
+    s = _use_space(s, "reed_bank")               # nothing cookable taken
+    assert _si_triggers(legal_actions(s)) == {"forest"}   # offered via sheep #2
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="forest"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.food_needed == 2
+    assert top.reserved.animals.sheep == 1       # the cost sheep is never fuel
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0, cattle=0)]
+    s = step(s, bundles[0])                      # cook the free sheep -> 2 food
+    p = s.players[0]
+    assert p.animals.sheep == 0                  # 1 cooked + 1 debited as cost
+    assert p.resources.food == 0                 # 2 raised - 2 paid
+    assert p.people_home == 1                    # the Forest person came home
+    assert get_space(s.board, "forest").workers[0] == 0
+    assert CARD_ID in p.used_this_round
+
+
 def test_not_offered_with_no_other_placed_person():
     # Covered structurally inside the flow helpers; assert it standalone: the
     # first placement's after window (resources ample) offers nothing.

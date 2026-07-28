@@ -20,9 +20,17 @@ Firing pays 1 food for 1 BANKED bonus point:
     scored later. The count in the store is "how many times Truffle Slicer was
     used."
 
-THE CONDITION — "if you have at least 1 wild boar" is a plain state read at
-fire time (``p.animals.boar >= 1``); the boar is a condition, not a payment,
-so it is never reserved.
+THE CONDITION — "if you have at least 1 wild boar" RESERVES that boar from the
+food raise (USER RULING 2026-07-27): "the player may not cook the boar to pay
+for the effect." Literally, the player raises the food FIRST and then triggers
+the effect; the engine defers the conversions to the raise frame purely to
+preserve optionality, so the order-of-operations must not change what is legal
+— the post-raise state must still satisfy the condition the trigger checked.
+Eligibility therefore passes ``reserved_animals=Animals(boar=1)`` to
+``_liquidatable_to``, and the food-short fire pushes the raise frame with
+``reserved=Cost(animals=Animals(boar=1))`` — the same reservation mechanism the
+cost side uses (Sheep Inspector's cost sheep), applied to a condition-read
+quantity.
 
 THE PRICE — 1 food, paid through the shared food-payment path (ruling 82
 (2026-07-26); corrected 2026-07-27): the at-any-time conversions are legal
@@ -51,7 +59,7 @@ from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.legality import _liquidatable_to
 from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
-from agricola.resources import Cost, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.scoring import register_scoring
 from agricola.state import GameState
 
@@ -81,9 +89,10 @@ def _pay_and_bank(state: GameState, idx: int) -> GameState:
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     """Offer the pay-1-food-for-1-point exchange only on a wood-accumulation-space
-    use, when the player has a wild boar (the printed condition, read at fire
-    time) and the 1 food is payable — directly or by liquidating convertible
-    goods — and it has not already fired this use."""
+    use, when the player has a wild boar (the printed condition — RESERVED from
+    the raise, user ruling 2026-07-27) and the 1 food is payable — directly or
+    by liquidating convertible goods OTHER than the condition boar — and it has
+    not already fired this use."""
     if CARD_ID in triggers_resolved:                        # once per forest use
         return False
     if state.pending_stack[-1].space_id not in WOOD_ACCUMULATION_SPACES:
@@ -91,19 +100,21 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     p = state.players[idx]
     if p.animals.boar < 1:
         return False
-    return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+    return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST),
+                            reserved_animals=Animals(boar=1))
 
 
 def _apply(state: GameState, idx: int) -> GameState:
     """Pay 1 food for 1 banked bonus point. With the food on hand, directly;
     otherwise push a raise-only PendingFoodPayment and defer to its resume
-    (which debits the raised food). The 1 food is the card's only cost, so
-    nothing is reserved."""
+    (which debits the raised food). The condition's boar is reserved so no
+    raise bundle may cook it (user ruling 2026-07-27 — the conversions
+    notionally precede the trigger, so the condition must survive the raise)."""
     if state.players[idx].resources.food >= _FOOD_COST:
         return _pay_and_bank(state, idx)
     return push(state, PendingFoodPayment(
         player_idx=idx, food_needed=_FOOD_COST, resume_kind=CARD_ID,
-        reserved=Cost(),
+        reserved=Cost(animals=Animals(boar=1)),
     ))
 
 

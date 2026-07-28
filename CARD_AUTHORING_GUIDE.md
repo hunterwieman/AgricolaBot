@@ -200,6 +200,18 @@ the player can always raise the fee, but never into a stranded destination. Do N
 resolve that tension by dropping the raise (deletes legal moves) or by requiring EVERY
 bundle to survive (withholds legal lines whenever any one bundle fails).
 
+**Conversions notionally PRECEDE the trigger** (user ruling 2026-07-27): by the literal
+rules the player raises the food first, THEN triggers the effect — the engine's
+raise-after-fire order exists only to preserve optionality, so a raise frame simulates
+conversions that happened BEFORE the effect's condition was read, and the post-raise
+state must still satisfy everything the trigger checked. A cost or condition that names
+a liquidatable quantity therefore RESERVES it from the raise bundles (the
+`reserved_animals=` argument of `_liquidatable_to` in eligibility, plus `reserved=` on
+the pushed `PendingFoodPayment`). The two exemplars are the two sides of the one rule:
+Sheep Inspector's cost sheep (the sheep the resume will debit is never fuel — the
+cost side) and Truffle Slicer's condition boar (the "if you have at least 1 wild boar"
+boar may not be cooked to pay the fee — the condition side).
+
 **When delegating, this rule propagates verbatim,** exactly like §0.1's: a subagent
 offered a "simpler gate" fallback will take it. Do not sanction one in the prompt — that
 mistake is how the 2026-07-26 defects shipped.

@@ -9,11 +9,14 @@ Shape: an OPTIONAL `before_action_space` FireTrigger on the atomic-hosted Forest
 (the only wood accumulation space on the 2-player board). Owning the card gives
 Forest a PendingActionSpace host; in the host's before-phase the trigger is
 surfaced (alongside Proceed) iff the player has >=1 wild boar (the printed
-condition, a plain read at fire time) and the 1 food is payable. The food rides
-the shared food-payment path (ruling 82, 2026-07-26; corrected 2026-07-27):
-eligibility is liquidation-aware, the food-on-hand fire pays directly, and a
-food-short fire pushes a raise-only PendingFoodPayment whose resume debits and
-banks. Firing pays 1 food for 1 BANKED bonus point (stored in the per-card
+condition — RESERVED from the food raise, user ruling 2026-07-27: "the player
+may not cook the boar to pay for the effect", because the conversions notionally
+precede the trigger and the post-raise state must still satisfy the condition)
+and the 1 food is payable. The food rides the shared food-payment path (ruling
+82, 2026-07-26; corrected 2026-07-27): eligibility is liquidation-aware with the
+condition boar reserved, the food-on-hand fire pays directly, and a food-short
+fire pushes a raise-only PendingFoodPayment carrying the boar reservation, whose
+resume debits and banks. Firing pays 1 food for 1 BANKED bonus point (stored in the per-card
 CardStore, emitted by register_scoring at end-game). Declining is not firing —
 Proceed exits the before-phase, picks up the +3 wood, then Stop pops. Tests
 drive the REAL engine flow through the Forest placement, per
@@ -40,7 +43,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.setup import CardPool, setup_env
 from agricola.state import get_space, with_space
-from tests.factories import with_animals, with_resources, with_round
+from tests.factories import with_animals, with_majors, with_resources, with_round
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -227,7 +230,8 @@ def test_not_offered_without_food_or_liquidation_source():
 def test_zero_food_with_cookable_grain_raises_the_fee():
     """Ruling 82 (2026-07-26; corrected 2026-07-27): 0 food but 1 grain (always
     cookable 1:1) → the 1 food is raisable, so the buy IS offered; firing
-    pushes a raise-only PendingFoodPayment, and the committed bundle banks the
+    pushes a raise-only PendingFoodPayment (carrying the condition boar's
+    reservation — user ruling 2026-07-27), and the committed bundle banks the
     point identically to the on-hand path."""
     s, cp = _setup(boar=1, food=0)
     s = with_resources(s, cp, grain=1)          # 0 food, 1 cookable grain
@@ -238,6 +242,7 @@ def test_zero_food_with_cookable_grain_raises_the_fee():
     top = s.pending_stack[-1]
     assert isinstance(top, PendingFoodPayment)
     assert top.food_needed == 1 and top.resume_kind == CARD_ID
+    assert top.reserved.animals.boar == 1       # the condition boar is never fuel
 
     pay = CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)
     assert pay in legal_actions(s)
@@ -246,11 +251,54 @@ def test_zero_food_with_cookable_grain_raises_the_fee():
     assert p.resources.food == 0                # raised 1, paid 1
     assert p.resources.grain == 0               # the grain was cooked
     assert p.card_state.get(CARD_ID) == 1       # the point banked
-    assert p.animals.boar == 1                  # the condition good untouched
+    assert p.animals.boar == 1                  # the condition boar survives
     # Host back on top, once per use.
     assert isinstance(s.pending_stack[-1], PendingActionSpace)
     assert not _has_fire(s)
     assert Proceed() in legal_actions(s)
+
+
+def test_condition_boar_reserved_not_offered_when_only_the_boar_cooks():
+    """USER RULING (2026-07-27): "the player may not cook the boar to pay for
+    the effect" — the raise notionally happens BEFORE the condition is read, so
+    the condition boar is reserved from the bundles. 0 food, exactly 1 boar,
+    a Fireplace (boar → 2 food, which WOULD cover the fee), nothing else
+    cookable: the only bundle would cook the condition boar → the trigger is
+    NOT offered."""
+    s, cp = _setup(boar=1, food=0)
+    s = with_majors(s, owner_by_idx={0: cp})    # Fireplace: the boar IS cookable
+    s = _place_forest_before(s)
+    p = s.players[cp]
+    assert p.resources.food == 0 and p.resources.grain == 0 and p.resources.veg == 0
+    assert p.animals.boar == 1 and p.animals.sheep == 0 and p.animals.cattle == 0
+    assert not _has_fire(s)                     # reserved → the fee is unraisable
+
+
+def test_condition_boar_reserved_bundles_exclude_it_grain_funds_the_fee():
+    """The reservation in the bundle enumeration (user ruling 2026-07-27):
+    0 food, 1 boar, 1 grain, a Fireplace. The grain makes the fee raisable, so
+    the trigger IS offered — but no bundle may cook the reserved boar (without
+    the reservation the Fireplace would surface a boar-cooking bundle). The
+    grain bundle resolves; the boar survives and the point is banked."""
+    s, cp = _setup(boar=1, food=0)
+    s = with_resources(s, cp, grain=1)
+    s = with_majors(s, owner_by_idx={0: cp})    # Fireplace: the boar IS cookable
+    s = _place_forest_before(s)
+    assert _has_fire(s)                         # the grain funds the fee
+
+    s = step(s, FireTrigger(card_id=CARD_ID))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment)
+    assert top.reserved.animals.boar == 1
+    bundles = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert bundles and all(b.boar == 0 for b in bundles)   # never the boar
+    assert bundles == [CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)]
+
+    s = step(s, bundles[0])
+    p = s.players[cp]
+    assert p.animals.boar == 1                  # the condition boar survives
+    assert p.resources.grain == 0 and p.resources.food == 0
+    assert p.card_state.get(CARD_ID) == 1       # the point banked
 
 
 def test_not_offered_without_card():
@@ -278,6 +326,11 @@ def test_eligible_predicate_direct():
     # cooking improvement) → not eligible.
     s_nofood = with_resources(s, cp, food=0)
     assert not _eligible(s_nofood, cp, triggers_resolved)
+    # Still not eligible WITH a cooking improvement: the condition boar is
+    # reserved from the raise (user ruling 2026-07-27), so a Fireplace that
+    # could cook it changes nothing.
+    s_fp = with_majors(s_nofood, owner_by_idx={0: cp})
+    assert not _eligible(s_fp, cp, triggers_resolved)
 
 
 # ---------------------------------------------------------------------------
