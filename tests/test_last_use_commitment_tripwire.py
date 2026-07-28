@@ -34,11 +34,12 @@ form of the ledger's ⚠ ON BUILD notes (the Large Pottery pattern,
   whatever seam offers the pay-and-activate must CONSULT the latch (foreclosed
   once a last use is committed), exactly like the loaner offers.
 
-- **ARCHWAY D51** (minor): its relocation sits on the `after_work` rung;
-  whether that use counts for "the last action space you use" is an OPEN user
-  question (CARD_DEFERRED_PLANS.md, 2026-07-27) that must be resolved before
-  the build. If ruled in scope, its use-branch consults the latch like Straw
-  Hat's; if ruled out, it neither consults nor falsifies.
+- **ARCHWAY D51** (minor): RULED 2026-07-27 (CARD_DEFERRED_PLANS.md, verbatim):
+  `after_work` IS during the work phase, so its relocation branch must CONSULT
+  the latch exactly like Straw Hat's — a fired Steam Machine forecloses the
+  move, and an Archway move onto an accumulation space re-opens Steam Machine
+  as the new last use. The remaining build prerequisite is the for-all
+  card-space registration itself (the ruling-86 infrastructure, now landed).
 
 When a test fires: implement the contract (or obtain the ruling), then flip the
 assert into positive coverage of it — do not just delete the test.
@@ -61,8 +62,8 @@ def test_adoptive_parents_unbuilt_must_consult_the_latch_when_it_lands():
         "CONSULT last_use_committed — see this file's docstring")
 
 
-def test_archway_unbuilt_needs_the_last_use_timing_ruling_first():
+def test_archway_unbuilt_must_consult_the_latch_when_it_lands():
     assert "archway" not in MINORS, (
-        "Archway has registered: resolve the open after_work-vs-work-phase "
-        "question for 'the last action space you use' first — see this file's "
-        "docstring and CARD_DEFERRED_PLANS.md")
+        "Archway has registered: its relocation branch must CONSULT "
+        "last_use_committed exactly like Straw Hat's (ruled 2026-07-27: "
+        "after_work is during the work phase) — see this file's docstring")

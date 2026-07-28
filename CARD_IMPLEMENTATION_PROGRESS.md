@@ -407,7 +407,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B41 Hauberg** · cost: 3 Food · prereq: 3 Occupations
   - _Alternate placing 2 wood and 1 wild boar on the next 4 round spaces. You decide what to start with. At the start of these rounds, you get the goods._
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — On play, alternate 2 wood / 1 wild boar on next 4 round spaces (player chooses start); collected at round start; animals must be accommodated.
-- ⬜ **B42 Forest Inn** · cost: 1 Clay,1 Reed · prereq: Play in Round 6 or Before
+- ✅ **B42 Forest Inn** · cost: 1 Clay,1 Reed · prereq: Play in Round 6 or Before · ruling 86 (food-tolled for-all card space; tier picks; raise resume pays the owner pre-host)
   - _This is an action space for all. A player who uses it can exchange 5/7/9 wood for 8 wood and 2/4/7 food. When another player uses it, they must first pay you 1 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP L-CARDSPACE E-CONVERT E-OPPTRANSFER` — The card is an action space (L-CARDSPACE) whose action is a wood-for-wood+food exchange (E-CONVERT); the opponent toll is a mandatory hook on another player using the space, paid FIRST (HOOK/S-SPACE/A-OPP/F-AUTO/T-BEFORE, E-OPPTRANSFER). Nothing fires on play, so no ONPLAY; L-OCCUPY (using an occupied space) does not apply.
 - ✅ **B43 Chophouse** · cost: 2 Wood/2 Clay
@@ -1293,7 +1293,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E80 Rock Garden**
   - _You can only plant stone on this card. Plant as though it were 3 fields, but it is considered 1 field. Sow and harvest stone on this card as you would vegetables._
   - `L-CARDFIELD` — Card-field that grows STONE (plant-as-3, counts as 1).
-- ⬜ **E81 Alchemists Lab** · prereq: 3 Occupations
+- ✅ **E81 Alchemists Lab** · prereq: 3 Occupations · ruling 86 (food-tolled for-all card space; dynamic held-types yield feeds the taken-delta reactors)
   - _This card is an action space for all. A player who uses it gets 1 building resource of each type they already have. If another player uses it, they must first pay you 1 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP L-CARDSPACE E-GOODS E-OPPTRANSFER` — Card-as-action-space usable by either player (A-OWN + A-OPP); the resource grant is automatic on use and the opponent toll is 'must FIRST pay 1 food' → T-BEFORE; nothing lets anyone use an occupied space (drop L-OCCUPY) and nothing resolves once at play time (drop ONPLAY — L-CARDSPACE covers the structural setup).
 - ✅ **E82 Profiteering**

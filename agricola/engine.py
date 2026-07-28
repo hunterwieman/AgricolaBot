@@ -523,15 +523,46 @@ def initiate_card_space_use(state: GameState, placer_idx: int, card_id: str,
     every benefit of the use, owed per use however the worker arrived; the
     arrival enumerators already gated on payability)."""
     from agricola.cards.card_spaces import (
-        CARD_ACTION_SPACES, pay_card_space_toll, place_card_space_worker,
+        CARD_ACTION_SPACES, _TOLL_STASH_KEY, pay_card_space_toll,
         played_card_owner,
     )
+    from agricola.pending import PendingFoodPayment
+    from agricola.resources import Cost
 
     spec = CARD_ACTION_SPACES[card_id]
     if spec.toll is not None:
         owner = played_card_owner(state, card_id)
         if owner != placer_idx:
-            state = pay_card_space_toll(state, placer_idx, owner, spec.toll)
+            p = state.players[placer_idx]
+            if p.resources.food >= spec.toll.resources.food:
+                state = pay_card_space_toll(state, placer_idx, owner, spec.toll)
+            else:
+                # FOOD-short (the arrival enumerator admitted a liquidation-
+                # raisable toll — ruling 86 items 2/8): raise first — the
+                # toll precedes every benefit of the use, so the host (and its
+                # before-window) is deferred to the resume, which pays the
+                # owner and completes the arrival. The (card_id, picks)
+                # context rides the payer's CardStore (the Sheep Inspector
+                # stash idiom — PendingFoodPayment carries no payload).
+                p = fast_replace(p, card_state=p.card_state.set(
+                    _TOLL_STASH_KEY, (card_id, picks)))
+                state = fast_replace(state, players=tuple(
+                    p if i == placer_idx else state.players[i]
+                    for i in range(len(state.players))))
+                return push(state, PendingFoodPayment(
+                    player_idx=placer_idx,
+                    food_needed=spec.toll.resources.food,
+                    resume_kind="card_space_toll", reserved=Cost()))
+    return _complete_card_space_arrival(state, placer_idx, card_id, picks)
+
+
+def _complete_card_space_arrival(state: GameState, placer_idx: int,
+                                 card_id: str, picks) -> GameState:
+    """The arrival's tail — occupancy marker + the hosted use (before-autos at
+    the push). Reached directly (no toll / toll paid inline) or from the
+    food-toll raise resume (card_spaces._toll_resume)."""
+    from agricola.cards.card_spaces import place_card_space_worker
+
     p = place_card_space_worker(state.players[placer_idx], card_id)
     state = fast_replace(state, players=tuple(
         p if i == placer_idx else state.players[i]

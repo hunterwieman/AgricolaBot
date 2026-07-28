@@ -19,7 +19,15 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
-## Open question (2026-07-27) — Archway × "the last action space you use" (needed at Archway's build)
+## RESOLVED (2026-07-27, same day) — Archway × "the last action space you use"
+
+**User ruling (verbatim): "after_work is during the work phase so yes. A fired Steam
+Machine forecloses Archway's move (and an Archway move onto an accumulation space
+re-opens Steam Machine), just like Straw Hat."** Engine form: Archway's relocation
+branch consults `last_use_committed` exactly as Straw Hat's does (set → move
+suppressed; unset → Steam Machine's own after_action_space trigger surfaces at an
+accumulation destination naturally). The implementer's no-interaction lean below is
+superseded. Original question, kept for the reasoning record:
 
 Steam Machine's condition quantifies over uses "each work phase". Archway D51's relocation
 ("Immediately before the returning home phase, they can use an unoccupied action space with
@@ -66,14 +74,23 @@ immediately before end_of_harvest**; the converters are closed after it. This su
 (2026-07-27), same day.** As landed: `post_breed_floors` and `in_conversion_span` lapse/close
 on the harvest walk's cursor at end_of_harvest — NOT a new Phase member (the enum is shared
 with Family and the C++ twin; the tail windows deliberately keep running under the breed
-phase's Phase value, and a Family harvest's cursor never reaches the new branches). The
-free-span surface split (`CONVERTER_SPAN_EVENTS` = the span minus end_of_harvest, a default-off
-keyword on `register_free_span_trigger`) trims the four food-PRODUCING carriers — the craft
-majors' span exchanges, Braid Maker's reed→2-food clause, Paintbrush (its bonus-point route
-rides the same printed exchange, so both trim), Stone Carver — while the three food-SPENDING
-carriers (Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee) keep
-end_of_harvest per ruling 36. **Two implementer classifications flagged for user review**: the
-produce-vs-spend line itself, and Paintbrush's point route trimming with its conversion.
+phase's Phase value, and a Family harvest's cursor never reaches the new branches). **Corrected same day** (the
+first build split the surfaces produce-vs-spend, keeping end_of_harvest for the food-spending
+buys under ruling 36's old phrasing; the user: "No. All these cards refer to the harvest. My
+ruling is about what counts as part of the harvest and what doesn't"): `FREE_SPAN_EVENTS`
+itself now ends at `after_breeding` for EVERY span carrier — the converters (craft majors'
+span exchanges, Braid Maker's reed clause, Paintbrush both routes, Stone Carver) AND the
+food-spending buys (Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee).
+Ruling 36's "field phase through end-of-harvest" phrasing is superseded by this harvest
+boundary; the tail windows belong only to cards whose printed text names a tail instant
+(Winter Caretaker at end_of_harvest; Value Assets / Elephantgrass Plant at after_harvest).
+Companion rule, stated by the user the same day: a raise frame may fire an unused converter
+only when the current instant lies inside THAT converter's own printed window (Schnapps
+Distillery: feeding phase only) — already realized per-card via ownership-predicate phase
+guards (the Studio/ruling-77 pattern); the whole-harvest converters need no guard because the
+span envelope IS their window. Standing instruction recorded with it: prior rulings are not
+infallible — where one breaks the plain reading of card text without explicit justification,
+bring it to the user.
 Winter Caretaker's converter-route pin is rewritten to the ruled play (standalone-fire the
 Joinery at after_breeding, then buy at end_of_harvest — where a just-bred animal is now also
 cookable). Known cosmetic residue (verified, no rules impact): the walk's eligibility probes
@@ -179,6 +196,14 @@ Pioneering Spirit D23, Hardworking Man D127, Elder Baker E161, Forest Tallyman A
    predicate. Fishing Net C51's printed clarifications independently pin the same
    model on its board-space toll ("Others must have 1 food before using"; proceeds
    may not pay the owner).
+
+9. **Fishing Net's board-space toll shares the card-space toll model** (user,
+   2026-07-27): "I want the Fishing Net toll to be similar to the other tolls (like
+   alchemist's lab) in that it is before the before action space autos and
+   triggers" — the toll is paid at the arrival, BEFORE the space's before-window
+   fires, gates the non-owner's placement/arrival when unpayable (its printed
+   clarifications agree: "Others must have 1 food before using"; proceeds may not
+   pay), and is owed per use however the worker arrives (a jump onto Fishing pays).
 
 **Appendix (2026-07-27) — the read-everything interaction survey.** After the keyword
 sweep provably missed the reaction class (the user's Kindling Gatherer catch), two

@@ -221,6 +221,23 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-27 food-toll raise path landed — Forest Inn B42 + Alchemists Lab E81
+  (ruling 86's food-tolled for-all card spaces).** The registration guard that refused FOOD
+  tolls is gone: a non-owner short of the 1-food toll now arrives through the ruling-82
+  raise shape — `toll_payable` is liquidation-aware, and the raise's resume pays the OWNER
+  before `initiate_card_space_use` pushes the host, so no before-window effect ever
+  precedes the toll (ruling 86.8's ordering holds through the raise). Forest Inn's
+  5/7/9-wood exchange tiers surface as wide placement variants (`picks=(tier,)`, the
+  Collector idiom — the action IS the exchange, so a sub-5-wood placer cannot arrive:
+  carryability); Alchemists Lab's dynamic yield (+1 of each building-resource type the
+  user already holds) gates arrival on holding ≥1 and lands in the host's `taken` delta,
+  firing the content-based reactors (the Mattock/Beaver Colony rebuild's payoff). Same
+  day the **Archway × last-use question was RESOLVED** (user ruling, verbatim in
+  CARD_DEFERRED_PLANS.md): `after_work` IS during the work phase — a fired Steam Machine
+  forecloses Archway's move, and an Archway move onto an accumulation space re-opens
+  Steam Machine, exactly like Straw Hat; the no-interaction lean is superseded, and
+  Archway's remaining open is the for-all build itself. Census: **239 occupations + 337
+  minors = 576**.
 - **The 2026-07-27 food-payment classification pass (ruling 84, the food-price sweep) +
   the harvest tail (ruling 85).** The pass makes ruling 82 universal: all **572
   implemented card texts** swept for food-as-a-price (a four-agent semantic sweep
@@ -248,12 +265,15 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   standalone conversion choice's final home is the breed phase's last opportunity,
   immediately before end_of_harvest — both keyed on the harvest walk's cursor, NOT a
   new Phase member; Winter Caretaker can therefore cook a just-bred animal to pay its
-  end_of_harvest buy. Plus the produce-vs-spend surface split (`CONVERTER_SPAN_EVENTS`
-  trims the four food-PRODUCING span carriers — the craft majors' exchanges, Braid
-  Maker, Paintbrush, Stone Carver — off end_of_harvest, while the three food-SPENDING
-  fees — Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee — keep it
-  per ruling 36; the split line itself is an implementer classification flagged for
-  user review). Family/C++ untouched. Census unchanged — no new cards: **239
+  end_of_harvest buy. The first build split the span surfaces produce-vs-spend; the user
+  corrected it same day ("all these cards refer to the harvest" — ruling 85 defines
+  harvest membership for EVERY harvest-quantified card), so `FREE_SPAN_EVENTS` itself
+  now ends at after_breeding for all span carriers — converters and food-spending fees
+  alike — and only tail-naming cards (Winter Caretaker; Value Assets / Elephantgrass)
+  occupy end_of_harvest / after_harvest; ruling 36's "through end-of-harvest" phrasing
+  is superseded. Companion rule (user, same day): raise-frame bundles fire a converter
+  only inside that converter's OWN printed window (Schnapps Distillery: feeding phase
+  only) — already realized via per-card ownership-predicate phase guards. Family/C++ untouched. Census unchanged — no new cards: **239
   occupations + 334 minors = 573**. Full suite green incl. the C++ gates at both
   landings: 7072 at ruling 84, **7080 at ruling 85**.
 - **The 2026-07-27 standing-worker ledger + Straw Hat E10 (ruling 83) — the relocation
@@ -349,10 +369,10 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   consumers when built: **Straw Hat**'s move-and-use branch (user ruling this session:
   a committed last use forecloses the move, forcing its "get 1 food" branch, which uses
   no space — SHIPPED same day, consulting), **Adoptive Parents**' newborn activation (an
-  optional future placement living outside `people_home`), Market Master. OPEN at
-  Archway's build: whether its `after_work` relocation counts as a work-phase use for
-  "the last action space you use" (lean no — the rung sits after the phase; recorded in
-  CARD_DEFERRED_PLANS.md). Follow-up same day (flagging Market Master): **Sheep
+  optional future placement living outside `people_home`), Market Master. The Archway ×
+  last-use question was RESOLVED later the same day (user: `after_work` IS during the
+  work phase, so Archway's relocation branch consults the latch exactly like Straw
+  Hat's — the lean-no reasoning is kept in CARD_DEFERRED_PLANS.md as the record). Follow-up same day (flagging Market Master): **Sheep
   Inspector joined the foreclosure set** — its return shares the fire's after-window and
   a returned home worker must be re-placed, falsifying the commitment, so its
   eligibility now consults the latch (the reverse order was already exact via

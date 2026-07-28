@@ -1094,3 +1094,5 @@ from agricola.cards import straw_hat  # noqa: F401
 #     arrivals (paid before the use's benefits), for_all spaces + the
 #     ownership-independent scoring list. Chapel is the first consumer. ---
 from agricola.cards import chapel  # noqa: F401
+from agricola.cards import forest_inn  # noqa: F401
+from agricola.cards import alchemists_lab  # noqa: F401

@@ -119,13 +119,6 @@ def register_card_action_space(card_id: str, use_fn, *, placeable_fn=None,
 
     ``placeable_fn=None`` means "always one plain placement" (``[None]``).
     """
-    if toll is not None and toll.resources.food:
-        # The FOOD tolls (Forest Inn, Alchemists Lab) need the liquidation-
-        # aware raise path (ruling 86 item 2 — a plain food gate would delete
-        # rules-legal placements, ruling 82). Build-order guard, not a rule:
-        # remove when that path lands with those two cards.
-        raise NotImplementedError(
-            "food tolls await the raise-path build (ruling 86 item 2)")
     if placeable_fn is None:
         placeable_fn = lambda state, placer_idx, owner_idx: [None]   # noqa: E731
     CARD_ACTION_SPACES[card_id] = CardActionSpaceSpec(
@@ -135,15 +128,48 @@ def register_card_action_space(card_id: str, use_fn, *, placeable_fn=None,
 
 def toll_payable(state: GameState, payer_idx: int, toll) -> bool:
     """Can `payer_idx` pay this toll right now — on the PRE-use state (ruling
-    84 item 8: the toll fires before every benefit of the use, so nothing the
-    use grants is available). Non-food goods only today (the registration
-    guard above); a plain have-it read is exact for them — no at-any-time
-    conversion produces grain/wood/clay/reed/stone."""
+    86 item 8: the toll fires before every benefit of the use, so nothing the
+    use grants is available). Non-food goods are a plain have-it read (exact —
+    no at-any-time conversion produces grain/wood/clay/reed/stone); a FOOD
+    component is liquidation-aware (ruling 86 item 2 — cooking mid-payment is
+    a legal route, so a plain food gate would delete legal arrivals). No
+    preserve check is needed for the shipped tolls: a work-phase raise
+    consumes only crops/animals, disjoint from every toll destination's own
+    inputs (wood / building resources / nothing) — the ruling-82 disjointness
+    invariant, pinned by tests/test_liquidation_disjointness.py."""
     r = state.players[payer_idx].resources
     t = toll.resources
-    return (r.wood >= t.wood and r.clay >= t.clay and r.reed >= t.reed
-            and r.stone >= t.stone and r.grain >= t.grain and r.veg >= t.veg
-            and r.food >= t.food)
+    if not (r.wood >= t.wood and r.clay >= t.clay and r.reed >= t.reed
+            and r.stone >= t.stone and r.grain >= t.grain and r.veg >= t.veg):
+        return False
+    if r.food >= t.food:
+        return True
+    from agricola.legality import _liquidatable_to
+    from agricola.resources import Resources
+    return _liquidatable_to(state, payer_idx, state.players[payer_idx],
+                            Resources(food=t.food))
+
+
+# The food-toll raise's arrival context (engine.initiate_card_space_use
+# stashes (card_id, picks) here; _toll_resume pops it) — a machinery-owned
+# CardStore key on the PAYER, colon-namespaced like the worker markers.
+_TOLL_STASH_KEY = "card_space_toll:ctx"
+
+
+def _toll_resume(state: GameState, idx: int) -> GameState:
+    """The food-toll raise resume (resume_kind "card_space_toll"): the raised
+    food is in supply — pay the owner (ruling 86: BEFORE the host, so the
+    before-window never sees an unpaid toll), then complete the arrival."""
+    from agricola.engine import _complete_card_space_arrival
+    p = state.players[idx]
+    card_id, picks = p.card_state.get(_TOLL_STASH_KEY)
+    p = fast_replace(p, card_state=p.card_state.remove(_TOLL_STASH_KEY))
+    state = fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(len(state.players))))
+    owner = played_card_owner(state, card_id)
+    state = pay_card_space_toll(state, idx, owner,
+                                CARD_ACTION_SPACES[card_id].toll)
+    return _complete_card_space_arrival(state, idx, card_id, picks)
 
 
 def pay_card_space_toll(state: GameState, payer_idx: int, owner_idx: int,
@@ -291,3 +317,9 @@ def clear_card_space_workers(state: GameState) -> GameState:
     if not changed:
         return state
     return fast_replace(state, players=tuple(new_players))
+
+
+# The single machinery resume for every food-tolled card space (the per-card
+# context rides the stash, so one registration serves them all).
+from agricola.cards.specs import register_food_payment_resume  # noqa: E402
+register_food_payment_resume("card_space_toll", _toll_resume)
