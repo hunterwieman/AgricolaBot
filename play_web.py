@@ -1456,6 +1456,13 @@ def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dic
     return out
 
 
+_OUTER_HARVEST_NOTES = {
+    Phase.PRE_HARVEST:    "harvest: starting",
+    Phase.END_OF_HARVEST: "harvest: ending",
+    Phase.AFTER_HARVEST:  "harvest: over",
+}
+
+
 def _harvest_note(state: GameState) -> str:
     if state.phase == Phase.WORK and state.round_number in HARVEST_ROUNDS:
         return "harvest after this round"
@@ -1463,7 +1470,10 @@ def _harvest_note(state: GameState) -> str:
         return "harvest next round"
     if state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
         return state.phase.name.replace("HARVEST_", "harvest: ").lower()
-    return ""
+    # The harvest's outer windows (Cards mode; the phase-honesty pass, 2026-07-27)
+    # carry their own phases — before ruling 85 they rode HARVEST_BREED and this note
+    # mislabeled a pre-harvest or post-breeding pause as "harvest: breed".
+    return _OUTER_HARVEST_NOTES.get(state.phase, "")
 
 
 SCORE_ROWS = [
