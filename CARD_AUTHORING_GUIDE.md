@@ -200,21 +200,54 @@ the player can always raise the fee, but never into a stranded destination. Do N
 resolve that tension by dropping the raise (deletes legal moves) or by requiring EVERY
 bundle to survive (withholds legal lines whenever any one bundle fails).
 
-**Conversions notionally PRECEDE the trigger** (user ruling 2026-07-27): by the literal
-rules the player raises the food first, THEN triggers the effect — the engine's
-raise-after-fire order exists only to preserve optionality, so a raise frame simulates
-conversions that happened BEFORE the effect's condition was read, and the post-raise
-state must still satisfy everything the trigger checked. A cost or condition that names
-a liquidatable quantity therefore RESERVES it from the raise bundles (the
-`reserved_animals=` argument of `_liquidatable_to` in eligibility, plus `reserved=` on
-the pushed `PendingFoodPayment`). The two exemplars are the two sides of the one rule:
-Sheep Inspector's cost sheep (the sheep the resume will debit is never fuel — the
-cost side) and Truffle Slicer's condition boar (the "if you have at least 1 wild boar"
-boar may not be cooked to pay the fee — the condition side).
+Related but distinct: what a raise may CONSUME is governed by §0.5's order-equivalence
+principle (conversions notionally precede the trigger) — its reservation mechanism is the
+same `reserved=` machinery this section's shapes use.
 
 **When delegating, this rule propagates verbatim,** exactly like §0.1's: a subagent
 offered a "simpler gate" fallback will take it. Do not sanction one in the prompt — that
 mistake is how the 2026-07-26 defects shipped.
+
+### 0.5 The two games must agree: conversions notionally precede the trigger
+
+The engine deliberately plays a slightly different game than the rulebook describes. In the
+described game, an at-any-time conversion is an action taken BETWEEN other things: a player
+cooks first, then triggers an effect, arriving at the trigger already holding the food. The
+implemented game defers that conversion to the moment a cost is actually charged — the
+food-payment raise frame — so a player is never forced to convert earlier than necessary
+(Foundations' preserving-optionality principle: the engine never surfaces standalone
+conversions). That deferral is a pure representation move, and it is sound exactly as long
+as it is INVISIBLE: nothing between an effect's gate and its payment's resolution may be
+able to observe that the order was swapped.
+
+Truffle Slicer was the first card to break the invisibility (found and ruled 2026-07-27).
+Its condition — "if you have at least 1 wild boar" — reads a quantity cooking can consume.
+Fire-then-raise let the condition pass on a state the described game cannot produce: the
+condition was checked before the very payment that falsifies it, so the engine briefly
+allowed "cook the condition boar to pay the fee" — a line that is illegal at a real table,
+where the player who cooks their last boar arrives at the trigger with none and the
+condition simply fails. The user's ruling, verbatim: "The literal rules based
+interpretation is that the player raises the food, then triggers the effect. For
+'optionality' reasons we wait until the last moment for the player to convert, but
+technically that last moment should be before triggering the effect."
+
+The rule that follows: **a raise frame simulates conversions that notionally happened
+BEFORE the trigger, so the post-raise state must still satisfy everything the gate
+checked.** Mechanically, any quantity the gate reads that liquidation could consume is
+RESERVED — `reserved_animals=` in the `_liquidatable_to` eligibility check AND `reserved=`
+on the pushed `PendingFoodPayment` — so the option is offered iff the fee can be raised
+with the read quantity kept, and no offered bundle consumes it. The two exemplars are the
+two sides of one rule: Sheep Inspector's cost sheep (the sheep the resume will debit is
+never fuel) and Truffle Slicer's condition boar. The same test extends to play
+PREREQUISITES — a prerequisite-read good the play's own payment could consume (e.g. a
+wood cost made food-payable by Wood Expert's conversion) — whose member survey and ruling
+are pending.
+
+The implementer's check, on every card that charges a cost: between the gate and the
+debit, does anything I read name a quantity the payment could consume? If yes, reserve
+it; if reservation doesn't fit the card's shape, §0 — defer and ask. When delegating,
+this rule goes in the prompt verbatim, exactly like §0.1's and §0.4's. (The engine-side
+statement of the same contract lives in CARD_ENGINE_IMPLEMENTATION.md §5.3.)
 
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
