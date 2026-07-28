@@ -326,8 +326,11 @@ def test_span_derivations():
     # Ruling 85 (2026-07-27): the span ends at end_of_harvest. A frame paused
     # at the breed phase's LAST after_breeding surface (stored cursor = its
     # position + 1) is still in span; frames at end_of_harvest and
-    # after_harvest (still Phase.HARVEST_BREED) are out, so the raise frame
-    # carries no converter there.
+    # after_harvest are out, so the raise frame carries no converter there.
+    # These are FAMILY-mode states (setup(3)), whose walk keeps the tail
+    # under Phase.HARVEST_BREED — the CURSOR side of the boundary; the
+    # CARDS walk stamps END_OF_HARVEST / AFTER_HARVEST there and the PHASE
+    # side is pinned in test_harvest_phase_attribution.py.
     last_in = fast_replace(
         s, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
     assert in_conversion_span(last_in, 0)
@@ -352,8 +355,11 @@ def test_post_breed_floors_by_cursor():
     assert post_breed_floors(feed, 0) == (0, 0, 0)
     # Ruling 85 (2026-07-27): the floor binds through the breed phase's last
     # after_breeding surface and LAPSES once the walk reaches end_of_harvest
-    # — at the end_of_harvest and after_harvest frames (still
-    # Phase.HARVEST_BREED) a just-bred animal is cookable again.
+    # — at the end_of_harvest and after_harvest frames a just-bred animal is
+    # cookable again. These FAMILY-mode states keep the tail under
+    # Phase.HARVEST_BREED (the cursor side of the boundary); the CARDS
+    # walk's honest tail phases are pinned in
+    # test_harvest_phase_attribution.py.
     last_bound = fast_replace(
         s, harvest_cursor=sentinel_position("after_breeding", 1) + 1)
     assert post_breed_floors(last_bound, 0) == (3, 3, 3)

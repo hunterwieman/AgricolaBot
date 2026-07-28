@@ -305,7 +305,10 @@ def completed_feeding_phases(state: GameState) -> int:
     base = sum(1 for h in HARVEST_ROUNDS if h < state.round_number)
     if state.round_number not in HARVEST_ROUNDS:
         return base
-    if state.phase in (Phase.HARVEST_BREED, Phase.BEFORE_SCORING):
+    if state.phase in (Phase.HARVEST_BREED, Phase.END_OF_HARVEST,
+                       Phase.AFTER_HARVEST, Phase.BEFORE_SCORING):
+        # The two tail phases (Cards-mode outer windows, phase-honesty pass
+        # 2026-07-27) sit after this harvest's feeding: count it complete.
         return base + 1
     if state.phase is Phase.HARVEST_FEED:
         from agricola.cards.harvest_windows import sentinel_position

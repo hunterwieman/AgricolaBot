@@ -160,9 +160,11 @@ from agricola.cards.preparation import (
     ROUND_SETUP,
 )
 from agricola.cards.harvest_windows import (
+    BREED_BAND_END,
     BREED_BAND_START,
     FEED_BAND_END,
     FEED_BAND_START,
+    FIELD_BAND_START,
     HARVEST_WINDOWS,
     WALK_LENGTH,
     apply_harvest_occasion_autos,
@@ -1446,8 +1448,12 @@ def _advance_until_decision(state: GameState) -> GameState:
         # transitions between harvest phases, or completes the harvest into
         # PREPARATION / BEFORE_SCORING. Cardless: byte-identical to the old
         # three-case walk (no window ever hosts; the sentinels do exactly the
-        # old cases' work).
-        if state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
+        # old cases' work). The last three members are the CARDS-mode outer-
+        # window phases (a paused lead/tail window frame resumes here when it
+        # pops; the Family walk never produces them).
+        if state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                           Phase.HARVEST_BREED, Phase.PRE_HARVEST,
+                           Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
             state = _advance_harvest(state)
             continue
 
@@ -2159,6 +2165,16 @@ def _field_phase_step(state: GameState, idx: int):
     return state, hosted or occ_hosted
 
 
+# The CARDS-mode phase for each tail window past the BREED band (ruling 85:
+# both sit outside the harvest span). Keyed by window id and looked up only
+# for w_idx > BREED_BAND_END, so a future tail window added to the ladder
+# fails loudly (KeyError) rather than inheriting a neighbor's phase.
+_TAIL_WINDOW_PHASES = {
+    "end_of_harvest": Phase.END_OF_HARVEST,
+    "after_harvest": Phase.AFTER_HARVEST,
+}
+
+
 def _advance_harvest(state: GameState) -> GameState:
     """One step of the harvest-window walk (HARVEST_WINDOWS_DESIGN.md §1-§4).
 
@@ -2173,8 +2189,16 @@ def _advance_harvest(state: GameState) -> GameState:
     them), or the harvest completes into PREPARATION / BEFORE_SCORING.
 
     The harvest phase is derived from the walk position (the flip happens at
-    each band's entry, so a whole band runs under one phase); the two outer
-    windows after the BREED band run under HARVEST_BREED, as before ruling 40.
+    each band's entry, so a whole band runs under one phase). The four OUTER
+    windows diverge by mode: the CARDS walk gives them honest phases —
+    PRE_HARVEST over the two lead windows, END_OF_HARVEST / AFTER_HARVEST at
+    the tail (ruling 85 put the tail outside the harvest span, so
+    HARVEST_BREED there was misleading state — it made the walk's
+    cursor-cleared eligibility probes read "still in the harvest" and host
+    Proceed-only frames); the FAMILY walk keeps the original sequence
+    byte-identical (entry HARVEST_FIELD through the lead windows and FIELD
+    band, HARVEST_BREED through the tail) — load-bearing for the C++ twin and
+    the encoder, which know none of the new Phase members.
 
     Resume point: `state.harvest_cursor` when set — since ruling 40 (banded
     FEED/BREED) the cursor is carried across EVERY mid-walk pause, the Family
@@ -2200,7 +2224,11 @@ def _advance_harvest(state: GameState) -> GameState:
                     for p in state.players))
         elif state.phase == Phase.HARVEST_FEED:
             cur = sentinel_position("after_feeding", 1)
-        else:  # Phase.HARVEST_BREED
+        else:
+            # Only the legacy bare-BREED shape may reach here cursorless; the
+            # CARDS outer-window phases always ride a stored cursor (every
+            # lead/tail pause carries one), so a bare one is a malformed state.
+            assert state.phase is Phase.HARVEST_BREED, state.phase
             cur = sentinel_position("after_breeding", 1)
     else:
         state = fast_replace(state, harvest_cursor=None)
@@ -2209,15 +2237,35 @@ def _advance_harvest(state: GameState) -> GameState:
         w_idx, band_player = walk_position(cur, state.starting_player)
         window_id = HARVEST_WINDOWS[w_idx]
 
-        # The phase follows the walk position: HARVEST_FEED from the FEED
-        # band's entry, HARVEST_BREED from the BREED band's entry through the
-        # trailing outer windows (idempotent on band resumes).
-        if w_idx >= BREED_BAND_START:
+        # The phase follows the walk position (idempotent on band resumes):
+        # HARVEST_FEED from the FEED band's entry, HARVEST_BREED from the
+        # BREED band's entry through after_breeding. In CARDS mode the OUTER
+        # windows carry honest phases — PRE_HARVEST over the two lead windows,
+        # END_OF_HARVEST / AFTER_HARVEST at the tail (outside the harvest span
+        # per ruling 85; the walk's cursor-cleared eligibility probes then
+        # answer correctly at those windows instead of reading "still in the
+        # harvest") — and the FIELD band re-stamps HARVEST_FIELD after the
+        # PRE_HARVEST lead-in. The FAMILY walk takes none of the cards-gated
+        # branches: its phase sequence (entry HARVEST_FIELD through the FIELD
+        # band, HARVEST_BREED through the tail) is byte-identical to the
+        # pre-PRE_HARVEST engine — load-bearing for the C++ twin + encoder.
+        cards_mode = state.mode is GameMode.CARDS
+        if cards_mode and w_idx > BREED_BAND_END:
+            tail_phase = _TAIL_WINDOW_PHASES[window_id]
+            if state.phase is not tail_phase:
+                state = fast_replace(state, phase=tail_phase)
+        elif w_idx >= BREED_BAND_START:
             if state.phase != Phase.HARVEST_BREED:
                 state = fast_replace(state, phase=Phase.HARVEST_BREED)
         elif FEED_BAND_START <= w_idx <= FEED_BAND_END:
             if state.phase != Phase.HARVEST_FEED:
                 state = fast_replace(state, phase=Phase.HARVEST_FEED)
+        elif cards_mode and w_idx >= FIELD_BAND_START:
+            if state.phase != Phase.HARVEST_FIELD:
+                state = fast_replace(state, phase=Phase.HARVEST_FIELD)
+        elif cards_mode:
+            if state.phase != Phase.PRE_HARVEST:
+                state = fast_replace(state, phase=Phase.PRE_HARVEST)
 
         if window_id == "field_phase":
             state, hosted = _field_phase_step(state, band_player)

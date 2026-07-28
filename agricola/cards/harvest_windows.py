@@ -193,13 +193,31 @@ def sentinel_position(window_id: str, band_pass: int) -> int:
 
 # User ruling 85 (2026-07-27): both the converter span and ruling 39's
 # post-breed cooking floor end when the walk reaches the end_of_harvest
-# window. A paused frame's stored cursor is (its window's virtual position
-# + 1), so "the decision surface is end_of_harvest or later" is exactly
-# `cursor > _END_OF_HARVEST_POS`; a frame paused at the breed phase's last
-# after_breeding surface has cursor == _END_OF_HARVEST_POS and is still
-# inside both. Keyed on the walk cursor, NOT a new Phase member — the Phase
-# enum is shared with the Family game and the C++ twin, and the outer
-# windows deliberately keep running under Phase.HARVEST_BREED.
+# window. Both helpers below read that boundary twice over, and the two reads
+# serve different state shapes:
+#
+# - THE PHASE (the first check in each). The CARDS-mode walk stamps honest
+#   phases on the outer windows (engine._advance_harvest: PRE_HARVEST over
+#   the two lead windows, END_OF_HARVEST / AFTER_HARVEST at the tail), so any
+#   Cards state at those windows — a paused frame AND the walk's own
+#   cursor-cleared eligibility probes alike — answers out-of-span/lapsed at
+#   the phase check before any cursor is consulted. The probe case is the
+#   point: probes run with harvest_cursor=None on the state, and before the
+#   honest phases they fell through to the phase fallback, read "still in the
+#   harvest" at the tail, and hosted Proceed-only frames for fees only a
+#   closed converter could pay.
+# - THE CURSOR (`cursor > _END_OF_HARVEST_POS`). A paused frame's stored
+#   cursor is (its window's virtual position + 1), so "the decision surface
+#   is end_of_harvest or later" is exactly this test; a frame paused at the
+#   breed phase's last after_breeding surface has
+#   cursor == _END_OF_HARVEST_POS and is still inside both. The FAMILY-mode
+#   walk keeps the pre-PRE_HARVEST phase sequence byte-identical (the tail
+#   runs under Phase.HARVEST_BREED — load-bearing for the C++ twin and the
+#   encoder), so a Family-mode state with hand-given cards — the shape most
+#   card unit tests drive — still reaches a tail pause under HARVEST_BREED
+#   and needs the cursor read to answer per ruling 85. Real cardless Family
+#   games never pause at a tail window (no registrations -> no frames), so
+#   for them both reads are moot.
 _END_OF_HARVEST_POS: int = sentinel_position("end_of_harvest", None)
 
 
@@ -210,10 +228,21 @@ def in_conversion_span(state, idx: int) -> bool:
     end_of_harvest, so a frame paused at the end_of_harvest or after_harvest
     windows is OUT of span (`available_span_converters` returns () there and
     no raise-frame bundle at those windows carries a converter). A
-    pre-field-phase cost (Autumn Mother's, at the outer windows) sees no
-    span converters; a WORK-phase cost never does. The span is derived from
-    phase/cursor: the walk must have reached the player's band start (paused
-    AT before_field_phase counts — the band's first instant; the
+    pre-field-phase cost (Autumn Mother's, at the lead windows) sees no
+    span converters; a WORK-phase cost never does.
+
+    The first check is a PHASE read, and it answers alone for every state the
+    CARDS walk puts at an outer window — the honest phases (PRE_HARVEST /
+    END_OF_HARVEST / AFTER_HARVEST, engine._advance_harvest) are not in the
+    harvest trio, so both a paused outer-window frame and the walk's
+    cursor-cleared eligibility probes there read out-of-span with no cursor
+    consulted (the probe case is the residue this fixes: a cursor-None probe
+    at the tail used to fall through to the phase fallback and read
+    in-span). The CURSOR branches then serve the in-harvest states and the
+    Family-mode-with-hand-given-cards shape, whose walk keeps HARVEST_BREED
+    through the tail (see the boundary note above `_END_OF_HARVEST_POS`):
+    the walk must have reached the player's band start (paused AT
+    before_field_phase counts — the band's first instant; the
     before-vs-start_of_field_phase distinction is an unreachable corner
     today, no in-band cost frame exists) and not yet reached end_of_harvest.
     A None cursor inside FEED/BREED is the legacy hand-built shape
@@ -243,13 +272,21 @@ def post_breed_floors(state, idx: int) -> tuple:
     the end_of_harvest window: per user ruling 85 (2026-07-27) the cooking
     prohibition stops applying at the "at the end of the harvest" moment
     (equivalently, the breed phase ends just before it), so at the
-    end_of_harvest and after_harvest surfaces — which still run under
-    Phase.HARVEST_BREED — the floors are (0, 0, 0) again and a just-bred
-    animal is cookable (Winter Caretaker CAN cook one to pay for its
-    vegetable). The floors therefore bind from the player's breed resolution
-    through the breed phase's last after_breeding surface. The stateless
-    shorthand is EXACT at every reachable state (ruling 39's corrected
-    record, 2026-07-13: at count 2 the floor does not bind, so a
+    end_of_harvest and after_harvest surfaces the floors are (0, 0, 0) again
+    and a just-bred animal is cookable (Winter Caretaker CAN cook one to pay
+    for its vegetable). The floors therefore bind from the player's breed
+    resolution through the breed phase's last after_breeding surface.
+
+    The lapse is read twice over, mirroring `in_conversion_span` (the
+    boundary note above `_END_OF_HARVEST_POS`): the CARDS walk's honest tail
+    phases (END_OF_HARVEST / AFTER_HARVEST) fail the HARVEST_BREED check
+    first — covering paused tail frames AND the walk's cursor-cleared
+    eligibility probes there — while the `cur > _END_OF_HARVEST_POS` branch
+    covers the Family-mode-with-hand-given-cards shape, whose tail still
+    runs under Phase.HARVEST_BREED.
+
+    The stateless shorthand is EXACT at every reachable state (ruling 39's
+    corrected record, 2026-07-13: at count 2 the floor does not bind, so a
     capacity-blocked pair stays cookable — correct, they never bred). The
     one theoretical residue, for whoever builds the first POST-BREED cost
     effect that pushes the raise frame: a PARTIAL harvest-skipper (Lunchtime

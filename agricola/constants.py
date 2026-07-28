@@ -4,6 +4,25 @@ from agricola.resources import Resources
 
 
 class Phase(Enum):
+    """Where in the round/game structure a GameState sits.
+
+    The three HARVEST_* members are the harvest's phase bands (FIELD -> FEED ->
+    BREED, each covering its whole band of the harvest-window walk — through
+    ``after_breeding`` for BREED, per user ruling 85, 2026-07-27).
+
+    The last three members are the harvest walk's OUTER windows, entered ONLY
+    by the CARDS-mode walk (``engine._advance_harvest``, gated on
+    ``GameMode.CARDS``): PRE_HARVEST while the two lead windows
+    (``immediately_before_harvest``, ``start_of_harvest``) run, END_OF_HARVEST
+    at the ``end_of_harvest`` window, AFTER_HARVEST at ``after_harvest`` — the
+    two tail windows sit OUTSIDE the harvest span (ruling 85), so labeling them
+    HARVEST_BREED was misleading state. **The Family game never produces these
+    values** — its walk keeps the original sequence (HARVEST_FIELD from entry
+    through the FIELD band, HARVEST_BREED through the tail). That guarantee is
+    load-bearing for the C++ twin engine and the NN encoder, both of which are
+    Family-only and know nothing of these members. Members are appended at the
+    end so every pre-existing ``auto()`` value is unchanged.
+    """
     DRAFT = auto()
     WORK = auto()
     RETURN_HOME = auto()
@@ -12,6 +31,9 @@ class Phase(Enum):
     HARVEST_FEED = auto()
     HARVEST_BREED = auto()
     BEFORE_SCORING = auto()
+    PRE_HARVEST = auto()        # CARDS-mode harvest walk only (see docstring)
+    END_OF_HARVEST = auto()     # CARDS-mode harvest walk only
+    AFTER_HARVEST = auto()      # CARDS-mode harvest walk only
 
 
 class GameMode(Enum):

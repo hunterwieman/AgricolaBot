@@ -306,10 +306,14 @@ def _cards_harvest_state(*, food=4, wood=0):
 
 
 def _walk_to_p0_window(state, window_id):
-    """Neutral-step the walk to P0's frame for the named window."""
+    """Neutral-step the walk to P0's frame for the named window. The loop set
+    includes the CARDS-mode outer-window phases (PRE_HARVEST /
+    END_OF_HARVEST / AFTER_HARVEST): a Cards walk paused at a lead/tail
+    window carries the honest phase, not a band phase."""
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.HARVEST_BREED, Phase.PRE_HARVEST,
+                          Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
         top = state.pending_stack[-1] if state.pending_stack else None
         if (isinstance(top, PendingHarvestWindow)
                 and top.window_id == window_id
@@ -354,10 +358,15 @@ def test_converters_closed_at_end_of_harvest_ruled_play_via_after_breeding():
 
 def _end_of_harvest_frame_state(*, food=0, grain=0, wood=0, sheep=0,
                                 fireplace=False, joinery=False):
-    """A hand-built P0 end_of_harvest window frame at its REAL walk shape:
-    phase HARVEST_BREED (the outer windows run under it) and the stored
-    cursor such a frame carries — one past the window's virtual position
-    (a frame pushed at position P stores cursor P + 1)."""
+    """A hand-built P0 end_of_harvest window frame at the FAMILY-mode walk
+    shape: phase HARVEST_BREED (the Family walk keeps the tail under it —
+    the honest END_OF_HARVEST phase is stamped only when state.mode is
+    CARDS) and the stored cursor such a frame carries — one past the
+    window's virtual position (a frame pushed at position P stores cursor
+    P + 1). This is the shape a Family-mode state with hand-given cards
+    reaches, and it exercises the CURSOR side of ruling 85's boundary
+    (`cur > _END_OF_HARVEST_POS`); the Cards-mode phase side is pinned in
+    test_harvest_phase_attribution.py."""
     state = setup(seed=0)
     state = fast_replace(state, starting_player=0)
     state = _give_occupation(state, 0)
@@ -427,6 +436,45 @@ def test_floor_lapsed_at_end_of_harvest_cooks_just_bred_sheep():
     p0 = state.players[0]
     assert p0.resources.veg == 1 and p0.resources.food == 0
     assert p0.animals.sheep == 2                      # below the old floor of 3
+
+
+def test_probe_hosts_no_frame_when_only_route_is_closed_converter():
+    """The residue fix (user-approved phase-honesty pass, 2026-07-27): the
+    walk's eligibility probes run with the cursor cleared, and before the
+    honest tail phases they fell back to a phase read that said "still in
+    the harvest" at end_of_harvest — so a player whose ONLY route to the
+    2-food buy was the now-closed Joinery got a Proceed-only frame. Pin:
+    Cards harvest, Winter Caretaker owned, P0 reaches end_of_harvest with 0
+    food (feeding took exactly its 4), no crops or animals, 1 wood, and the
+    Joinery unused — the walk hosts NO frame for P0 at that window (passes
+    silently), because the probe now answers under Phase.END_OF_HARVEST:
+    converters closed, nothing else raises the 2 food."""
+    state = _cards_harvest_state(food=4, wood=1)
+    p = state.players[0]
+    assert p.animals.sheep == p.animals.boar == p.animals.cattle == 0
+    assert p.resources.grain == 0 and p.resources.veg == 0
+
+    state = _advance_until_decision(state)
+    eoh_frames = []
+    for _ in range(300):
+        if state.phase not in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                               Phase.HARVEST_BREED, Phase.PRE_HARVEST,
+                               Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
+            break
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if (isinstance(top, PendingHarvestWindow)
+                and top.window_id == "end_of_harvest"):
+            eoh_frames.append(top.player_idx)
+        state = step(state, _neutral_action(state))
+    else:
+        raise AssertionError("harvest walk did not terminate")
+
+    assert eoh_frames == []                    # nobody was owed the window
+    assert state.phase is Phase.PREPARATION    # the walk completed silently
+    p0 = state.players[0]
+    assert p0.resources.food == 0 and p0.resources.veg == 0
+    assert p0.resources.wood == 1              # the Joinery input untouched
+    assert "joinery" not in p0.harvest_conversions_used
 
 
 # --- Eligibility unit check -------------------------------------------------
