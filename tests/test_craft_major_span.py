@@ -2,11 +2,11 @@
 
 `agricola/cards/craft_major_span.py` gives the three built-in craft-major
 conversions (Joinery 7: 1 wood -> 2 food; Pottery 8: 1 clay -> 2 food;
-Basketmaker's Workshop 9: 1 reed -> 3 food) the CONVERTER-span WINDOW trigger
+Basketmaker's Workshop 9: 1 reed -> 3 food) the free-span WINDOW trigger
 set — through the breed frame's pre-commit stretch and after_breeding (user
-ruling 85, 2026-07-27: a converter's final standalone offer is the last
-conversion opportunity of the breed phase, immediately before end_of_harvest;
-the converters are closed after it, so these entries have NO end_of_harvest
+ruling 85, 2026-07-27, as corrected: the span IS the harvest a card
+quantifies over, field phase through after_breeding, for every span carrier;
+these entries have NO end_of_harvest
 surface) — in CARDS mode only, riding the ruling-74
 `TriggerEntry.is_owned_fn` ownership override (craft ownership is the board's
 major-owner array, not a tableau card) and sharing the built-in
@@ -14,8 +14,9 @@ once-per-harvest budget ids ("joinery" / "pottery" / "basketmaker" in
 `harvest_conversions_used`) with the FEED offering and the payment-frontier
 fire.
 
-Coverage: registration shape (pseudo-ids on the trimmed CONVERTER_SPAN_EVENTS
-list, per-entry is_owned_fn, never in the deal-pool specs, absent from
+Coverage: registration shape (pseudo-ids on the FREE_SPAN_EVENTS list —
+itself ending at after_breeding per ruling 85's corrected harvest boundary —
+per-entry is_owned_fn, never in the deal-pool specs, absent from
 end_of_harvest); the Cards-mode fire on a post-feed wood gain at the span's
 LAST surface, after_breeding — and the closure after it (a decline there is
 final: no end_of_harvest offer exists); the shared budget in both directions
@@ -43,7 +44,7 @@ from agricola.actions import (
 )
 from agricola.cards.craft_major_span import CRAFT_SPAN_IDS
 from agricola.cards.harvest_windows import (
-    CONVERTER_SPAN_EVENTS,
+    FREE_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
 )
@@ -163,7 +164,7 @@ def _add_resources_p0(state, **kwargs):
 
 def test_registered_on_every_span_event_with_owner_override():
     for pseudo_id in _PSEUDO_IDS:
-        for event in CONVERTER_SPAN_EVENTS:
+        for event in FREE_SPAN_EVENTS:
             entries = [e for e in TRIGGERS.get(event, ())
                        if e.card_id == pseudo_id]
             assert len(entries) == 1, (pseudo_id, event)
@@ -171,8 +172,8 @@ def test_registered_on_every_span_event_with_owner_override():
             # so the tableau gate never applies to these entries.
             assert entries[0].is_owned_fn is not None
             assert not entries[0].mandatory
-        # Ruling 85: the converters are closed at end_of_harvest — no trigger
-        # entry, no window hook there.
+        # Ruling 85 (as corrected): the span ends at after_breeding — no
+        # trigger entry, no window hook at end_of_harvest.
         assert not any(e.card_id == pseudo_id
                        for e in TRIGGERS.get("end_of_harvest", ()))
         assert pseudo_id not in HARVEST_WINDOW_CARDS.get("end_of_harvest",
@@ -280,7 +281,7 @@ def test_window_fire_blocks_the_feed_offer():
     state = _cards_harvest_state(owner_by_idx={7: 0}, wood=1)
     state, _ = _walk_until(state, _top_is_p0_window)
     assert _top_is_p0_window(state)
-    assert state.pending_stack[-1].window_id in CONVERTER_SPAN_EVENTS
+    assert state.pending_stack[-1].window_id in FREE_SPAN_EVENTS
     state = step(state, FireTrigger(card_id="craft_span_joinery"))
     assert "joinery" in state.players[0].harvest_conversions_used
 

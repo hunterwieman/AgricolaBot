@@ -31,15 +31,15 @@ Maker clause-1 shape):
    the stone, adds the food, and marks the SAME budget.
 3. **The free span** (ruling 36, 2026-07-12, extended to this card by ruling
    75's span classification): ``register_free_span_trigger`` puts an optional
-   ``FireTrigger`` on every CONVERTER-span window/event — the player's field
+   ``FireTrigger`` on every free-span window/event — the player's field
    band through ``after_breeding``, the FIELD during-window and the breed
-   frame's pre-commit stretch included (``converter=True``; user ruling 85,
-   2026-07-27: a converter's final standalone offer is the last conversion
-   opportunity of the breed phase, immediately before ``end_of_harvest`` —
-   the converters are closed after it). The window machinery carries no cost
-   layer or budget bookkeeping of its own, so the apply debits the stone,
-   grants the food, and marks the shared budget itself (the basket_carrier
-   idiom).
+   frame's pre-commit stretch included (user ruling 85, 2026-07-27, as
+   corrected: the free span IS the harvest the card's "each harvest"
+   quantifies over, field phase through ``after_breeding``, for every span
+   carrier — no ``end_of_harvest`` surface exists). The window machinery
+   carries no cost layer or budget bookkeeping of its own, so the apply
+   debits the stone, grants the food, and marks the shared budget itself
+   (the basket_carrier idiom).
 
 Any one surface's fire marks ``"stone_carver"`` in
 ``harvest_conversions_used``, withholding the other surfaces for the rest of
@@ -114,9 +114,8 @@ register_harvest_conversion(HarvestConversionSpec(
     frontier_fire=((0, 0, 0, 0, 0, 1), 3),   # (grain,veg,wood,clay,reed,stone) -> food
 ))
 
-# Surface 3 — the free span (rulings 36 + 75; converter=True per ruling 85):
-# an optional trigger on every CONVERTER-span window/event, field band through
-# after_breeding (the converters are closed before end_of_harvest), on the
+# Surface 3 — the free span (rulings 36 + 75; per ruling 85 as corrected the
+# span IS the harvest): an optional trigger on every free-span window/event,
+# field band through after_breeding — no end_of_harvest surface — on the
 # same budget.
-register_free_span_trigger(CARD_ID, _span_eligible, _span_exchange,
-                           converter=True)
+register_free_span_trigger(CARD_ID, _span_eligible, _span_exchange)

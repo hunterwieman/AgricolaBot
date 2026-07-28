@@ -9,7 +9,11 @@ gain 1 wood + 1 reed + 1 grain, at most once per harvest.
 
 Timing — the free span (user ruling 36, 2026-07-12): an anytime food->resources
 buy like this one is available THROUGHOUT the harvest span — the player's field
-band's start through ``end_of_harvest`` — not anchored to any single moment.
+band's start through ``after_breeding`` — not anchored to any single moment.
+(Ruling 36's original "through end-of-harvest" span end is superseded by user
+ruling 85, 2026-07-27, as corrected: the span IS the harvest the card's "each
+harvest" quantifies over, and the harvest's last in-span window is
+``after_breeding`` — ``end_of_harvest`` is outside it, for every span carrier.)
 And because the buy's output is GOODS, not food, it is a STANDALONE trigger
 (user ruling 37, 2026-07-12): rider-output buys are never folded into the feed
 payment frontier or the in-harvest raise frame, so this card sets NO
@@ -20,7 +24,7 @@ Two surfaces carry the buy, sharing ONE once-per-harvest budget (the id
 harvest walk at each fresh FIELD entry):
 
 1. **Every free-span window/event** — ``register_free_span_trigger`` registers
-   an optional ``FireTrigger`` on all eleven in-span surfaces (the nine simple
+   an optional ``FireTrigger`` on all ten in-span surfaces (the eight simple
    windows, the FIELD during-window, and the breed frame's pre-commit
    stretch). The window machinery carries no cost layer or cross-frame budget
    of its own, so the fire debits the 2 food, grants the bundle, and marks the
@@ -163,7 +167,8 @@ def _span_buy(state: GameState, idx: int) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)
 
 # Surface 1 — the free span (ruling 36, 2026-07-12): an optional trigger on
-# every in-span window/event, field band through end_of_harvest.
+# every in-span window/event, field band through after_breeding (ruling 85's
+# corrected harvest boundary — no end_of_harvest surface).
 register_free_span_trigger(CARD_ID, _span_eligible, _span_buy)
 # The raise-only food frame's continuation (ruling 82's corrected payment shape).
 register_food_payment_resume(CARD_ID, _pay_and_grant)

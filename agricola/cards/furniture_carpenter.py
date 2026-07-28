@@ -31,7 +31,12 @@ DROPS the previously-approved late-anchor approach... Consequence: Furniture
 Carpenter migrates off its FEED-only seam to free-span". The earlier shape —
 the buy surfaced ONLY during HARVEST_FEED via the conversion seam — is
 superseded by this ruling; the seam entry survives as surface (1) above, the
-budget home and the payment-frame offer.
+budget home and the payment-frame offer. Ruling 36's "(field phase through
+end-of-harvest)" span end is itself superseded by user ruling 85 (2026-07-27,
+as corrected: the span IS the harvest the card's "each harvest" quantifies
+over, and the harvest's last in-span window is after_breeding) — so the buy's
+last surface is after_breeding and no end_of_harvest surface exists, for
+every span carrier alike.
 
 User ruling 37 (2026-07-12): a points-output buy is a standalone free-span
 trigger, never folded into the payment frontier — so the spec's

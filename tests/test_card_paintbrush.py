@@ -14,11 +14,11 @@ ONE once-per-harvest budget (id "paintbrush"), THREE surfaces (user rulings
 2. The generalized in-harvest raise frame — `frontier_fire=((0, 1, 0, 0), 2)`:
    a raise-frame fire IS the food branch (ruling 37: the point rider is not
    frontier-eligible) and marks the same budget (ruling 34).
-3. The free span (ruling 36; trimmed per user ruling 85, 2026-07-27) — a
-   variant-expanded optional FireTrigger on every CONVERTER-span
-   window/event (field band through after_breeding — the converters are
-   closed at end_of_harvest, both variants trimming together), eligibility
-   gated on ownership + the unused budget + clay >= 1.
+3. The free span (ruling 36; per user ruling 85, 2026-07-27, as corrected,
+   the span IS the harvest) — a variant-expanded optional FireTrigger on
+   every free-span window/event (field band through after_breeding — no
+   end_of_harvest surface for any span carrier, both variants ending
+   together), eligibility gated on ownership + the unused budget + clay >= 1.
 
 Any one surface's fire withholds the other two for the rest of the harvest
 (the shared `harvest_conversions_used` budget). These tests drive the REAL
@@ -42,7 +42,7 @@ from agricola.actions import (
 )
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    CONVERTER_SPAN_EVENTS,
+    FREE_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -182,13 +182,14 @@ def test_registration_spec_row():
 
 
 def test_free_span_registration():
-    """One trigger per CONVERTER-span event (windows indexed for hosting,
+    """One trigger per free-span event (windows indexed for hosting,
     sentinels not) — and NO end_of_harvest surface (user ruling 85,
-    2026-07-27: the converters are closed there, and the bonus-point route
-    rides the same printed exchange as the food route, so both trim
-    together) — plus the play-variant registration that expands each
-    surface's fire into the food/point pair."""
-    for event in CONVERTER_SPAN_EVENTS:
+    2026-07-27, as corrected: the span IS the harvest, ending after
+    after_breeding for every span carrier; the bonus-point route rides the
+    same printed exchange as the food route, so both end together) — plus
+    the play-variant registration that expands each surface's fire into the
+    food/point pair."""
+    for event in FREE_SPAN_EVENTS:
         assert CARD_ID in {e.card_id for e in TRIGGERS.get(event, ())}, event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event

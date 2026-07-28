@@ -30,14 +30,20 @@ Window ordering is load-bearing and rules-derived (the four-slot timing model; s
 design doc §1, including the resolved post-breeding-timeline ruling of 2026-07-03:
 after-the-breeding-phase is INSIDE the harvest, after-the-harvest is outside — and per
 the 2026-07-05 ruling "immediately after each harvest" is the SAME instant as "after
-each harvest", one window, not two). Per user ruling 85 (2026-07-27), a CONVERTER's
-standalone offer has its final home at the last conversion opportunity of the breed
-phase, immediately before end_of_harvest — the converters are closed after it, and
-ruling 39's post-breed cooking floor lapses at the end_of_harvest moment. That
-supersedes the 2026-07-03 annotation that end_of_harvest was itself "the last chance
-for in-harvest conversions" (the last chance moved one step earlier, to
-after_breeding; the floor lapses instead). The food-SPENDING span buys keep their
-end_of_harvest surface — see ``CONVERTER_SPAN_EVENTS`` vs ``FREE_SPAN_EVENTS``.
+each harvest", one window, not two). User ruling 85 (2026-07-27; corrected the same
+day: "All these cards refer to the harvest. My ruling is about what counts as part of
+the harvest and what doesn't") fixes the HARVEST BOUNDARY itself: the span a card
+reaches by quantifying over the harvest ("each harvest" / "during the harvest") runs
+from the field phase through after_breeding, and the walk's last two windows are a
+TAIL outside it. So EVERY span carrier — converter and food-spending buy alike — has
+its last surface at after_breeding, ruling 39's post-breed cooking floor lapses when
+the walk reaches end_of_harvest, and the tail windows belong only to cards whose
+printed text names a tail instant (Winter Caretaker's "at the end of each harvest" at
+end_of_harvest; the after-each-harvest cards at after_harvest) — separate
+registrations, not span carriers. That supersedes both the 2026-07-03 annotation that
+end_of_harvest was itself "the last chance for in-harvest conversions" and ruling 36's
+"field phase through end-of-harvest" phrasing of the free span (see
+``FREE_SPAN_EVENTS``).
 """
 from __future__ import annotations
 
@@ -65,11 +71,15 @@ HARVEST_WINDOWS: tuple[str, ...] = (
     "start_of_breeding",             # 12
     "breeding",                      # 13/14 (sentinel — the BREED frames)
     "after_breeding",                # 15
-    "end_of_harvest",                # 16 — user ruling 85 (2026-07-27): the converters
-    #                                       are CLOSED here (their last surface is
-    #                                       after_breeding) and ruling 39's post-breed
-    #                                       cooking floor has LAPSED; the food-SPENDING
-    #                                       span buys still surface here.
+    "end_of_harvest",                # 16 — user ruling 85 (2026-07-27, as corrected):
+    #                                       OUTSIDE the harvest span every "each
+    #                                       harvest" card quantifies over — no span
+    #                                       carrier surfaces here (their last surface
+    #                                       is after_breeding) and ruling 39's
+    #                                       post-breed cooking floor has LAPSED. Only
+    #                                       a card naming this instant ("at the end
+    #                                       of each harvest" — Winter Caretaker)
+    #                                       fires here.
     "after_harvest",                 # 17 — outside the harvest. User ruling 2026-07-05:
     #                                       "immediately after each harvest" and "after
     #                                       each harvest" name the SAME instant (there is
@@ -268,48 +278,45 @@ def post_breed_floors(state, idx: int) -> tuple:
     return (sheep_min_parents(state.players[idx]) + 1, 3, 3)
 
 
-# Every event surface inside ruling 36's free span (field phase through
-# end_of_harvest): the nine in-span simple windows, the FIELD during-window
-# event, and the breed frame's pre-commit stretch. The FEED payment surface is
-# NOT an event — a free-span card covers it with its own HarvestConversionSpec
-# entry (the same once-per-harvest budget id), which is also what puts the
-# card on the feed frame's offer list.
+# Every event surface inside the free span. Per user ruling 85 (2026-07-27,
+# as corrected the same day: "All these cards refer to the harvest. My ruling
+# is about what counts as part of the harvest and what doesn't") the free
+# span IS the harvest a span card's text quantifies over ("each harvest" /
+# "during the harvest"): field phase through after_breeding, for EVERY span
+# carrier — converter and food-spending buy alike. Ruling 36's original
+# "field phase through end-of-harvest" phrasing is superseded by that harvest
+# boundary: end_of_harvest and after_harvest are the walk's tail OUTSIDE the
+# span, occupied only by cards whose printed text names the tail instant
+# (Winter Caretaker's "at the end of each harvest") — separate registrations,
+# never span carriers. The entries: the eight in-span simple windows, the
+# FIELD during-window event, and the breed frame's pre-commit stretch. The
+# FEED payment surface is NOT an event — a free-span card covers it with its
+# own HarvestConversionSpec entry (the same once-per-harvest budget id),
+# which is also what puts the card on the feed frame's offer list.
 FREE_SPAN_EVENTS: tuple[str, ...] = (
     "before_field_phase", "start_of_field_phase", "field_phase",
     "end_of_field_phase", "after_field_phase",
     "start_of_feeding", "after_feeding",
     "start_of_breeding", "breeding", "after_breeding",
-    "end_of_harvest",
 )
-
-# User ruling 85 (2026-07-27): a resource→food CONVERTER's standalone offer
-# has its final home at the last conversion opportunity of the breed phase,
-# immediately before end_of_harvest — the converters are closed after it. So
-# the converter carriers (the craft majors' span entries in
-# `craft_major_span.py`, Braid Maker, Paintbrush, Stone Carver) register on
-# this trimmed surface list, whose last window is after_breeding; the
-# food-SPENDING span buys (Basket Carrier, Furniture Carpenter, Plow Builder)
-# keep the full FREE_SPAN_EVENTS through end_of_harvest. (Paintbrush's
-# bonus-point route rides the same printed exchange as its food route, so
-# both trim together.)
-CONVERTER_SPAN_EVENTS: tuple[str, ...] = tuple(
-    e for e in FREE_SPAN_EVENTS if e != "end_of_harvest")
 
 
 def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
-                               *, variants_fn=None, is_owned_fn=None,
-                               converter: bool = False) -> None:
+                               *, variants_fn=None, is_owned_fn=None) -> None:
     """Register an optional trigger on every free-span surface (ruling 36,
     2026-07-12: the anytime food→resources/points buys are available
-    throughout the harvest span, field phase through end_of_harvest — the
-    late-anchor approach is dead; ruling 38 puts Lumber Virtuoso here too).
-    One call replaces the per-surface manual rows: the trigger + window hook
+    throughout the harvest span — the late-anchor approach is dead; ruling
+    38 puts Lumber Virtuoso here too). Per user ruling 85 (2026-07-27, as
+    corrected: "All these cards refer to the harvest. My ruling is about
+    what counts as part of the harvest and what doesn't") the span IS the
+    harvest the card's printed text quantifies over — field phase through
+    after_breeding, the same list for every span carrier, converter and
+    food-spending buy alike; no end_of_harvest surface exists (a card whose
+    text names a tail instant, like Winter Caretaker's "at the end of each
+    harvest", registers there directly — it is not a span carrier). One
+    call replaces the per-surface manual rows: the trigger + window hook
     per in-span simple window, the "field_phase" during-event, and the breed
-    frame's pre-commit "breeding" stretch. `converter=True` (user ruling 85,
-    2026-07-27) registers on `CONVERTER_SPAN_EVENTS` instead — a
-    resource→food converter's span ends at its last surface, after_breeding,
-    immediately before end_of_harvest; the default full list is for the
-    food-SPENDING span buys, which keep the end_of_harvest surface. The
+    frame's pre-commit "breeding" stretch. The
     card's own eligibility_fn must gate its once-per-X budget (typically
     `conversion_id not in harvest_conversions_used` — shared with the card's
     feed-seam HarvestConversionSpec entry, which covers the payment
@@ -325,8 +332,7 @@ def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
     board's major-owner array; both surfacing gates consult it)."""
     from agricola.cards.triggers import register, register_play_variant_trigger
 
-    events = CONVERTER_SPAN_EVENTS if converter else FREE_SPAN_EVENTS
-    for event in events:
+    for event in FREE_SPAN_EVENTS:
         register(event, card_id, eligibility_fn, apply_fn,
                  is_owned_fn=is_owned_fn)
         if event not in SENTINEL_WINDOWS:

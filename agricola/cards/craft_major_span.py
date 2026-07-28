@@ -9,10 +9,10 @@ major 9: 1 reed → 3 food), and their `HarvestConversionSpec` rows in
 `PendingFoodPayment` frontier. This module adds the third surface family the
 span pattern prescribes — the free-span WINDOW triggers, through the breed
 frame's pre-commit stretch and ``after_breeding`` (per user ruling 85,
-2026-07-27, a converter's final standalone offer is the last conversion
-opportunity of the breed phase, immediately before ``end_of_harvest`` — the
-converters are closed after it, so these entries ride the trimmed
-``CONVERTER_SPAN_EVENTS`` list via ``converter=True``):
+2026-07-27, as corrected: the free span IS the harvest a card quantifies
+over, field phase through ``after_breeding``, for every span carrier — so
+``FREE_SPAN_EVENTS`` itself ends there and no ``end_of_harvest`` surface
+exists):
 
 > **Ruling 74 (user, 2026-07-21, CARD_DEFERRED_PLANS.md):** "General pattern
 > (user): every resource→food conversion printed without a specific harvest
@@ -118,10 +118,10 @@ def _register_craft_span(pseudo_id: str, conversion_id: str) -> None:
         return fast_replace(state, players=tuple(
             p if i == idx else state.players[i] for i in range(2)))
 
-    # converter=True (ruling 85): a resource→food converter's span ends at
-    # after_breeding — no end_of_harvest surface.
+    # Ruling 85 (as corrected): every span carrier's last surface is
+    # after_breeding — the span IS the harvest; no end_of_harvest surface.
     register_free_span_trigger(pseudo_id, _eligible, _apply,
-                               is_owned_fn=spec.is_owned_fn, converter=True)
+                               is_owned_fn=spec.is_owned_fn)
 
 
 for _pseudo_id, _conversion_id in CRAFT_SPAN_IDS:

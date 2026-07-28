@@ -12,9 +12,8 @@ must track the occupation per player); the generalized raise-frame reach
 and firing it debits the stone, raises the 3 food, and marks the shared
 once-per-harvest budget so a feed-seam offer is withheld; and the harvest-SPAN
 window surface (ruling 75, 2026-07-21 — "Stone Carver joins the harvest
-span"; trimmed per user ruling 85, 2026-07-27 — a converter's final
-standalone offer is the last conversion opportunity of the breed phase,
-immediately before end_of_harvest, so the trigger set ends at
+span"; per user ruling 85, 2026-07-27, as corrected, the span IS the harvest
+— field phase through after_breeding — so the trigger set ends at
 after_breeding): the after_breeding fire on a post-feed stone gain, the
 shared budget in both directions (a feed fire withholds every later span
 surface; a window fire withholds the feed offer), and the fresh next-harvest
@@ -38,7 +37,7 @@ from agricola.actions import (
 )
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    CONVERTER_SPAN_EVENTS,
+    FREE_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -183,11 +182,12 @@ def test_registration():
     assert spec.side_effect_fn is None
     assert spec.variants_fn is None
     assert spec.frontier_fire == ((0, 0, 0, 0, 0, 1), 3)
-    # The free span (ruling 75; trimmed per ruling 85): a trigger on every
-    # CONVERTER-span event, with the window hooks indexed for the non-sentinel
-    # windows — and NO end_of_harvest surface (the converters are closed
-    # there; their last window is after_breeding).
-    for event in CONVERTER_SPAN_EVENTS:
+    # The free span (ruling 75; per ruling 85 as corrected the span IS the
+    # harvest): a trigger on every free-span event, with the window hooks
+    # indexed for the non-sentinel windows — and NO end_of_harvest surface
+    # (the span ends there for every carrier; the last window is
+    # after_breeding).
+    for event in FREE_SPAN_EVENTS:
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
@@ -282,7 +282,7 @@ def test_window_fire_spends_one_stone_and_withholds_the_feed_offer():
     and withholds the feed-frame offer (window -> feed direction)."""
     state, _ = _walk_until(_harvest_state(stone=1), _top_is_p0_window)
     top = state.pending_stack[-1]
-    assert top.window_id in CONVERTER_SPAN_EVENTS
+    assert top.window_id in FREE_SPAN_EVENTS
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)   # declining stays open
 

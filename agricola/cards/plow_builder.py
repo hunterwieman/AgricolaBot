@@ -54,8 +54,11 @@ normally, or never enter the branch).
 
 **Clause 2 — the harvest plow, two offers (rulings 75 item 7 + 76 item 3).**
 Both live on every free-span surface (``register_free_span_trigger`` — the
-player's field band through ``end_of_harvest``, the FIELD during-window and
-the breed frame's pre-commit stretch included):
+player's field band through ``after_breeding``, the FIELD during-window and
+the breed frame's pre-commit stretch included; per user ruling 85,
+2026-07-27, as corrected, the span IS the harvest the card's "during the
+harvest" quantifies over, whose last in-span window is ``after_breeding`` —
+no ``end_of_harvest`` surface exists):
 
 - **The FUSED use-Joinery-and-plow fire** (ruling 75's design, kept per
   ruling 76), so the plow can be taken EARLY in the harvest (e.g. at

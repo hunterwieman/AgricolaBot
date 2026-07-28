@@ -35,12 +35,12 @@ surfaces, each fire carrying the food-vs-point choice as a variant:
    available throughout the harvest span; the point branch rides along per
    ruling 37's rider treatment on these trigger surfaces):
    `register_free_span_trigger` puts an optional variant-expanded FireTrigger
-   on every CONVERTER-span window/event — field band through `after_breeding`
-   (`converter=True`; user ruling 85, 2026-07-27: a converter's final
-   standalone offer is the last conversion opportunity of the breed phase,
-   immediately before `end_of_harvest` — the converters are closed after it,
-   and the bonus-point route rides the same printed exchange as the food
-   route, so both trim together). Eligibility gates on ownership + the
+   on every free-span window/event — field band through `after_breeding`
+   (user ruling 85, 2026-07-27, as corrected: the free span IS the harvest
+   the card's "each harvest" quantifies over, ending after `after_breeding`
+   for every span carrier — no `end_of_harvest` surface exists, and both
+   variants ride the same printed exchange, so food and point routes end
+   together). Eligibility gates on ownership + the
    unused budget + clay >= 1; the apply debits the clay, marks the budget,
    and grants the chosen output.
 
@@ -167,12 +167,12 @@ register_harvest_conversion(HarvestConversionSpec(
     frontier_fire=((0, 0, 0, 1, 0, 0), 2),   # (grain,veg,wood,clay,reed,stone): clay->2 food
 ))
 
-# Surface 3 — the free span (ruling 36, 2026-07-12; converter=True per ruling
-# 85): a variant-expanded optional trigger on every CONVERTER-span
-# window/event, field band through after_breeding (both variants trim
-# together — the point route rides the same printed exchange).
+# Surface 3 — the free span (ruling 36, 2026-07-12; per ruling 85 as
+# corrected the span IS the harvest): a variant-expanded optional trigger on
+# every free-span window/event, field band through after_breeding — no
+# end_of_harvest surface (both variants ride the same printed exchange).
 register_free_span_trigger(CARD_ID, _span_eligible, _span_apply,
-                           variants_fn=_variants, converter=True)
+                           variants_fn=_variants)
 
 _ACTION_LABELS = {"food": "1 clay → 2 food", "point": "1 clay → 1 point"}
 

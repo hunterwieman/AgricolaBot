@@ -43,9 +43,11 @@ Coverage:
   begging-free where the no-fire walk begs.
 - The ruling-85 (2026-07-27) floor boundary at the standalone fire's fee: the
   post-breed cooking floor still BINDS at an after_breeding surface (a 1-food
-  fee whose only fuel is floored animals is not offered there) and has LAPSED
-  at end_of_harvest — which this food-SPENDING span buy keeps (only the
-  converters' span was trimmed to after_breeding).
+  fee whose only fuel is floored animals is not offered there) — and per the
+  same-day correction ("All these cards refer to the harvest") the span ends
+  there for EVERY span carrier, so the card has no end_of_harvest surface at
+  all. (The floor's own lapse AT end_of_harvest is pinned by the tail-naming
+  cards' tests — winter_caretaker, value_assets.)
 """
 from __future__ import annotations
 
@@ -202,9 +204,9 @@ def _top_is_p0_start_of_feeding(state):
         state.pending_stack[-1].window_id == "start_of_feeding"
 
 
-def _top_is_p0_end_of_harvest(state):
+def _top_is_p0_after_breeding(state):
     return _top_is_p0_window(state) and \
-        state.pending_stack[-1].window_id == "end_of_harvest"
+        state.pending_stack[-1].window_id == "after_breeding"
 
 
 def _num_fields(player_state):
@@ -430,7 +432,8 @@ def test_fused_fire_plows_and_consumes_both_latches():
 def test_plain_window_use_unlocks_the_standalone_plow_later():
     """Ruling 76 item 3: the plain craft_span_joinery use grants no plow but
     unlocks the standalone pay-1-food plow at any LATER point in the harvest.
-    Fire it at end_of_harvest: -1 food, wood untouched (no second
+    Fire it at after_breeding — the span's LAST surface per ruling 85's
+    corrected harvest boundary: -1 food, wood untouched (no second
     conversion), the plow committed, the once-per-harvest latch marked
     (standalone-then-anything blocked)."""
     state = _cards_harvest_state(wood=2)
@@ -449,8 +452,8 @@ def test_plain_window_use_unlocks_the_standalone_plow_later():
 
     # Decline here; take it at the span's LAST window instead.
     state = step(state, Proceed())
-    state, _ = _walk_until(state, _top_is_p0_end_of_harvest)
-    assert _top_is_p0_end_of_harvest(state)
+    state, _ = _walk_until(state, _top_is_p0_after_breeding)
+    assert _top_is_p0_after_breeding(state)
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
 
     res2 = state.players[0].resources
@@ -673,7 +676,7 @@ def test_without_the_fire_the_same_state_begs():
 # --- Ruling 85 (2026-07-27): the floor boundary at the standalone fee --------
 
 def _post_breed_window_state(window_id, cursor):
-    """A hand-built P0 window frame in the harvest tail: P0 (starting player)
+    """A hand-built P0 window frame in the post-breed stretch: P0 (starting player)
     owns Plow Builder with the Joinery budget USED this harvest (the
     standalone fire's precondition), 0 food, 3 just-bred sheep, a Fireplace
     to cook with, and plowable cells; phase HARVEST_BREED with the given
@@ -694,15 +697,18 @@ def _post_breed_window_state(window_id, cursor):
     return fast_replace(state, phase=Phase.HARVEST_BREED, harvest_cursor=cursor)
 
 
-def test_fee_floored_at_after_breeding_lapsed_at_end_of_harvest():
+def test_fee_floored_at_after_breeding_no_end_of_harvest_surface():
     """Ruling 85's floor boundary at a food FEE (pin iii): at P0's own
     after_breeding surface the post-breed floor still BINDS — with 0 food and
     3 just-bred sheep as the only fuel, the 1-food standalone plow fee is not
-    payable by any route, so the fire is NOT offered (only the decline). At
-    end_of_harvest — a surface this food-SPENDING span buy KEEPS (ruling 85
-    trimmed only the converters' span) — the floor has lapsed: the fire IS
-    offered, its raise frame cooks a sheep below the old floor, and the plow
-    completes."""
+    payable by any route, so the fire is NOT offered (only the decline).
+    Beyond that surface there is nothing left for THIS card: per ruling 85 as
+    corrected (2026-07-27, "All these cards refer to the harvest") every span
+    carrier's surfaces end at after_breeding, so the card has no
+    end_of_harvest registration at all and no frame can ever offer the fire
+    there. (The floor's own lapse AT end_of_harvest is pinned by the
+    tail-naming cards' tests — winter_caretaker, value_assets — whose printed
+    text places them at that instant; not duplicated here.)"""
     from agricola.cards.harvest_windows import (
         post_breed_floors,
         sentinel_position,
@@ -716,22 +722,9 @@ def test_fee_floored_at_after_breeding_lapsed_at_end_of_harvest():
     assert FireTrigger(card_id=CARD_ID) not in legal_actions(bound)
     assert legal_actions(bound) == [Proceed()]
 
-    # The end_of_harvest frame: cursor one past the window's position. The
-    # floor has lapsed; the fee is payable by cooking; the fire is offered.
-    lapsed = _post_breed_window_state(
-        "end_of_harvest", sentinel_position("end_of_harvest", None) + 1)
-    assert post_breed_floors(lapsed, 0) == (0, 0, 0)
-    assert FireTrigger(card_id=CARD_ID) in legal_actions(lapsed)
-
-    state = step(lapsed, FireTrigger(card_id=CARD_ID))
-    top = state.pending_stack[-1]
-    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
-    bundles = [a for a in legal_actions(state) if isinstance(a, CommitFoodPayment)]
-    assert bundles == [CommitFoodPayment(grain=0, veg=0, sheep=1, boar=0,
-                                         cattle=0)]
-    state = step(state, bundles[0])
-    state = _commit_the_plow(state)
-    p0 = state.players[0]
-    assert p0.animals.sheep == 2                   # below the old floor of 3
-    assert p0.resources.food == 1                  # sheep raised 2, fee took 1
-    assert CARD_ID in p0.harvest_conversions_used  # the plow latch
+    # The surface itself no longer exists at end_of_harvest: no trigger
+    # entry, no window hook — the walk can never host a frame offering the
+    # fire there.
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())

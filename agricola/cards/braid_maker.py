@@ -44,13 +44,13 @@ shape):
    and marks the SAME budget.
 3. **The free span** (ruling 36, 2026-07-12, extended to this card by ruling
    74's span classification): ``register_free_span_trigger`` puts an optional
-   ``FireTrigger`` on every CONVERTER-span window/event — the player's field
+   ``FireTrigger`` on every free-span window/event — the player's field
    band through ``after_breeding``, the FIELD during-window and the breed
-   frame's pre-commit stretch included (``converter=True``; user ruling 85,
-   2026-07-27: a converter's final standalone offer is the last conversion
-   opportunity of the breed phase, immediately before ``end_of_harvest`` —
-   the converters are closed after it, superseding ruling 74's "final
-   end_of_harvest offering" phrasing on the timing point). The window
+   frame's pre-commit stretch included (user ruling 85, 2026-07-27, as
+   corrected: the free span IS the harvest the card's "each harvest"
+   quantifies over, field phase through ``after_breeding``, for every span
+   carrier — no ``end_of_harvest`` surface exists, superseding ruling 74's
+   "final end_of_harvest offering" phrasing on the timing point). The window
    machinery carries no cost layer or budget bookkeeping of its own, so the
    apply debits the reed, grants the food, and marks the shared budget
    itself (the basket_carrier idiom).
@@ -224,14 +224,13 @@ register_harvest_conversion(HarvestConversionSpec(
     frontier_fire=((0, 0, 0, 0, 1, 0), 2),   # (grain,veg,wood,clay,reed,stone) -> food
 ))
 
-# Clause 1, surface 3 — the free span (rulings 36 + 74; converter=True per
-# ruling 85): an optional trigger on every CONVERTER-span window/event, field
-# band through after_breeding (the converters are closed before
-# end_of_harvest). Eligibility is per-event (the enumerator reads the
+# Clause 1, surface 3 — the free span (rulings 36 + 74; per ruling 85 as
+# corrected the span IS the harvest): an optional trigger on every free-span
+# window/event, field band through after_breeding — no end_of_harvest
+# surface. Eligibility is per-event (the enumerator reads the
 # event-keyed TRIGGERS entries); the apply is the card's ONE shared dispatch
 # fn (see _fire_apply).
-register_free_span_trigger(CARD_ID, _span_eligible, _fire_apply,
-                           converter=True)
+register_free_span_trigger(CARD_ID, _span_eligible, _fire_apply)
 
 # Clause 2a — the whole-cost 1-reed-1-stone formula on every Basketmaker's build.
 register_formula("build_major", CARD_ID, _formula_applies, _formula)

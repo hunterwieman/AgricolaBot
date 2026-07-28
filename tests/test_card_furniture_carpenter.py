@@ -10,7 +10,9 @@ The buy has TWO surfaces sharing ONE once-per-harvest budget (the
    input_cost=2 food) — the original seam, still the budget home.
 2. A free-span FireTrigger on every free-span harvest window (ruling 36,
    2026-07-12: the anytime food→points buys are available throughout the
-   harvest span, field phase through end_of_harvest).
+   harvest span — per user ruling 85, 2026-07-27, as corrected, the span IS
+   the harvest, field phase through after_breeding, for every span carrier;
+   there is no end_of_harvest surface).
 
 Firing either banks a bonus point in the per-card CardStore, read back at
 end-game by a scoring term, and marks the shared budget so the other surface is
@@ -289,25 +291,45 @@ def test_registered_on_every_free_span_surface():
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
+    # Ruling 85 (2026-07-27, as corrected): the span IS the harvest, ending
+    # after after_breeding, for EVERY span carrier — food-spending buys
+    # included, not just the converters. No end_of_harvest surface.
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
     assert HARVEST_CONVERSIONS[CARD_ID].frontier_fire is None
 
 
-def test_window_buy_at_end_of_harvest():
-    """A window-surface fire through the real walk: -2 food, +1 banked point,
-    and the SHARED budget marked."""
+def test_window_buy_at_after_breeding_and_none_at_end_of_harvest():
+    """Ruling 85 (2026-07-27, as corrected): the span's LAST surface is
+    after_breeding. A window-surface fire there still works through the real
+    walk (-2 food, +1 banked point, the SHARED budget marked); and the
+    end_of_harvest surface no longer exists — declining at after_breeding is
+    final (the budget unused and the food on hand, yet the walk hosts no
+    end_of_harvest frame and the harvest ends with no further offer)."""
     state, _ = _run_harvest(
-        _harvest_state(owner_food=10), stop_when=_at_window("end_of_harvest"))
+        _harvest_state(owner_food=10), stop_when=_at_window("after_breeding"))
     assert isinstance(state.pending_stack[-1], PendingHarvestWindow)
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
 
     food0 = state.players[0].resources.food
-    state = step(state, FireTrigger(card_id=CARD_ID))
+    fired = step(state, FireTrigger(card_id=CARD_ID))
 
-    assert state.players[0].resources.food == food0 - 2
-    assert state.players[0].card_state.get(CARD_ID, 0) == 1
-    assert CARD_ID in state.players[0].harvest_conversions_used
+    assert fired.players[0].resources.food == food0 - 2
+    assert fired.players[0].card_state.get(CARD_ID, 0) == 1
+    assert CARD_ID in fired.players[0].harvest_conversions_used
     # Once-per-window on top of once-per-harvest: only Proceed remains.
-    assert legal_actions(state) == [Proceed()]
+    assert legal_actions(fired) == [Proceed()]
+
+    # The discriminating leg: DECLINE at after_breeding instead. Before
+    # ruling 85's correction the end_of_harvest window would have re-offered
+    # the buy; now no end_of_harvest frame appears at all and no surface
+    # offers it again this harvest.
+    state = step(state, Proceed())
+    state, offers = _run_harvest(state, stop_when=_at_window("end_of_harvest"))
+    assert state.phase not in _HARVEST_PHASES  # never paused at such a frame
+    assert offers == []
+    assert state.players[0].card_state.get(CARD_ID, 0) == 0
 
 
 def test_window_buy_withholds_feed_offer():
@@ -328,8 +350,8 @@ def test_window_buy_withholds_feed_offer():
 
 def test_feed_buy_withholds_window_offers():
     """Shared budget, feed-first: the feed-seam buy withholds the FireTrigger
-    at every later free-span window (after_feeding, breeding, after_breeding,
-    end_of_harvest, ...)."""
+    at every later free-span window (after_feeding, breeding,
+    after_breeding)."""
     def at_p0_feed(state, top):
         return isinstance(top, PendingHarvestFeed) and top.player_idx == 0
 
@@ -350,7 +372,10 @@ def test_window_surface_offered_before_feed_and_declinable():
     nothing."""
     state, offers = _run_harvest(_harvest_state(owner_food=10))
     assert ("window", "before_field_phase") in offers  # pre-feed availability
-    assert ("window", "end_of_harvest") in offers      # post-breed availability
+    assert ("window", "after_breeding") in offers      # post-breed availability
+    # Ruling 85 (as corrected): end_of_harvest is outside the span — never
+    # offered there.
+    assert ("window", "end_of_harvest") not in offers
     assert ("feed", 0) in offers                       # the feed-seam surface
     assert state.players[0].card_state.get(CARD_ID, 0) == 0
 

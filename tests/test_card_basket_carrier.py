@@ -7,7 +7,9 @@ The buy rides TWO surfaces sharing one once-per-harvest budget (the id
 "basket_carrier" in PlayerState.harvest_conversions_used):
 
 1. A free-span optional trigger (ruling 36, 2026-07-12) on every in-span
-   window/event — field band through end_of_harvest — via
+   window/event — field band through after_breeding (user ruling 85,
+   2026-07-27, as corrected: the span IS the harvest, whose last in-span
+   window is after_breeding; no end_of_harvest surface) — via
    register_free_span_trigger.
 2. A HarvestConversionSpec on the FEED payment frame (food_out=0, 2-food
    input, side effect grants the bundle) — the one in-span surface the window
@@ -154,6 +156,12 @@ def test_registered_on_both_surfaces():
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
+    # Ruling 85 (2026-07-27, as corrected): the span IS the harvest, ending
+    # after after_breeding, for EVERY span carrier — food-spending buys
+    # included. No end_of_harvest surface.
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("end_of_harvest", ()))
+    assert CARD_ID not in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
 
 
 def test_no_frontier_fire():

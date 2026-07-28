@@ -18,9 +18,9 @@ Coverage:
   decline path (playing a hand minor normally); the branch-gate negatives.
 - The reed->2-food harvest-span exchange through the REAL banded harvest walk:
   the feed-frame fire, the after_breeding window fire on a post-feed reed
-  gain (user ruling 85, 2026-07-27: a converter's final standalone offer is
-  the last conversion opportunity of the breed phase — the converters are
-  closed at end_of_harvest, so the span trigger set ends at after_breeding),
+  gain (user ruling 85, 2026-07-27, as corrected: the span IS the harvest —
+  field phase through after_breeding — for every span carrier, so the span
+  trigger set ends at after_breeding with no end_of_harvest surface),
   the shared once-per-harvest budget in both directions, the fresh
   next-harvest reset, and the raise-frame (PendingFoodPayment) reach.
 - Family-mode negative: an unowned harvest surfaces nothing new.
@@ -48,7 +48,7 @@ from agricola.cards.braid_maker import BASKETMAKER_IDX, CARD_ID
 from agricola.cards.cost_mods import FORMULA_MODS
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 from agricola.cards.harvest_windows import (
-    CONVERTER_SPAN_EVENTS,
+    FREE_SPAN_EVENTS,
     HARVEST_WINDOW_CARDS,
     SENTINEL_WINDOWS,
     available_span_converters,
@@ -227,11 +227,11 @@ def test_registered_on_every_surface():
     assert spec.variants_fn is None
     assert spec.frontier_fire == ((0, 0, 0, 0, 1, 0), 2)
 
-    # The free span (trimmed per ruling 85): a trigger on every CONVERTER-span
-    # event, with the window hooks indexed for the non-sentinel windows — and
-    # NO end_of_harvest surface (the converters are closed there; their last
-    # window is after_breeding).
-    for event in CONVERTER_SPAN_EVENTS:
+    # The free span (per ruling 85 as corrected, the span IS the harvest): a
+    # trigger on every free-span event, with the window hooks indexed for the
+    # non-sentinel windows — and NO end_of_harvest surface (the span ends
+    # there for every carrier; the last window is after_breeding).
+    for event in FREE_SPAN_EVENTS:
         assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
@@ -432,7 +432,7 @@ def test_window_fire_spends_one_reed_and_withholds_the_feed_offer():
     and withholds the feed-frame offer (window -> feed direction)."""
     state, _ = _walk_until(_harvest_state(reed=1), _top_is_p0_window)
     top = state.pending_stack[-1]
-    assert top.window_id in CONVERTER_SPAN_EVENTS
+    assert top.window_id in FREE_SPAN_EVENTS
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)   # declining stays open
 
