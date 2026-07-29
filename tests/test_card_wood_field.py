@@ -29,6 +29,7 @@ from agricola.scoring import score
 from agricola.setup import setup
 
 from tests.factories import with_fields, with_pending_stack, with_resources
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD = "wood_field"
 
@@ -96,7 +97,7 @@ def test_crops_only_sow_offers_wood_field_nothing():
     state = with_pending_stack(
         state, [PendingSow(player_idx=0, initiated_by_id="test",
                            crops_only=True)])
-    sows = [a for a in legal_actions(state) if isinstance(a, CommitSow)]
+    sows = [a for a in actions_or_empty(state) if isinstance(a, CommitSow)]
     assert sows == []
 
 

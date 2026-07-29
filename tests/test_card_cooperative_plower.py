@@ -19,6 +19,7 @@ from agricola.pending import PendingPlow
 from agricola.replace import fast_replace
 from agricola.setup import CardPool, setup_env
 from agricola.state import get_space, with_space
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "cooperative_plower"
 
@@ -165,4 +166,4 @@ def test_not_offered_when_no_plowable_cell():
 
     s = step(s, PlaceWorker(space="farmland"))
     # The grant is gated on a plowable cell, so it is not offered.
-    assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
+    assert FireTrigger(card_id=CARD_ID) not in actions_or_empty(s)

@@ -82,6 +82,31 @@ def _num_fields(state, idx):
                if g[r][c].cell_type == CellType.FIELD)
 
 
+def _fill_grid_leave_one(state, idx):
+    """Make every empty cell but ONE a FIELD: the Farmland placement stays legal
+    (`_can_plow` true) but `_can_plow_twice` is false — the reachable boundary at
+    which the plow-granting cards' never-strand-the-base-plow guard must refuse.
+    (The old all-cells-filled variant built an UNREACHABLE state — a Farmland
+    placement with no plowable cell is placement-illegal — and the ruling-87
+    stuck-turn monitor in `legal_actions` now correctly raises on it.)"""
+    p = state.players[idx]
+    grid = [[c for c in row] for row in p.farmyard.grid]
+    left = None
+    for r in range(3):
+        for c in range(5):
+            if grid[r][c].cell_type == CellType.EMPTY:
+                if left is None:
+                    left = (r, c)
+                    continue
+                grid[r][c] = Cell(cell_type=CellType.FIELD)
+    assert left is not None, "grid had no empty cell to leave"
+    fy = fast_replace(p.farmyard, grid=tuple(tuple(r) for r in grid))
+    new_p = fast_replace(p, farmyard=fy)
+    return fast_replace(state, players=tuple(
+        new_p if i == idx else state.players[i]
+        for i in range(len(state.players))))
+
+
 def _fill_grid_no_plow(state, idx):
     """Make every empty cell a FIELD so no plow is legal (`_can_plow` false)."""
     p = state.players[idx]
@@ -177,10 +202,8 @@ def test_plow_maker_not_offered_when_no_plowable_cell():
     s, cp = _card_state()
     s = _own_occ(s, cp, "plow_maker")
     s = with_resources(s, cp, food=5)
-    s = _fill_grid_no_plow(s, cp)                # no EMPTY cell -> _can_plow false
+    s = _fill_grid_leave_one(s, cp)   # ONE cell: placement legal, _can_plow_twice false
     s = _place_at(s, "farmland")
-    # The space's own plow is also impossible, so Farmland auto-resolves to nothing
-    # plowable; whatever is legal, the Plow Maker trigger is not.
     assert FireTrigger(card_id="plow_maker") not in legal_actions(s)
 
 
@@ -517,7 +540,7 @@ def test_plow_hero_not_offered_no_plow():
     s, cp = _card_state()
     s = _own_occ(s, cp, "plow_hero")
     s = with_resources(s, cp, food=5)
-    s = _fill_grid_no_plow(s, cp)
+    s = _fill_grid_leave_one(s, cp)   # ONE cell: placement legal, _can_plow_twice false
     s = _place_at(s, "farmland")
     assert FireTrigger(card_id="plow_hero") not in legal_actions(s)
 
@@ -590,7 +613,7 @@ def test_mole_plow_offered_on_cultivation():
 def test_mole_plow_not_offered_when_no_plow():
     s, cp = _card_state()
     s = _own_minor(s, cp, "mole_plow")
-    s = _fill_grid_no_plow(s, cp)
+    s = _fill_grid_leave_one(s, cp)   # ONE cell: placement legal, _can_plow_twice false
     s = _place_at(s, "farmland")
     assert FireTrigger(card_id="mole_plow") not in legal_actions(s)
 

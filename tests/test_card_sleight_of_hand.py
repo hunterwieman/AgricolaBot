@@ -39,6 +39,7 @@ from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 
 from tests.factories import with_pending_stack, with_resources, with_round
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -78,7 +79,7 @@ def _at_play_minor_frame(round_number=1, hand=(CARD_ID,), n_occ=3, **res):
 
 
 def _plays(state, cid=CARD_ID):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == cid]
 
 

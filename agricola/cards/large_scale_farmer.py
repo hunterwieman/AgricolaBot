@@ -65,25 +65,28 @@ guarantees every space host a doable mandatory):
                          printed "place just to decline" applies to any use of
                          the space, a jump included — same predicate as the
                          placement gate);
-  - the 1 food is payable: on hand (then the predicate is checked on the state
-    with the fee debited — with exactly 1 food, a destination reachable only
-    via a 1-food minor would be stranded by paying, the Merchant post-payment
-    lesson), or raisable by liquidation — a direction-keyed check (ruling 82,
-    2026-07-26: the food-payment PRESERVE seam). Toward Farm Expansion, bare
-    raise EXISTENCE (`_liquidatable_to`) is the whole check: a work-phase raise
-    consumes only crops/animals, disjoint from the wood/reed the destination
-    needs (the invariant `tests/test_liquidation_disjointness.py` pins; see
-    `_jump_ok`'s caveat for the converter class that would break it). Toward
-    Major Improvement, `raisable_food_preserving` with the `_preserve_mi`
-    check: the jump is offered iff SOME liquidation bundle leaves the
-    destination usable on the post-fee state, and the same check — registered
-    frame-side via `register_food_payment_preserve` — filters the raise
-    frame's menu down to exactly the preserving bundles, so the player can
-    always raise the fee but never into a stranded destination. Probe and
-    frame share one simulation (`legality._apply_liquidation_bundle`,
-    cook-reaction bonuses included), so they can never disagree. The earlier
-    all-bundles-must-pass form withheld the jump whenever ANY bundle failed —
-    itself a deletion of a rules-legal line of play, corrected by ruling 82.
+  - the 1 food is payable — **uniformly for BOTH destinations (ruling 87,
+    2026-07-29): debit the fee, then ask the destination's gate on the true
+    post-payment state.** On hand → the predicate is checked on the
+    fee-debited state (with exactly 1 food, a destination reachable only via
+    a 1-food minor would be stranded by paying — the Merchant post-payment
+    lesson). Short → `raisable_food_preserving` with the direction's preserve
+    check (`_preserve_mi` / `_preserve_fe`): the jump is offered iff SOME
+    liquidation bundle leaves the destination usable on the post-fee state,
+    and the same check — registered frame-side via
+    `register_food_payment_preserve` — filters the raise frame's menu down to
+    exactly the preserving bundles, so the player can always raise the fee
+    but never into a stranded destination. Probe and frame share one
+    simulation (`legality._apply_liquidation_bundle`, cook-reaction bonuses
+    included), so they can never disagree. Two corrected shortcuts live in
+    this bullet's history: the all-bundles-must-pass form withheld the jump
+    whenever ANY bundle failed (a deletion of a rules-legal line, corrected
+    by ruling 82), and the Farm-Expansion direction used to skip the
+    destination coupling entirely on the crops/animals-vs-wood disjointness
+    argument (revoked by ruling 87: the Grocer / Clay Carrier / Large Pottery
+    converter classes break that catalog fact in both directions, so the
+    uniform shape — which passes every bundle today and costs nothing — is
+    the catalog-independent form).
 
 "You can pay" → optional trigger (`register`, not `register_auto`); declining is
 implicit (Stop/Proceed instead — no SkipTrigger). Once per window via the host's
@@ -105,7 +108,7 @@ from agricola.legality import (
     _can_afford_any_major_improvement,
     _can_build_room,
     _can_build_stable,
-    _liquidatable_to,
+    _space_enabled_by_card,
     playable_minors,
     raisable_food_preserving,
 )
@@ -135,15 +138,19 @@ def _debit_food(state: GameState, idx: int) -> GameState:
 def _dest_legal(state: GameState, idx: int, dest: str) -> bool:
     """The destination's own action is legal for `idx` on `state` — the card-game
     placement predicate minus `_is_available` (occupancy is the separate
-    unoccupied-at-trigger-time check)."""
+    unoccupied-at-trigger-time check). The space-enable registry is consulted
+    exactly as a placement gate would (ruling 87 — a jump IS a use); empty for
+    both these spaces today, so the consult is inert until such a card lands."""
     p = state.players[idx]
     if dest == "farm_expansion":
-        return _can_build_room(state, p) or _can_build_stable(
-            state, p, Resources(wood=2))
+        return (_can_build_room(state, p) or _can_build_stable(
+                    state, p, Resources(wood=2))
+                or _space_enabled_by_card(state, dest, idx))
     # major_improvement — mirror `_legal_major_improvement_cards`.
     return (_can_afford_any_major_improvement(state, p)
             or bool(playable_minors(state, idx, composite_only_ok=True))
-            or owns_improvement_decline_income(state, idx))
+            or owns_improvement_decline_income(state, idx)
+            or _space_enabled_by_card(state, dest, idx))
 
 
 def _preserve_mi(post_bundle: GameState, idx: int) -> bool:
@@ -153,6 +160,15 @@ def _preserve_mi(post_bundle: GameState, idx: int) -> bool:
     be the only thing making the space usable. Evaluated per bundle by the frame's
     enumerator (only preserving bundles are offered) and by the eligibility probe."""
     return _dest_legal(_debit_food(post_bundle, idx), idx, "major_improvement")
+
+
+def _preserve_fe(post_bundle: GameState, idx: int) -> bool:
+    """The Farm-Expansion-direction preserve check (ruling 87, 2026-07-29): the same
+    uniform debit-then-gate shape as `_preserve_mi`. Under the current catalog no
+    bundle can consume wood/reed and the destination's gate reads no food, so this
+    passes every bundle today — it exists so correctness never rests on those
+    catalog facts (the Grocer / Clay Carrier / Large Pottery classes break them)."""
+    return _dest_legal(_debit_food(post_bundle, idx), idx, "farm_expansion")
 
 
 def _jump_ok(state: GameState, idx: int, source: str) -> bool:
@@ -170,21 +186,12 @@ def _jump_ok(state: GameState, idx: int, source: str) -> bool:
         # Direct debit is the only payment route with food on hand — check the
         # destination on the exact post-fee state.
         return _dest_legal(_debit_food(state, idx), idx, dest)
-    if dest == "farm_expansion":
-        # Structurally safe TODAY (ruling 82's one-direction sufficiency): a
-        # work-phase raise consumes only crops/animals (the building-resource span
-        # converters are harvest-window-scoped, never active at a placement), while
-        # Farm Expansion costs wood/reed + pieces — disjoint pools, so bare raise
-        # EXISTENCE is the whole check. CAVEAT: if an ANYTIME converter with
-        # building-resource input ever lands (the Clay Carrier family), this
-        # disjointness breaks and the direction needs the preserve check too.
-        return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
-    # major_improvement: SOME bundle must leave the destination usable after the
-    # fee (ruling 82 — the frame then offers exactly those bundles, so the player
-    # can always raise the fee but never into a stranded destination; the old
-    # all-bundles-must-pass form wrongly withheld the jump whenever ANY bundle
-    # failed, deleting a rules-legal line of play).
-    return raisable_food_preserving(state, idx, _FOOD_COST, Cost(), _preserve_mi)
+    # Short: SOME bundle's post-fee state must keep the destination usable —
+    # uniformly for both directions (ruling 87; the frame then offers exactly
+    # those bundles, so the player can always raise the fee but never into a
+    # stranded destination).
+    preserve = _preserve_fe if dest == "farm_expansion" else _preserve_mi
+    return raisable_food_preserving(state, idx, _FOOD_COST, Cost(), preserve)
 
 
 def _eligible_farm_expansion(state: GameState, idx: int, triggers_resolved) -> bool:
@@ -259,3 +266,4 @@ register("after_major_minor_improvement", CARD_ID, _eligible_major_improvement, 
 register_food_payment_resume(f"{CARD_ID}:major_improvement", _pay_and_jump)
 register_food_payment_resume(f"{CARD_ID}:farm_expansion", _pay_and_jump)
 register_food_payment_preserve(f"{CARD_ID}:major_improvement", _preserve_mi)
+register_food_payment_preserve(f"{CARD_ID}:farm_expansion", _preserve_fe)

@@ -34,6 +34,7 @@ from agricola.setup import CardPool, setup, setup_env
 from agricola.state import Cell
 
 from tests.factories import with_sown_fields
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "bumper_crop"
 
@@ -105,7 +106,7 @@ def test_prereq_gates_the_play():
     """With only one grain field the play is not offered (prereq unmet)."""
     cs, _cp = _at_play_minor_frame(grain_fields=((0, 1),))
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(cs))
+                   for a in actions_or_empty(cs))
 
 
 # --- The on-play field-phase effect -----------------------------------------

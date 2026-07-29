@@ -15,6 +15,7 @@ real harvest walk end-to-end (begging under the raised need), pin the feed
 frontier off the raised requirement, and exercise both payment alternatives at
 a real PendingPlayMinor frame.
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import json
 import pathlib
 
@@ -277,7 +278,7 @@ def _at_play_minor_frame(res):
 
 
 def _minor_commits(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
 
 

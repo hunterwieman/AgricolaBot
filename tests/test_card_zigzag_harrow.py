@@ -1,3 +1,4 @@
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import agricola.cards.zigzag_harrow  # noqa: F401  -- registers the card
 
 """Tests for Zigzag Harrow (minor improvement, D1; Dulcinaria Expansion).
@@ -96,7 +97,7 @@ def _frame(*, field_cells=_F1, extra_overrides=None, hand=(CARD_ID,), wood=1):
 
 
 def _plays(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
 
 

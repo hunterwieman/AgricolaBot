@@ -54,6 +54,7 @@ from agricola.state import Cell
 
 from tests.factories import with_grid, with_pending_stack, with_phase, with_resources
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "artichoke_field"
 
@@ -190,7 +191,7 @@ def test_play_pays_one_wood_and_keeps_card():
 def test_prereq_one_occupation_blocks_play():
     cs, _cp = _play_minor_state(n_occupations=1)
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(cs))
+                   for a in actions_or_empty(cs))
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +234,7 @@ def test_sow_veg_plants_two():
 def test_sown_card_not_sowable_again():
     state = _sow_state(grain=1, veg=1)
     state = _set_stacks(state, 0, [(3, 0, 0, 0)])
-    sows = [a for a in legal_actions(state) if isinstance(a, CommitSow)]
+    sows = [a for a in actions_or_empty(state) if isinstance(a, CommitSow)]
     assert all(not a.card_sows for a in sows)       # no empty stack left
 
 

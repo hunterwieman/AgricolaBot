@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register
-from agricola.legality import _liquidatable_to
+from agricola.legality import _liquidatable_to, register_space_enable_extension
 from agricola.pending import PendingFoodPayment, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -76,6 +76,71 @@ def _apply(state: GameState, idx: int) -> GameState:
     ))
 
 
+def _space_enabled(state: GameState, idx: int, *, bake_counts: bool) -> bool:
+    """Ruling 87 (2026-07-29, the user-ratified rule: an optional before-window
+    purchase counts toward "can carry out the action" at placement time): could
+    player `idx` complete this space's action via the buy?
+
+    Evaluated EXACTLY — simulate the buy per payment case, then ask the real
+    capability predicates on the resulting state — so chained enablers price
+    against true post-payment resources: `_can_sow` consults its extension
+    registry, so a Drill Harrow route downstream of the buy sees the food the
+    buy consumed (3 food + both cards + no seed + no field → refused, the
+    post-buy 2 food can't fund the 3-food plow; 4 food → admitted).
+
+    Food >= 1: the single payment route is the direct debit — apply the buy's
+    own executor (`_pay_and_buy`: −1 food, +1 grain — one implementation, the
+    gate can never drift from the effect) and ask. Short: for each raise bundle
+    the machinery would offer, simulate it with the shared
+    `_apply_liquidation_bundle`, apply the buy, ask; admit iff some bundle
+    passes. The bought grain never funds its own purchase — bundles simulate on
+    the pre-grant state, matching `_apply`'s real order.
+
+    Consulted by the PLACEMENT gates only (`_space_enabled_by_card`). The
+    in-host flow needs nothing: the buy's trigger already surfaces in the
+    host's before-window, and when this route is the only reason the placement
+    was admitted, the host's must-take-at-least-one-effect exit structure makes
+    the fire the sole legal action — the ruled mandatory-buy behavior, emergent,
+    pinned in tests/test_card_thresher_gate.py."""
+    from agricola.legality import (
+        _apply_liquidation_bundle,
+        _can_bake_bread,
+        _can_sow,
+        _food_payment_commits,
+    )
+
+    p = state.players[idx]
+    if CARD_ID not in p.occupations:
+        return False
+
+    def _enabled(s2: GameState) -> bool:
+        p2 = s2.players[idx]
+        return _can_sow(s2, p2) or (bake_counts and _can_bake_bread(s2, p2))
+
+    if p.resources.food >= _FOOD_COST:
+        return _enabled(_pay_and_buy(state, idx))
+    for bundle in _food_payment_commits(state, idx, _FOOD_COST, Cost()):
+        post = _apply_liquidation_bundle(state, idx, bundle)
+        if _enabled(_pay_and_buy(post, idx)):
+            return True
+    return False
+
+
+def _gu_enabled(state: GameState, idx: int) -> bool:
+    return _space_enabled(state, idx, bake_counts=True)
+
+
+def _cultivation_enabled(state: GameState, idx: int) -> bool:
+    # Cultivation's other half is plow — grain never enables plowing, so only
+    # the sow route counts (when plow is possible the base gate passed anyway).
+    return _space_enabled(state, idx, bake_counts=False)
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("before_action_space", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _pay_and_buy)
+# Ruling 87: the buy can be the thing making a placement legal. Farmland gets
+# no extension — its action is plow-only, and grain never enables a plow (the
+# buy there is a convenience, never the enabling margin).
+register_space_enable_extension("grain_utilization", _gu_enabled)
+register_space_enable_extension("cultivation", _cultivation_enabled)

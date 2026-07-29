@@ -19,6 +19,7 @@ from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import get_space, with_space
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "excursion_to_the_quarry"
 
@@ -128,6 +129,6 @@ def test_not_offered_without_occupation():
     cs = step(cs, ChooseSubAction(name="improvement"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
     from agricola.actions import CommitPlayMinor
-    offered = [a for a in legal_actions(cs)
+    offered = [a for a in actions_or_empty(cs)
                if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
     assert offered == []                             # prereq gates it out

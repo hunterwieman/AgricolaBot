@@ -14,18 +14,48 @@ the implemented set, so every `before_sow` event is an unconditional sow — thi
 all of them. (If a conditional-sow card is ever added, this eligibility must additionally
 inspect the PendingSow's provenance to exclude it; flagged here for that future session.)
 
+THE STRANDING GUARD IS THE PRESERVE PAIR (ruling 87, 2026-07-29). The host is a
+PendingSow whose before-phase offers only FireTrigger + CommitSow — no Stop — so once
+this trigger resolves, a sow of >= 1 seed is mandatory. The 3-food payment must
+therefore never consume the goods that keep that sow legal. Both halves run ONE shared
+check, `_preserve_sow` ("a legal sow commit survives: a board seed, or a card-field
+sow — which liquidation cannot touch"):
+
+- ELIGIBILITY offers the fire iff the fee is payable by SOME route whose post-payment
+  state passes the check (`raisable_food_preserving`; with the 3 food on hand there is
+  no liquidation, so the check runs on the current state directly).
+- THE RAISE FRAME's menu is filtered to exactly the passing bundles
+  (`register_food_payment_preserve` under this card's resume kind) — the frame-side
+  half whose ABSENCE was the executed soft-lock of 2026-07-29: eligibility proved a
+  seed-preserving bundle EXISTED, but the frame offered every Pareto bundle, including
+  one that cooked the last seed (1 grain / 2 sheep / Fireplace / 0 food: the
+  {grain+sheep} bundle strands the forced sow; regression-pinned in
+  tests/test_card_drill_harrow_preserve.py).
+
+This replaced the hand-rolled `_seed_reserving_liquidatable` (reserve-one-seed
+arithmetic), which was also over-strict in one corner: with NO board seed but a legal
+card-field sow (unaffected by liquidation — bundles consume only crops/animals), it
+refused a perfectly safe fire. `_preserve_sow` admits it.
+
 `_apply` is the guard, `_pay_and_plow` the body (debit 3 food, push the plow). With ≥ 3
 food on hand `_apply` runs it directly; short, it pushes a raise-only PendingFoodPayment
 whose resume (registered under this card id) debits the raised food then plows.
-Eligibility is liquidation-aware (`_liquidatable_to`, NOT `food >= 3`) and gates on a
-plowable cell (`_can_plow`) so a fired plow never dead-ends. Once-per-sow via the host's
-`triggers_resolved`. See PAY_FOOD_PLOW_CARDS.md / FOOD_PAYMENT_DESIGN.md.
+Once-per-sow via the host's `triggers_resolved`. See PAY_FOOD_PLOW_CARDS.md /
+FOOD_PAYMENT_DESIGN.md.
 """
 from __future__ import annotations
 
-from agricola.cards.specs import register_food_payment_resume, register_minor
+from agricola.cards.specs import (
+    register_food_payment_preserve,
+    register_food_payment_resume,
+    register_minor,
+)
 from agricola.cards.triggers import register
-from agricola.legality import _can_afford, _can_plow, _liquidatable_to
+from agricola.legality import (
+    _can_plow,
+    raisable_food_preserving,
+    register_sow_extension,
+)
 from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -45,37 +75,33 @@ def _pay_and_plow(state: GameState, idx: int) -> GameState:
     return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
 
 
-def _seed_reserving_liquidatable(state: GameState, idx: int) -> bool:
-    """True iff the 3 food can be raised while leaving the mandatory Sow at least one seed.
+def _preserve_sow(state: GameState, idx: int) -> bool:
+    """The mandatory sow stays completable on this state: a board seed survives, or a
+    card-field sow is possible (its inputs — the card's empty stack + a matching good
+    such as wood — are never conversion fuel, so no bundle can strand it). The 3-food
+    fee needs no debit here: food is not an input to sowing. Shared verbatim between
+    eligibility (existence over bundles) and the raise frame's menu filter, so they
+    cannot disagree."""
+    from agricola.cards.card_fields import can_sow_card_fields  # load-order safe
 
-    The host is a PendingSow whose before-phase offers only FireTrigger + CommitSow — no
-    Stop — so the sow is forced and needs >= 1 seed (grain OR veg) to have any legal
-    CommitSow after this trigger resolves. A plain `_liquidatable_to(food=3)` would freely
-    burn grain AND veg as conversion fuel, so it can raise the 3 food by consuming the
-    player's LAST seed and strand the sow (empty legal set on a non-empty stack).
-
-    Guard: the 3 food must be raisable from everything EXCEPT one reserved seed — either
-    reserving 1 grain OR reserving 1 veg. We check by running the liquidation-affordability
-    test against a player copy whose resources hold one fewer of that seed (so it is not in
-    the conversion pool); if either reservation still affords the 3 food, the reserved seed
-    survives to feed the mandatory sow."""
     p = state.players[idx]
-    for reserve in (Resources(grain=1), Resources(veg=1)):
-        if not _can_afford(p, reserve):
-            continue   # no such seed to reserve
-        reserved_p = fast_replace(p, resources=p.resources - reserve)
-        if _liquidatable_to(state, idx, reserved_p, Resources(food=_FOOD_COST)):
-            return True
-    return False
+    return (p.resources.grain >= 1 or p.resources.veg >= 1
+            or can_sow_card_fields(p))
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:                       # once per this sow
         return False
     p = state.players[idx]
-    # Never a dead-end: a plow must be legal AND the 3 food payable via liquidation WITHOUT
-    # burning the mandatory sow's last seed (grain OR veg). See _seed_reserving_liquidatable.
-    return _can_plow(p) and _seed_reserving_liquidatable(state, idx)
+    if not _can_plow(p):                                   # a plow must be legal
+        return False
+    if p.resources.food >= _FOOD_COST:
+        # No liquidation happens — the fee is pure food, so the sow's goods are
+        # untouched; check completability on the current state.
+        return _preserve_sow(state, idx)
+    # Short: offer iff SOME raise bundle leaves the mandatory sow completable —
+    # the frame (below) then offers exactly those bundles.
+    return raisable_food_preserving(state, idx, _FOOD_COST, Cost(), _preserve_sow)
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -89,6 +115,39 @@ def _apply(state: GameState, idx: int) -> GameState:
     ))
 
 
+def _sow_extension(state: GameState, p) -> bool:
+    """Ruling 87 (2026-07-29): the Drill Harrow ROUTE makes a sow possible when the
+    base check fails — no empty field, but a plowable cell + a board seed + the 3
+    food payable by a route that preserves that seed. Registered into `_can_sow`'s
+    extension registry, so the placement gates (Grain Utilization / Cultivation),
+    the in-host choose gates, and every sow-granting card's eligibility (Sundial,
+    Apiary, Confidant, ...) inherit it with zero per-card code — and Thresher's
+    space extension consults it on the post-buy state, which is what prices the
+    two-card chain correctly.
+
+    Admission guarantees completion (the never-a-dead-end contract this registry
+    demands): the sow frame entered on this route offers only this card's fire —
+    mandatory by the frame's exit structure, the user-ratified consequence — and
+    the fire's preserve pair guarantees a seed survives the payment while the plow
+    supplies the field. Card-field sows never need this route: they need no board
+    field, and the base check already covers them."""
+    if CARD_ID not in p.minor_improvements:
+        return False
+    if not _can_plow(p):
+        return False
+    if p.resources.grain < 1 and p.resources.veg < 1:
+        return False                 # the route sows a BOARD seed; DH grants no seed
+    idx = 0 if p is state.players[0] else 1
+    if p.resources.food >= _FOOD_COST:
+        return True                  # fee is pure food — the seed is untouched
+    return raisable_food_preserving(state, idx, _FOOD_COST, Cost(), _preserve_sow)
+
+
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)))
 register("before_sow", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _pay_and_plow)
+# Ruling 87 (2026-07-29): the frame-side half of the stranding guard — the raise
+# menu offers only the sow-preserving bundles (same check as eligibility).
+register_food_payment_preserve(CARD_ID, _preserve_sow)
+# Ruling 87: the route is itself sow-capability — see _sow_extension.
+register_sow_extension(_sow_extension)

@@ -21,6 +21,7 @@ exercised end-to-end. The ruled ordering against Farm Store (the same window's
 optional food-spending trigger) — Social Benefits FIRST, via autos-before-
 triggers — is pinned by the interaction test at the bottom.
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import agricola.cards.social_benefits  # noqa: F401  -- registers the card
 
 from agricola.cards.social_benefits import CARD_ID
@@ -411,7 +412,7 @@ def test_real_play_with_prereq_met():
 def test_prereq_blocks_play_with_two_occupations():
     state, cp = _at_play_minor_frame(occupations=frozenset({"o0", "o1"}))
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(state))
+                   for a in actions_or_empty(state))
 
 
 # ---------------------------------------------------------------------------

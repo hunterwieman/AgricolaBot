@@ -82,7 +82,7 @@ def _sow_eligible(state: GameState, idx: int, triggers_resolved) -> bool:
         return False
     # Never a dead-end fire: the engine's own sow predicate (>= 1 empty field
     # cell AND a crop in supply, or a card-field sow — rulings 45-48).
-    return _can_sow(state.players[idx])
+    return _can_sow(state, state.players[idx])
 
 
 def _sow_apply(state: GameState, idx: int) -> GameState:

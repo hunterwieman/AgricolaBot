@@ -17,6 +17,7 @@ Covers the machinery the nine real card-fields ride (user rulings 43-48,
 - ruling 45: scoring's Fields category + grain/veg totals
 - the Family wire/canonical invariance of the new fields
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 from agricola.actions import CommitSow
 from agricola.canonical import to_canonical
 from agricola.agents.nn.trace_replay import action_from_params, action_to_params
@@ -136,7 +137,7 @@ def test_sow_enumeration_crops_only_excludes_wood_cards():
     frame = PendingSow(player_idx=0, initiated_by_id="test",
                        max_fields=1, crops_only=True)
     state = with_pending_stack(state, [frame])
-    sows = [a for a in legal_actions(state) if isinstance(a, CommitSow)]
+    sows = [a for a in actions_or_empty(state) if isinstance(a, CommitSow)]
     assert sows == []   # nothing sowable: wood card excluded, no board play
 
 
@@ -146,7 +147,7 @@ def test_can_sow_gates_see_card_fields():
     state = _own(state, 0, ["cf_test_wood"])
     state = with_resources(state, 0, wood=1, grain=0, veg=0)
     p = state.players[0]
-    assert _can_sow(p)                                  # generic: wood sow
+    assert _can_sow(state, p)                                  # generic: wood sow
     assert can_sow_card_fields(p)
     assert not can_sow_card_fields(p, crops_only=True)  # ruling 48
 

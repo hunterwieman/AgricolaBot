@@ -33,6 +33,7 @@ from agricola.scoring import SCORING_TERMS, score
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_majors, with_minors, with_pending_stack, with_resources
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 # Bottom-row major-improvement indices (the work-station crafts).
 _BOTTOM = (5, 6, 7, 8, 9)
@@ -237,7 +238,7 @@ def test_play_blocked_with_two_occupations():
     cs = _push_minor(cs, cp)
     from agricola.actions import CommitPlayMinor
     plays = [
-        a for a in legal_actions(cs)
+        a for a in actions_or_empty(cs)
         if isinstance(a, CommitPlayMinor) and a.card_id == "artisan_district"
     ]
     assert plays == []

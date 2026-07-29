@@ -195,7 +195,7 @@ def test_real_field_phase_harvests_stone_then_field_is_sowable_again():
     assert s.players[0].resources.stone == stone0 + 1       # harvested normally
     cell = s.players[0].farmyard.grid[0][0]
     assert cell.stone == 0 and cell.field_empty             # stone gone -> empty
-    assert _can_sow(s.players[0])                           # sowable again
+    assert _can_sow(s, s.players[0])                           # sowable again
 
 
 def test_field_take_manifest_carries_a_stone_cell_entry():

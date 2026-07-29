@@ -29,6 +29,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_majors, with_resources, with_space
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -192,7 +193,7 @@ def test_hand_truck_does_not_over_enable_bake_at_zero_grain():
     assert cs.players[0].resources.grain == 0           # and nobody on accumulation spaces
     cs = with_space(cs, "grain_utilization", revealed=True)
     cs = step(cs, PlaceWorker(space="grain_utilization"))
-    assert ChooseSubAction(name="bake_bread") not in legal_actions(cs)
+    assert ChooseSubAction(name="bake_bread") not in actions_or_empty(cs)
 
 
 def test_hand_truck_fires_each_bake_action():

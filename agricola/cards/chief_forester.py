@@ -49,7 +49,7 @@ CARD_ID = "chief_forester"
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     top = state.pending_stack[-1]
     return (getattr(top, "space_id", None) in WOOD_ACCUMULATION_SPACES
-            and _can_sow(state.players[idx]))
+            and _can_sow(state, state.players[idx]))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

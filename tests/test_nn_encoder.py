@@ -267,11 +267,27 @@ def test_subaction_available_fresh_cultivation():
     assert v[_idx("subaction_avail_bake_bread")] == 0.0
 
 
+def _with_field_and_grain(s, idx):
+    """One empty field + 1 grain for `idx`, so a hand-built PendingSow frame has
+    a legal commit — the ruling-87 stuck-turn monitor in `legal_actions` raises
+    on doctored frames with no legal action (unreachable in real play). The
+    added field/grain don't touch the features these tests assert."""
+    from agricola.constants import CellType
+    from agricola.state import Cell
+    p = s.players[idx]
+    grid = [[c for c in row] for row in p.farmyard.grid]
+    grid[0][4] = Cell(cell_type=CellType.FIELD)
+    fy = replace(p.farmyard, grid=tuple(tuple(r) for r in grid))
+    p2 = replace(p, farmyard=fy, resources=replace(p.resources, grain=1))
+    return replace(s, players=tuple(
+        p2 if i == idx else s.players[i] for i in range(2)))
+
+
 def test_subaction_available_or_across_stack():
     """Mid-Cultivation with plow chosen, mid-resolving a Sow on top:
     sow available (mid-resolving) AND plow already chosen (not available).
     The OR-across-stack should give sow=1, plow=0."""
-    s = setup(0)
+    s = _with_field_and_grain(setup(0), 0)
     parent = PendingCultivation(
         player_idx=0, initiated_by_id="space:cultivation",
         plow_chosen=True, sow_chosen=True,
@@ -542,10 +558,18 @@ def test_fast_encode_matches_reference_midaction_states():
     """Cover non-empty pending-stack states (the mid-action block + the
     stop_is_legal branch), which the random corpus may under-sample."""
     s = setup(0)
+    # Each doctored frame must have >= 1 legal action (the ruling-87 stuck-turn
+    # monitor): the sow state gets a field + grain; the Farm Expansion state
+    # gets P1 the 2 wood a stable build needs. Feature-equality is unaffected —
+    # both encoders see the same state.
+    sow_s = _with_field_and_grain(s, 0)
+    fe_s = replace(s, players=(
+        s.players[0],
+        replace(s.players[1], resources=replace(s.players[1].resources, wood=2))))
     mid = [
-        with_pending_stack(s, (PendingSow(player_idx=0, initiated_by_id="grain_utilization"),)),
+        with_pending_stack(sow_s, (PendingSow(player_idx=0, initiated_by_id="grain_utilization"),)),
         with_pending_stack(s, (PendingCultivation(player_idx=0, initiated_by_id="space:cultivation"),)),
-        with_pending_stack(s, (PendingFarmExpansion(player_idx=1, initiated_by_id="space:farm_expansion"),)),
+        with_pending_stack(fe_s, (PendingFarmExpansion(player_idx=1, initiated_by_id="space:farm_expansion"),)),
     ]
     for st in mid:
         for p in (0, 1):

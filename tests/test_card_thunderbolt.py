@@ -30,6 +30,7 @@ from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 from agricola.state import Cell
 from tests.factories import with_grid, with_pending_stack, with_resources
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "thunderbolt"
 CRF = "crop_rotation_field"
@@ -78,7 +79,7 @@ def _own_card_field(state, cp, card_id, grain):
 
 
 def _plays(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
 
 

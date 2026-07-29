@@ -59,6 +59,22 @@ def _wood(state, idx=0):
 # Registration
 # ---------------------------------------------------------------------------
 
+
+def _commits_or_none(state):
+    """The CommitBuildPasture cell-sets offered on `state` — with the ruling-87
+    stuck-turn monitor treated as the empty set. The call sites routed here build
+    UNAFFORDABLE baselines (no pasture commit at all), which are
+    placement-unreachable states the monitor now rejects; for these option-set
+    comparisons, "monitor raised" and "no commit offered" assert the same fact.
+    Any other AssertionError re-raises."""
+    from agricola.legality import legal_actions as _la
+    try:
+        return {a.cells for a in _la(state) if isinstance(a, CommitBuildPasture)}
+    except AssertionError as e:
+        if "empty legal set" not in str(e):
+            raise
+        return set()
+
 def test_registration():
     from agricola.cards.specs import MINORS
     from agricola.resources import Resources
@@ -113,8 +129,7 @@ def test_grant_legal_set_larger_than_normal_build():
     normal = _cards_fencing(wood=3)
     normal = step(normal, PlaceWorker(space="fencing"))
     normal = step(normal, ChooseSubAction(name="build_fences"))
-    normal_commits = {a.cells for a in legal_actions(normal)
-                      if isinstance(a, CommitBuildPasture)}
+    normal_commits = _commits_or_none(normal)
     assert _1x1_03 not in normal_commits, "same 1x1 needs the full 4 wood without the grant"
 
 

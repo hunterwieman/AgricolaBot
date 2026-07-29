@@ -34,6 +34,7 @@ from tests.factories import (
     with_space,
 )
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "tea_time"
 GU = "grain_utilization"
@@ -156,7 +157,7 @@ def _parked_at_play_minor(seed=5):
 
 
 def _tea_plays(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
 
 

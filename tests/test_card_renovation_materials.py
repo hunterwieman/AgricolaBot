@@ -30,6 +30,7 @@ from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
 from tests.test_utils import sole_play_minor, sole_renovate
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "renovation_materials"
 
@@ -117,7 +118,7 @@ def test_not_playable_with_renovate_forbid_card():
                          minors=("mantlepiece",))
     assert prereq_met(spec, cs, cp) is False
     cs2 = _push_minor(cs, cp)
-    assert CARD_ID not in {a.card_id for a in legal_actions(cs2)
+    assert CARD_ID not in {a.card_id for a in actions_or_empty(cs2)
                            if hasattr(a, "card_id")}
 
 

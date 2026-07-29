@@ -33,6 +33,7 @@ from agricola.setup import CardPool, setup_env
 from agricola.state import Cell
 from tests.factories import with_grid, with_majors, with_minors, with_pending_stack
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _POTTERY_IDX = 8
 
@@ -256,7 +257,7 @@ def test_play_blocked_without_pottery():
     # Prereq not met → no CommitPlayMinor for pottery_yard is offered.
     from agricola.actions import CommitPlayMinor
     plays = [
-        a for a in legal_actions(cs)
+        a for a in actions_or_empty(cs)
         if isinstance(a, CommitPlayMinor) and a.card_id == "pottery_yard"
     ]
     assert plays == []

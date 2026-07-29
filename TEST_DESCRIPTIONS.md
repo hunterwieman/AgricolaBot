@@ -250,3 +250,27 @@ The harness validating the C++ self-play engine (CLAUDE.md → The C++ twin engi
 - **`test_cpp_mcts.py`** — MCTS component tests (PUCT/backprop/chance routing) + self-play record validity (π + `root_value` populated) + statistical strength parity vs Python MCTS.
 - **`test_cpp_selfplay.py`** — C++ random self-play traces replay cleanly + pass dataset invariants; round-1 setup validity + valid within-stage reveal order.
 - **`test_cpp_selfplay_pipeline.py`** — end-to-end pipeline gate over **both** batch and per-game modes: `generate_selfplay_data_cpp.py` produces valid `GameRecord` run-dirs (π + `root_value` intact) that pass the `validate_dataset` invariants.
+
+### `tests/test_liquidation_disjointness.py` (rebuilt 2026-07-29, ruling 87)
+
+The conversion-seam tripwire, rebuilt to actually fire (the original probed a player owning no cards — no ownership-gated converter could ever trip it). Two tests: `test_no_span_converter_live_outside_harvest_even_owning_every_card` grants every implemented card to the payer and asserts `available_span_converters` is empty on a WORK-phase state; `test_bundles_stay_conversion_free_per_card` grants each implemented card in turn and asserts every food-payment bundle carries no conversions and consumes only crops/animals. Docstring carries the generic warning: a non-harvest building-resource conversion means STOP and inform the user — the payment machinery's one-way assumption is load-bearing engine-wide.
+
+### `tests/test_improvement_window_autos.py` (ruling 87)
+
+Tripwire: the `before_build_major` / `before_play_minor` AUTO registries must stay empty. Wood Workshop B75 (banned, archived) was the sole member; an income auto there lands goods after the affordability gates have answered, making them too strict at the boundary. A failing run means: income auto → stop and inform the user (the gates need the doctored-state probe first); bookkeeping auto → update the expectation consciously.
+
+### `tests/test_space_enable_singleton.py` (ruling 87)
+
+Tripwire: at most one space-enable extension per space. Extensions are evaluated in isolation, so two same-window enablers whose effects only jointly enable a space would each answer False — the cooperative-sibling boundary. A second registrant for any space must not ship until that design question is settled with the user.
+
+### `tests/test_card_drill_harrow_preserve.py` (ruling 87)
+
+Regression for the executed Drill Harrow soft-lock: with 1 grain / 2 sheep / a Fireplace / 0 food, the raise menu must offer only the seed-preserving `{2 sheep}` bundle (the `{grain+sheep}` bundle stranded the mandatory no-exit sow); walks the surviving line to a legal sow. Plus the no-preserving-bundle refusal (1 grain / 1 sheep: the only payment burns the seed → trigger not offered).
+
+### `tests/test_card_thresher_gate.py` (ruling 87)
+
+Thresher's space-enable extension at the placement gates: the sow route (buy → sow into an empty field), the bake route (buy → bake at a Fireplace), the raise-bundle payment branch (0 food + a cookable sheep), the three refusals (no use for the grain / unpayable buy / not owned), Cultivation's sow half + Farmland's deliberate non-extension, the MANDATORY-fire pin (extension-only admission → the buy is the sole legal action), the Drill Harrow route at the gate (3 food + seed + cell, no field), and the two-card chain priced exactly — 3 food refused, 4 food legal, walked end-to-end (mandatory buy → sow choice via the plow route → forced pay-and-plow → sow the bought grain).
+
+### `tests/test_card_full_peasant_thresher.py` (ruling 87)
+
+The jump × space-enable composition: a Fencing → Grain Utilization jump whose destination is usable only via Thresher's buy is offered at 2 food (fee + buy) and refused at 1 (the fee kills the buy — the destination check runs on the post-fee state); the arrival flow runs the mandatory buy exactly like a placement, walked end-to-end to sowing the bought grain.

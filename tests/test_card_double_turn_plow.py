@@ -14,6 +14,7 @@ registration, the state-scaling cost + round-<=5 prereq boundaries, plowing 2
 fields, the user-ruled early stop after 1, declining via "skip", the "plow" route
 being withheld with no plowable cell, and second-plow adjacency.
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import agricola.cards.double_turn_plow  # noqa: F401  -- registers the card
 import agricola.cards.social_benefits  # noqa: F401  -- ordinary-minor control
 
@@ -71,7 +72,7 @@ def _at_play_minor_frame(round_number=1, hand=(CARD_ID,), **res):
 
 
 def _plays(state, cid=CARD_ID):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == cid]
 
 

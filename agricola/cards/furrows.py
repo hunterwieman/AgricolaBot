@@ -66,7 +66,7 @@ def _variants(state: GameState, idx: int):
     (rulings 45-48). Both surcharges are ``Resources()`` — Furrows has no cost
     and the grant is free."""
     out = [("skip", Resources())]
-    if _can_sow(state.players[idx]):
+    if _can_sow(state, state.players[idx]):
         out.append(("sow", Resources()))
     return out
 

@@ -24,6 +24,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -90,7 +91,7 @@ def _at_play_minor_frame(*, wood=2, n_fences=15):
 
 
 def _variants_offered(state):
-    return sorted(a.variant for a in legal_actions(state)
+    return sorted(a.variant for a in actions_or_empty(state)
                   if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID)
 
 

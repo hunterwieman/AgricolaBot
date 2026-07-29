@@ -21,6 +21,7 @@ variant-offered gate, the adjacency waiver at both the helper and engine level,
 the no-op decline, and a full end-to-end play through the major_improvement space
 in Cards mode.
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import json
 from pathlib import Path
 
@@ -95,7 +96,7 @@ def _frame(*, field_cells=_FIELDS, extra_overrides=None, hand=(CARD_ID,),
 
 
 def _plays(state, cid=CARD_ID):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == cid]
 
 

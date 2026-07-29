@@ -20,6 +20,7 @@ real ``PendingPlayMinor`` flow (the play records the round in CardStore).
 """
 from __future__ import annotations
 
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import agricola.cards.bed_in_the_grain_field  # noqa: F401  (register the card)
 
 from agricola.actions import (
@@ -216,7 +217,7 @@ def test_real_play_records_the_round():
 def test_prereq_gates_the_play():
     cs, _cp = _at_play_minor_frame(with_prereq=False)
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(cs))
+                   for a in actions_or_empty(cs))
 
 
 # --- The growth at the start of the NEXT harvest ------------------------------

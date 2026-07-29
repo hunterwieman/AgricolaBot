@@ -18,6 +18,7 @@ from agricola.scoring import score
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
 from tests.test_fencing import _with_initial_pasture
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "early_cattle"
 
@@ -50,7 +51,7 @@ def _at_play_minor_frame(*, pasture_cells=frozenset({(0, 3), (0, 4)})):
 
 
 def _minor_commits(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]
 
 

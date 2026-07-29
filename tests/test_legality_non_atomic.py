@@ -215,7 +215,7 @@ def test_can_sow_grain_on_empty_field(state, active):
     state = _set_grid(state, active, {(0, 0): Cell(cell_type=CellType.FIELD)})
     state = _set_resources(state, active, grain=1)
     p = state.players[active]
-    assert _can_sow(p) is True
+    assert _can_sow(state, p) is True
 
 
 def test_can_sow_no_empty_field(state, active):
@@ -223,7 +223,7 @@ def test_can_sow_no_empty_field(state, active):
     state = _set_grid(state, active, {(0, 0): Cell(cell_type=CellType.FIELD, grain=2)})
     state = _set_resources(state, active, grain=1)
     p = state.players[active]
-    assert _can_sow(p) is False
+    assert _can_sow(state, p) is False
 
 
 def test_can_sow_no_seeds(state, active):
@@ -231,7 +231,7 @@ def test_can_sow_no_seeds(state, active):
     p = state.players[active]
     # No grain, no veg in supply.
     assert p.resources.grain == 0 and p.resources.veg == 0
-    assert _can_sow(p) is False
+    assert _can_sow(state, p) is False
 
 
 # ---------------------------------------------------------------------------
@@ -606,7 +606,7 @@ def test_cultivation_legal_can_sow(state, active):
     # Sanity: cannot plow (no EMPTY cells), but can sow.
     p = state.players[active]
     assert _can_plow(p) is False
-    assert _can_sow(p) is True
+    assert _can_sow(state, p) is True
     assert PlaceWorker(space="cultivation") in legal_placements(state)
 
 
@@ -710,7 +710,7 @@ def test_cultivation_illegal_neither_option(state, active):
     # Sanity: no fields, all non-room cells are STABLE.
     p = state.players[active]
     assert _can_plow(p) is False
-    assert _can_sow(p) is False
+    assert _can_sow(state, p) is False
     assert PlaceWorker(space="cultivation") not in legal_placements(state)
 
 

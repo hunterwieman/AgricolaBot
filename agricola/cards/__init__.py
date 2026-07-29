@@ -327,7 +327,8 @@ from agricola.cards import tasting  # noqa: F401
 from agricola.cards import mill_wheel  # noqa: F401
 from agricola.cards import hand_truck  # noqa: F401
 from agricola.cards import harvest_house  # noqa: F401
-from agricola.cards import wood_workshop  # noqa: F401
+# wood_workshop (B75): BANNED (official ban list; user 2026-07-29) — archived to
+# archive/banned_cards/, never dealt. See CARD_IMPLEMENTATION_PROGRESS.md.
 from agricola.cards import corf  # noqa: F401
 
 # Rescued tier-3 (Artifex/Bubulcus/base) — re-examined as buildable now

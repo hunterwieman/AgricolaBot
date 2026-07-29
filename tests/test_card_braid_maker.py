@@ -77,6 +77,7 @@ from agricola.state import get_space
 
 from tests.factories import with_majors, with_phase, with_resources
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _HARVEST_PHASES = (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED)
 
@@ -175,7 +176,7 @@ def _top_is_p0_after_breeding(state):
 
 
 def _major9_commits(state):
-    return [a for a in legal_actions(state)
+    return [a for a in actions_or_empty(state)
             if isinstance(a, CommitBuildMajor) and a.major_idx == BASKETMAKER_IDX]
 
 

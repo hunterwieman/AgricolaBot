@@ -51,6 +51,7 @@ from agricola.resources import Cost
 from agricola.setup import setup
 
 from tests.factories import with_pending_stack, with_phase, with_resources
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +159,7 @@ def test_crops_explicit_sow_cannot_plant_wood():
     state = with_pending_stack(
         state, [PendingSow(player_idx=0, initiated_by_id="test",
                            crops_only=True)])
-    sows = [a for a in legal_actions(state) if isinstance(a, CommitSow)]
+    sows = [a for a in actions_or_empty(state) if isinstance(a, CommitSow)]
     assert not any(a.card_sows for a in sows)
 
 
@@ -166,7 +167,7 @@ def test_unowned_sow_never_offered():
     state = with_resources(setup(3), 0, wood=1)
     state = with_pending_stack(
         state, [PendingSow(player_idx=0, initiated_by_id="test")])
-    sows = [a for a in legal_actions(state) if isinstance(a, CommitSow)]
+    sows = [a for a in actions_or_empty(state) if isinstance(a, CommitSow)]
     assert not any(a.card_sows for a in sows)
 
 

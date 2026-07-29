@@ -141,6 +141,66 @@ def register_bake_bread_extension(fn: Callable) -> None:
     BAKE_BREAD_ELIGIBILITY_EXTENSIONS.append(fn)
 
 
+# Cards may broaden _can_sow the same way (ruling 87, 2026-07-29). Each
+# extension is `(state, p) -> bool` and self-gates on its own card's ownership.
+# Registrants are FRAME-window enablers — effects that fire INSIDE the sow
+# frame, after the choose (Drill Harrow's pay-3-food plow; Seed Pellets A65
+# when implemented) — so the widened answer is correct at BOTH the placement
+# gates and the in-host choose gates: the frame the choice enters will surface
+# the enabling fire, and the extension must guarantee that frame completes
+# (never admit a dead end). A HOST-window enabler (fires before the choose —
+# Thresher's buy) registers a SPACE-ENABLE extension below instead: widening
+# the choose gate for it would enter a sow frame whose enabler had already
+# fired or been declined.
+SOW_ELIGIBILITY_EXTENSIONS: list[Callable] = []
+
+
+def register_sow_extension(fn: Callable) -> None:
+    """Add a card-supplied predicate that may broaden _can_sow."""
+    SOW_ELIGIBILITY_EXTENSIONS.append(fn)
+
+
+# HOST-window enablers (ruling 87, 2026-07-29): a card that can make a SPACE's
+# action performable via an effect fired in the space host's own before-window,
+# before any sub-action is chosen (Thresher C112: "Immediately before each time
+# you use the 'Grain Utilization', 'Farmland', or 'Cultivation' action space,
+# you can buy 1 grain for 1 food"). Each extension is `(state, idx) -> bool`,
+# self-gated on ownership, answering "could `idx` complete this space's action
+# via my before-window effect?" — evaluated EXACTLY: simulate the effect per
+# payment case and ask the real capability predicates on the resulting state,
+# so chained enablers (a Drill Harrow route downstream of a Thresher buy) see
+# true post-payment resources. Consulted by the space's PLACEMENT gate only, as
+# an extra OR-route after `_is_available`; deliberately NOT by the in-host
+# choose gates — the in-game flow is fire-first-then-choose, and the host's
+# must-take-at-least-one-effect exit structure makes the enabling fire
+# MANDATORY when it is the only route in (the ruled behavior, 2026-07-29,
+# emergent from the host enumerators). At most ONE extension per space is
+# supported: two same-window enablers whose effects jointly (but not singly)
+# enable a space would each answer False in isolation — the cooperative-
+# sibling boundary, pinned by tests/test_space_enable_singleton.py; the second
+# registrant for a space opens that design question (a bounded search over the
+# window's once-per-use fires — see ruling 87).
+SPACE_ENABLE_EXTENSIONS: dict[str, list[Callable]] = {}
+
+
+def register_space_enable_extension(space_id: str, fn: Callable) -> None:
+    """Add a card-supplied enabling route to `space_id`'s placement gate."""
+    SPACE_ENABLE_EXTENSIONS.setdefault(space_id, []).append(fn)
+
+
+def _space_enabled_by_card(state, space_id: str, idx=None) -> bool:
+    """Some registered enabling route makes the space's action performable
+    (empty registry → False). `idx` defaults to the CURRENT player (the
+    placement gates); the jump cards' destination checks pass the acting
+    player explicitly — the 4p-safe form."""
+    exts = SPACE_ENABLE_EXTENSIONS.get(space_id)
+    if not exts:
+        return False
+    if idx is None:
+        idx = state.current_player
+    return any(ext(state, idx) for ext in exts)
+
+
 # Cards may let the CURRENT player place a worker on an OCCUPIED space (normally
 # illegal). Each override is `(state, space_id) -> bool`, consulted by
 # `_is_available` ONLY on the occupied branch — so the common unoccupied path,
@@ -515,11 +575,16 @@ def _can_bake_bread(state: GameState, p: PlayerState) -> bool:
     return False
 
 
-def _can_sow(p: PlayerState) -> bool:
+def _can_sow(state: GameState, p: PlayerState) -> bool:
     """At least one empty field cell exists AND ≥1 grain or veg in supply —
     or a card-field sow is possible (an owned card-field with an empty stack
-    and a matching sowable good in supply; rulings 45-48, 2026-07-12). The
-    card check is inert in Family states (no card-fields owned)."""
+    and a matching sowable good in supply; rulings 45-48, 2026-07-12) — or a
+    registered sow extension holds (ruling 87, 2026-07-29: frame-window
+    enablers such as Drill Harrow's pay-3-food plow; each self-gates on its
+    card's ownership and must guarantee the sow frame it admits completes).
+    The card checks are inert in Family states (no card-fields owned, empty
+    registry). `state` exists for the extensions; the base check reads `p`
+    alone."""
     from agricola.cards.card_fields import (   # local import: load-order safe
         can_sow_card_fields,
     )
@@ -530,7 +595,12 @@ def _can_sow(p: PlayerState) -> bool:
         for r in range(3) for c in range(5)
     )
     has_seed = p.resources.grain >= 1 or p.resources.veg >= 1
-    return (has_empty_field and has_seed) or can_sow_card_fields(p)
+    if (has_empty_field and has_seed) or can_sow_card_fields(p):
+        return True
+    for ext in SOW_ELIGIBILITY_EXTENSIONS:
+        if ext(state, p):
+            return True
+    return False
 
 
 def _can_plow(p: PlayerState) -> bool:
@@ -1190,7 +1260,8 @@ def _legal_grain_utilization(state: GameState) -> bool:
     if not _is_available(state, "grain_utilization"):
         return False
     p = state.players[state.current_player]
-    return _can_sow(p) or _can_bake_bread(state, p)
+    return (_can_sow(state, p) or _can_bake_bread(state, p)
+            or _space_enabled_by_card(state, "grain_utilization"))   # ruling 87
 
 
 def _legal_sheep_market(state: GameState) -> bool:
@@ -1232,7 +1303,8 @@ def _legal_cultivation(state: GameState) -> bool:
     if not _is_available(state, "cultivation"):
         return False
     p = state.players[state.current_player]
-    return _can_plow(p) or _can_sow(p)
+    return (_can_plow(p) or _can_sow(state, p)
+            or _space_enabled_by_card(state, "cultivation"))   # ruling 87
 
 
 def _legal_farm_redevelopment(state: GameState) -> bool:
@@ -1990,7 +2062,7 @@ def _enumerate_pending_grain_utilization(
     p = state.players[pending.player_idx]
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))
-    if not pending.sow_chosen and _can_sow(p):
+    if not pending.sow_chosen and _can_sow(state, p):
         actions.append(ChooseSubAction(name="sow"))
     if pending.sow_chosen or pending.bake_chosen:
         actions.append(Proceed())
@@ -2519,7 +2591,7 @@ def _enumerate_pending_cultivation(
     p = state.players[pending.player_idx]
     if not pending.plow_chosen and _can_plow(p):
         actions.append(ChooseSubAction(name="plow"))
-    if not pending.sow_chosen and _can_sow(p):
+    if not pending.sow_chosen and _can_sow(state, p):
         actions.append(ChooseSubAction(name="sow"))
     if pending.plow_chosen or pending.sow_chosen:
         actions.append(Proceed())
@@ -4157,7 +4229,24 @@ def legal_actions(state: GameState) -> list[Action]:
 def _legal_actions_uncached(state: GameState) -> list[Action]:
     """The actual dispatch — see `legal_actions` for the public contract."""
     if state.pending_stack:
-        return _enumerate_pending(state, state.pending_stack[-1])
+        top = state.pending_stack[-1]
+        actions = _enumerate_pending(state, top)
+        if not actions and getattr(top, "player_idx", None) is not None:
+            # The stuck-turn monitor (ruling 87, 2026-07-29): a non-empty stack
+            # whose decider is a PLAYER must always have >= 1 legal action —
+            # an empty set here means some effect stranded a mandatory frame
+            # (the Drill Harrow soft-lock class). An explicit raise, not a bare
+            # `assert`, so `python -O` production runs keep the monitor.
+            # (A None player_idx is the nature/reveal case — driver-routed,
+            # never enumerated for a strategic agent.)
+            raise AssertionError(
+                "empty legal set on a non-empty stack — a fire or payment "
+                f"stranded the host: top={type(top).__name__} "
+                f"(initiated_by={getattr(top, 'initiated_by_id', None)!r}, "
+                f"player_idx={top.player_idx}), "
+                f"stack={[type(f).__name__ for f in state.pending_stack]}"
+            )
+        return actions
     if state.phase == Phase.BEFORE_SCORING:
         return []
     if state.phase == Phase.WORK:

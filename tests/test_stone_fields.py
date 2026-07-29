@@ -66,10 +66,10 @@ def test_stone_field_blocks_sow():
     state = _with_resources(state, 0, Resources(grain=2))
     # The player's only field holds stone: nothing is sowable.
     state = _set_cell(state, 0, 0, 4, Cell(cell_type=CellType.FIELD, stone=1))
-    assert not _can_sow(state.players[0])
+    assert not _can_sow(state, state.players[0])
     # An additional genuinely-empty field restores sowability.
     state = _set_cell(state, 0, 1, 4, Cell(cell_type=CellType.FIELD))
-    assert _can_sow(state.players[0])
+    assert _can_sow(state, state.players[0])
 
 
 # ---------------------------------------------------------------------------

@@ -116,7 +116,40 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-21 (the ruling-74→78 occupation arc — a 24-occupation triage
+> **Last updated: 2026-07-29 — ruling 87, the before-window-enabler arc** (full record:
+> CARD_DEFERRED_PLANS.md ruling 87). The user-ratified rule: an optional before-window
+> purchase/grant counts toward "can carry out the action" at placement and
+> jump-destination time — with the corollary that an extension-only admission makes the
+> enabling fire MANDATORY (emergent from the hosts' no-exit-before-a-sub-action
+> structure, pinned). Two new legality seams, routed by firing window:
+> **`register_sow_extension`** (frame-window enablers; `_can_sow` is now `(state, p)`;
+> Drill Harrow's pay-3-plow route is the first member, inherited free by all seven
+> sow-granting cards' eligibility gates) and **`register_space_enable_extension`**
+> (host-window enablers; Thresher on Grain Utilization + Cultivation, evaluated by
+> simulating the buy per payment case — direct debit or per raise bundle via the shared
+> `_apply_liquidation_bundle` — then asking the real capability predicates on the
+> resulting state; the Thresher × Drill Harrow chain prices exactly: 3 food refused,
+> 4 food legal end-to-end). **The stuck-turn monitor**: `legal_actions` raises (explicit,
+> `-O`-proof) on an empty legal set at a non-empty stack with a player decider; the
+> landing sweep found zero real reachable strands beyond **Drill Harrow's executed
+> soft-lock** (its raise menu was unfiltered — a seed-burning Pareto bundle stranded the
+> mandatory sow), fixed as the preserve pair (`_preserve_sow` shared by eligibility and
+> menu, replacing the hand-rolled reservation and fixing its card-field over-strict
+> corner). **Jump fees made uniform** (ruling 82's one-direction sufficiency REVOKED):
+> all four Full Peasant / Large-Scale Farmer directions debit the fee and ask the
+> destination gate on the true post-payment state, preserves registered for all four
+> resume kinds — zero behavior change today, correctness no longer catalog-contingent;
+> the disjointness tripwire was rebuilt to actually fire (seam pin over
+> all-implemented-cards ownership + a per-card bundle sweep). **Wood Workshop B75
+> BANNED** (official ban list — external knowledge, not in the repo data; had been
+> implemented and dealt in good faith) → archived to `archive/banned_cards/`,
+> deregistered. Tripwires armed: improvement-window autos must stay empty
+> (`test_improvement_window_autos.py`), at most one space-enable extension per space
+> (`test_space_enable_singleton.py` — the cooperative-sibling boundary), Potter's Yard
+> A40 ⚠ (a chain-interior producer needs chain-scoped completability filtering first).
+> Census after the ban: **239 occupations + 340 minors = 579**.
+
+> **2026-07-21 (the ruling-74→78 occupation arc — a 24-occupation triage
 > batch (ruling 74, four implementing waves) plus four follow-up rulings (75–78) that
 > resolved its open questions; per-card rulings in CARD_DEFERRED_PLANS.md rulings 74–78.
 > Census after: **232 occupations + 331 minors = 563**. Wave 1, existing seams:

@@ -60,7 +60,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if space_id == "grain_seeds":               # -> a "Bake bread" action
         return _can_bake_bread(state, p)
     if space_id == "vegetable_seeds":           # -> a "Sow" action
-        return _can_sow(p)
+        return _can_sow(state, p)
     return False
 
 

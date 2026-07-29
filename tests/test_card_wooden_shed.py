@@ -7,6 +7,7 @@ Wooden House.
 Three effects: +1 PEOPLE-capacity; playable ONLY via the "Major or Minor Improvement"
 action (composite-only); and a renovation ban (the Mantlepiece seam).
 """
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import agricola.cards.wooden_shed  # noqa: F401  (registers the card)
 
 from agricola.actions import CommitPlayMinor
@@ -92,7 +93,7 @@ def test_frame_origin_gates_the_offer():
     bare = with_pending_stack(s, [PendingPlayMinor(
         player_idx=0, initiated_by_id="space:meeting_place")])
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(bare))
+                   for a in actions_or_empty(bare))
 
 
 def test_prereq_still_gates_on_composite_route():

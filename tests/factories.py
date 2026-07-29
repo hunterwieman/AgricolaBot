@@ -199,3 +199,19 @@ def _replace_player(state, player_idx, new_player):
         new_player if i == player_idx else state.players[i] for i in range(2)
     )
     return dataclasses.replace(state, players=new_players)
+
+
+def actions_or_empty(state):
+    """`legal_actions`, with the ruling-87 stuck-turn monitor treated as [] —
+    for ABSENCE probes on deliberately degenerate hand-built frames (states
+    real play cannot reach: a no-decline frame pushed with nothing offerable,
+    to assert some action is NOT among the offers). The monitor guards real
+    play; these probes ask about impossible states on purpose. Any other
+    AssertionError re-raises."""
+    from agricola.legality import legal_actions
+    try:
+        return legal_actions(state)
+    except AssertionError as e:
+        if "empty legal set" not in str(e):
+            raise
+        return []

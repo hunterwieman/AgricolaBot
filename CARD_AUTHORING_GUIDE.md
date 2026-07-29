@@ -265,6 +265,41 @@ If it does not clearly fit: §0.
 
 ---
 
+### 0.6 Before-window enablers: which seam, and the completability contract (ruling 87)
+
+If your card's effect fires BEFORE an action and can make that action possible at all
+(income, a purchase, an exchange, a granted plow), the placement/choose gates must know
+about it — a gate reading only current holdings would refuse a rules-legal placement
+(§0.4). Route by the window the effect fires in:
+
+- **Fires inside the sub-action's own frame** (`before_sow`, `before_bake_bread`, ...):
+  widen the capability predicate — `register_sow_extension` /
+  `register_bake_bread_extension`. Your extension self-gates on ownership and MUST
+  guarantee the frame it admits completes (Drill Harrow: the preserve pair + the plow
+  supplying the field). It flows to placement gates, choose gates, and every
+  granting card's eligibility automatically.
+- **Fires on the space host's before-window** (before the sub-action choice):
+  `register_space_enable_extension(space_id, fn)` — consulted by placement gates (and
+  the jump cards' destination checks) only. Evaluate EXACTLY: simulate your effect per
+  payment case (reuse your own executor; per raise bundle via
+  `_apply_liquidation_bundle`) and ask the real capability predicates on the resulting
+  state — never re-derive capability by hand, so chained enablers price correctly
+  (Thresher × Drill Harrow is the worked example). Emergent consequence, ruled: when
+  your route is the only reason a placement was admitted, the host's exit structure
+  makes your fire mandatory.
+- **A trigger that SPENDS goods on a must-act host** must preserve completability (the
+  host enumerator docstrings' standing contract): gate eligibility on the post-fire
+  state still having a doable action (Beer Stein's `grain >= 2`; the plow family's
+  `_can_plow_twice` + `must_preserve_base`), and if the payment can be raised, register
+  the SAME check as the frame's preserve filter — eligibility-exists without the menu
+  filter was Drill Harrow's executed soft-lock (ruling 87 item 4).
+- **Tripwires you might hit**: improvement-window AUTOS are forbidden until the gates
+  learn to probe them (`test_improvement_window_autos.py`); a SECOND space-enable
+  extension for one space opens the cooperative-sibling problem
+  (`test_space_enable_singleton.py`); a chain-interior PRODUCER (Potter's Yard A40 ⚠)
+  needs chain-scoped completability filtering first. Each test's docstring says what to
+  do; every road leads to informing the user.
+
 ## 1. How to read a card (the framework)
 
 Work through these steps for every card, in order. Do **not** skip step 1.

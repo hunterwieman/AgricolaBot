@@ -19,6 +19,7 @@ breeding. The window also fires after the FINAL harvest (round 14), where the
 """
 from __future__ import annotations
 
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 import dataclasses
 import json
 import pathlib
@@ -192,7 +193,7 @@ def test_prereq_gates_a_real_play():
     one grain field -> offered (free: exactly one payment option) and playable."""
     cs, _cp = _at_play_minor_frame(grain_fields=())
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
-                   for a in legal_actions(cs))
+                   for a in actions_or_empty(cs))
     cs, cp = _at_play_minor_frame(grain_fields=((0, 1),))
     plays = [a for a in legal_actions(cs)
              if isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID]

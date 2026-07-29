@@ -113,6 +113,83 @@ Two refinements found 2026-07-27 while flagging Market Master:
    eligibility now consults the latch. The reverse order (return first, then no bake) was
    already correct via `people_home`. Both orders pinned in `tests/test_card_steam_machine.py`.
 
+## Ruling 87 (2026-07-29) — before-window enablers count toward legality; the enabling-extension seams; the stuck-turn monitor; uniform jump fees
+
+1. **The ratified rule.** An optional before-window purchase or grant counts toward "can
+   carry out the action" at placement (and jump-destination) time: a player with no seed
+   but Thresher C112 ("Immediately before each time you use the 'Grain Utilization',
+   'Farmland', or 'Cultivation' action space, you can buy 1 grain for 1 food") may
+   legally place on Grain Utilization whenever the bought grain would complete a sow or
+   bake. **Corollary (also ratified):** when such a route is the ONLY reason the
+   placement was admitted, the enabling fire is MANDATORY — declining it is not offered.
+   No new code enforces this: it is emergent from the hosts' exit structure (no
+   Stop/Proceed before a sub-action has run), pinned in `tests/test_card_thresher_gate.py`.
+2. **Two seams, routed by which window the enabler fires in.**
+   - FRAME-window enablers (fire inside the chosen sub-action — Drill Harrow D17's
+     pay-3-food plow on `before_sow`; Seed Pellets A65 when built) widen the capability
+     predicate itself: **`register_sow_extension`** (new; the `_can_bake_bread` registry's
+     mirror; `_can_sow` is now `(state, p)`). Correct at placement AND choose gates, and
+     inherited with zero per-card code by every sow-granting card's eligibility (Sundial,
+     Apiary, Confidant, Chief Forester, Seed Servant, Young Farmer, Furrows — all gate on
+     `_can_sow`). An extension must guarantee the frame it admits completes (Drill
+     Harrow's does: its preserve pair + the plow supplying the field).
+   - HOST-window enablers (fire before the choose — Thresher) register
+     **`register_space_enable_extension(space_id, fn)`**, consulted by the placement
+     gates and the jump destination checks ONLY — never the choose gates (the in-game
+     flow is fire-first-then-choose).
+   - Extensions evaluate EXACTLY: simulate the effect per payment case — direct debit,
+     or per raise bundle via the shared `_apply_liquidation_bundle` — then ask the real
+     capability predicates on the resulting state. Chains therefore price correctly with
+     no pairwise code: Thresher × Drill Harrow (buy → sow-choice → forced plow) is
+     refused at 3 food and legal at 4, walked end-to-end in the pin tests.
+   - Boundaries, each pinned by a tripwire: at most ONE space-enable extension per space
+     (same-window cooperative siblings are invisible to isolated evaluation —
+     `tests/test_space_enable_singleton.py`; the fix sketch is a bounded search over the
+     window's once-per-use fires); no AUTOS on the improvement before-windows
+     (`tests/test_improvement_window_autos.py` — Wood Workshop B75, the sole member, is
+     BANNED per the official ban list [external knowledge, not in the repo data] and
+     archived to `archive/banned_cards/`); chain-interior PRODUCERS (Potter's Yard A40 ⚠)
+     require chain-scoped completability filtering before implementation.
+3. **The stuck-turn monitor.** `legal_actions` raises — an explicit raise, so `python -O`
+   keeps it — on an empty legal set at a non-empty stack with a player decider. Landing
+   it swept the suite: ~50 hand-built UNREACHABLE test states were adjusted — plow-family
+   "no plowable cell" probes, encoder mid-action fixtures, fence-cost unaffordable
+   baselines, and a broad class of ABSENCE probes (prereq-gating / crops-only-sow tests
+   that push a no-decline frame with nothing offerable to assert some action is not
+   among the offers), the last now routed through the shared
+   `tests.factories.actions_or_empty` (monitor-tolerant enumeration — the standing
+   convention for future absence probes on deliberately degenerate frames). Zero real
+   reachable strands existed beyond item 4's.
+4. **Drill Harrow's soft-lock (executed repro, fixed).** Eligibility proved a
+   seed-preserving raise EXISTED, but the raise frame filtered nothing — {grain+1 sheep}
+   and {2 sheep} are Pareto-incomparable over kept goods, so the seed-burning bundle sat
+   on the menu; taking it paid, plowed, and returned to the mandatory no-exit sow frame
+   with zero seeds. Fixed as the preserve pair (`register_food_payment_preserve
+   ("drill_harrow", _preserve_sow)` — ONE check shared by eligibility and menu),
+   replacing the hand-rolled reserve-one-seed arithmetic and en passant fixing its
+   over-strict corner (card-field sows, which liquidation cannot touch, now count).
+   Regression: `tests/test_card_drill_harrow_preserve.py`.
+5. **Uniform jump fees — ruling 82's "one-direction sufficiency" REVOKED** (dated
+   correction under that ruling): all four Full Peasant / Large-Scale Farmer directions
+   now debit the fee and ask the destination's gate on the true post-payment state, with
+   the preserve check registered for all four resume kinds — zero behavior change under
+   the current catalog, correctness no longer catalog-contingent. The disjointness
+   tripwire was rebuilt to actually fire (its old form probed an ownership-less player —
+   a dud no ownership-gated converter could ever trip): it now pins the seam (no
+   converter live outside a harvest window even owning every implemented card) plus a
+   per-card bundle sweep, and its docstring carries a generic stop-and-inform warning.
+6. **The doctrine, and the parked general problem.** Every gate in this arc instantiates
+   one invariant — *a move is legal only if the player can still finish the turn* —
+   enforced today by per-card certificates (Beer Stein's `grain >= 2`, the plow family's
+   `_can_plow_twice` + `must_preserve_base`, the preserve pairs, the extension contracts)
+   plus the monitor. The general decision procedure — finishability as bounded
+   reachability over a MECHANICAL move relation, stratified the way chess separates
+   pseudo-legal moves from the check filter, with certificates as fast paths — is
+   deliberately NOT built. Its forcing functions are the tripwired boundaries above and
+   the build/renovate cluster (Wood Barterer, Pioneer, Knapper; the Grocer / Clay
+   Carrier / Large Pottery / Basketmaker's Wife converters), and the framework sketch
+   lives in this arc's session record for when one fires.
+
 ## Ruling 85 (2026-07-27) — the harvest tail: the cooking floor lapses at end_of_harvest; the last-chance conversion offer
 
 (User, restated from their words.) The post-breed cooking prohibition (ruling 39's floor) **stops
@@ -413,6 +490,21 @@ you placed that round" — a COUNT, not the acting person's ordinal.
    tripwire**, `tests/test_liquidation_disjointness.py`, which MUST fail when **Large
    Pottery D60** ("At any time: Clay → 2 Food") or any anytime building-resource
    converter lands — its ledger entry carries the matching ⚠ REVISIT.
+   **→ REVOKED by the user, ruling 87 (2026-07-29).** The shortcut rested on TWO
+   premises, and only one was tripwired: (a) bundles can't consume what those
+   destinations need (dies with the Large Pottery class, building resource → food —
+   the tripwired one), and (b) the fee can't matter to those destinations because
+   their gates don't read food (dies silently with the Grocer / Clay Carrier class,
+   food → building resources, the moment the gates become conversion-aware — nothing
+   would have fired). All four jump destinations now run the uniform shape — debit
+   the fee, simulate each bundle, ask the destination's gate on the true post-payment
+   state, preserve-filter the raise menu — which changes no behavior under the
+   current catalog and makes correctness catalog-independent. The tripwire was
+   rebuilt to actually fire (its old form checked a card-less player, which no
+   ownership-gated converter could ever affect): it now pins the seam (no converter
+   live outside a harvest window even owning every implemented card) plus a per-card
+   bundle sweep, and its docstring carries a generic stop-and-inform-the-user
+   warning instead of re-derivation instructions for shortcuts that no longer exist.
 4. **Job Contract's marker extends to occupancy-READING cards** (the user's answer to
    ruling 81.3's flagged question): "considered occupied" activates Turnip Farmer and
    its kin exactly as a worker would. `legality.space_occupied` is now THE definition

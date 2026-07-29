@@ -18,6 +18,7 @@ from agricola.resources import Cost, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 CARD_ID = "farmers_market"
 
@@ -79,6 +80,6 @@ def test_not_playable_without_two_food():
     cs = with_pending_stack(
         cs, (PendingPlayMinor(player_idx=cp, initiated_by_id="space:meeting_place_cards"),))
     assert sole_play_minor is not None
-    commits = [a for a in legal_actions(cs)
+    commits = [a for a in actions_or_empty(cs)
                if getattr(a, "card_id", None) == CARD_ID]
     assert commits == []   # 1 food < 2 -> unaffordable

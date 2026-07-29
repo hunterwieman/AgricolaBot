@@ -208,7 +208,7 @@ def _legal_routes(state: GameState, idx: int) -> list[str]:
     commit — wood + geometry (`_any_legal_pasture_commit`). Order per ruling 74."""
     p = state.players[idx]
     routes: list[str] = []
-    if _can_sow(p):
+    if _can_sow(state, p):
         routes.append("sow")
     if _any_legal_pasture_commit(state, p):
         routes.append("build_fences")

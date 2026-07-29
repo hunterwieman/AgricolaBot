@@ -23,6 +23,7 @@ from agricola.scoring import score
 from agricola.state import Cell, get_space, with_space
 from tests.factories import with_grid, with_resources
 from tests.test_utils import sole_play_minor
+from tests.factories import actions_or_empty  # ruling-87 absence probes
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -234,7 +235,7 @@ def test_play_flow_unaffordable_not_in_legal():
     from agricola.legality import legal_actions
     from agricola.actions import CommitPlayMinor
     played = [
-        a for a in legal_actions(cs)
+        a for a in actions_or_empty(cs)
         if isinstance(a, CommitPlayMinor) and a.card_id == "greening_plan"
     ]
     assert played == []                                       # cannot afford it

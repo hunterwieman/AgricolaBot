@@ -38,7 +38,7 @@ CARD_ID = "apiary"
 def _eligible(state: GameState, idx: int, _resolved: frozenset) -> bool:
     """A legal sow exists (never a dead-end). Ownership is the window
     machinery's gate; once-per-window is the frame's ``triggers_resolved``."""
-    return _can_sow(state.players[idx])
+    return _can_sow(state, state.players[idx])
 
 
 def _apply(state: GameState, idx: int) -> GameState:

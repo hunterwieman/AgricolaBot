@@ -95,6 +95,22 @@ def _wood(state, idx=0):
 # Registration
 # ---------------------------------------------------------------------------
 
+
+def _commits_or_none(state):
+    """The CommitBuildPasture cell-sets offered on `state` — with the ruling-87
+    stuck-turn monitor treated as the empty set. The call sites routed here build
+    UNAFFORDABLE baselines (no pasture commit at all), which are
+    placement-unreachable states the monitor now rejects; for these option-set
+    comparisons, "monitor raised" and "no commit offered" assert the same fact.
+    Any other AssertionError re-raises."""
+    from agricola.legality import legal_actions as _la
+    try:
+        return {a.cells for a in _la(state) if isinstance(a, CommitBuildPasture)}
+    except AssertionError as e:
+        if "empty legal set" not in str(e):
+            raise
+        return set()
+
 def test_registration():
     assert CARD_ID in OCCUPATIONS
     # No on-play effect (passive cost-discount occupation).
@@ -248,8 +264,7 @@ def test_five_edge_layout_illegal_without_card_tight_wood():
     state = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
     state = _enter_build_fences(state)
     assert state.pending_stack[-1].free_fence_budget == 0
-    commits = {a.cells for a in legal_actions(state)
-               if isinstance(a, CommitBuildPasture)}
+    commits = _commits_or_none(state)
     assert _TOP_1x2_34 not in commits, "the 5-edge layout is unaffordable at 2 wood, no card"
 
 
@@ -497,8 +512,7 @@ def test_clay_does_not_pay_fences_without_rammed_clay():
     state = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
     state = with_resources(state, 0, wood=2, clay=3)
     state = _enter_build_fences(state)
-    commits = {a.cells for a in legal_actions(state)
-               if isinstance(a, CommitBuildPasture)}
+    commits = _commits_or_none(state)
     assert _TOP_1x2_34 not in commits, "clay can't pay fences without Rammed Clay"
 
 
@@ -570,8 +584,7 @@ def test_briar_hedge_enables_tight_wood_perimeter_build():
                if isinstance(a, CommitBuildPasture)}
     assert _TOP_1x2_34 in commits, "5-edge build pays 2 wood after perimeter frees"
     no_card = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
-    no_card_commits = {a.cells for a in legal_actions(_enter_build_fences(no_card))
-                       if isinstance(a, CommitBuildPasture)}
+    no_card_commits = _commits_or_none(_enter_build_fences(no_card))
     assert _TOP_1x2_34 not in no_card_commits, "without Briar Hedge the full 5 wood is unaffordable"
     # Full flow to zero wood.
     state = _enter_build_fences(state)
