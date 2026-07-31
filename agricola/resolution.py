@@ -34,7 +34,9 @@ from agricola.fences import (
     apply_fence_edges_v,
     compute_new_fence_edges,
 )
-from agricola.helpers import breeding_food_gained, cooking_rates, feeding_requirement
+from agricola.helpers import (
+    bred_flags, breeding_food_gained, cooking_rates, feeding_requirement,
+)
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     BreedingOutcome,
@@ -2453,25 +2455,26 @@ def _execute_breed(
     )
     if BREEDING_OUTCOME_AUTOS:
         pre = p.animals
-        # The fired-and-kept indicator, sheep threshold card-aware (a
-        # single-parent card — Dolly's Mother — breeds from 1, so its newborn
-        # must be reported too; the m=2 hardcoding here was the trap).
+        # The fired-and-kept indicator is `helpers.bred_flags` — the engine's
+        # ONE definition, shared with `breeding_food_gained` (how many animals
+        # were removed) and `breeding_frontier`'s Pareto partition. Drift
+        # between copies would mean the food charged, the newborn reported, and
+        # the config offered disagreeing about the same choice, so this site
+        # calls the helper rather than restating the rule. It is also sheep
+        # threshold card-aware (a single-parent card — Dolly's Mother — breeds
+        # from 1, so its newborn must be reported too; an m=2 hardcoding here
+        # was the original trap).
         #
-        # WHY the test is `post >= threshold+1` and NOT `post > pre`: a species
-        # can cook itself down to the breeding threshold to make room, then
-        # breed back up, ENDING AT THE SAME COUNT it started with (e.g. 4 boar
-        # at capacity 4: cook 1 -> 3 boar, breed -> 4 boar). A newborn WAS
+        # WHY the test inside is `post >= threshold+1` and NOT `post > pre`: a
+        # species can cook itself down to the breeding threshold to make room,
+        # then breed back up, ENDING AT THE SAME COUNT it started with (e.g. 4
+        # boar at capacity 4: cook 1 -> 3 boar, breed -> 4 boar). A newborn WAS
         # placed, yet post == pre, so a `post > pre` test would silently miss
-        # it. `post >= threshold+1` (>=3 boar/cattle; >= sheep_min+1 sheep)
-        # counts that cook-and-breed correctly, which is the right reading for
-        # every breeding-outcome card (Champion Breeder, Slurry Spreader, ...).
-        # This has been mis-"fixed" to `post > pre` in multiple sessions — do
-        # NOT. (The `pre >= threshold` guard is redundant — the frontier gives
-        # post <= pre+1 — but harmless.)
+        # it. This has been mis-"fixed" to `post > pre` in multiple sessions —
+        # do NOT, and note that the change would now land in `bred_flags`,
+        # where it also breaks the food formula and the frontier (loudly).
+        kept_s, kept_b, kept_c = bred_flags(pre, chosen, sheep_min)
         outcome = BreedingOutcome(
-            sheep=int(pre.sheep >= sheep_min and chosen.sheep >= sheep_min + 1),
-            boar=int(pre.boar >= 2 and chosen.boar >= 3),
-            cattle=int(pre.cattle >= 2 and chosen.cattle >= 3),
-        )
+            sheep=int(kept_s), boar=int(kept_b), cattle=int(kept_c))
         state = apply_breeding_outcome_autos(state, player_idx, outcome)
     return state
