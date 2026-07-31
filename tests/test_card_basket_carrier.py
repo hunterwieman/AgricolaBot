@@ -177,6 +177,58 @@ def test_no_scoring_term():
 
 # --- The feed-frame buy (surface 2), through the real walk -------------------
 
+def test_feed_frame_fee_is_raisable_not_food_on_hand():
+    """Ruling 82 / CARD_AUTHORING_GUIDE.md §0.4 at the FEED seam (brought onto
+    the raise shape 2026-07-30, retiring ruling 84 item 4's on-hand carve-out).
+
+    With 0 food but a cookable sheep the 2-food fee is reachable by a legal
+    route, so the feed frame MUST offer the buy — the old plain `_can_afford`
+    gate withheld it. Firing pushes the raise-only PendingFoodPayment; paying
+    resumes into the card's own continuation, which grants the bundle and marks
+    the shared once-per-harvest budget.
+    """
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    from tests.factories import with_animals, with_majors
+
+    state = _harvest_state(owner_food=0)
+    state = with_animals(state, 0, sheep=3)
+    state = with_majors(state, owner_by_idx={0: 0})        # Fireplace(2c)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    assert _top_is_p0_feed(state)
+    assert CommitHarvestConversion(conversion_id=CARD_ID) in legal_actions(state)
+
+    res0 = state.players[0].resources
+    state = step(state, CommitHarvestConversion(conversion_id=CARD_ID))
+    assert isinstance(state.pending_stack[-1], PendingFoodPayment)
+    # Nothing is charged or granted until the fee is actually raised.
+    assert CARD_ID not in state.players[0].harvest_conversions_used
+    assert state.players[0].resources.wood == res0.wood
+
+    bundle = next(a for a in legal_actions(state)
+                  if isinstance(a, CommitFoodPayment))
+    state = step(state, bundle)
+
+    p = state.players[0]
+    assert not isinstance(state.pending_stack[-1], PendingFoodPayment)
+    assert p.animals.sheep == 2                  # one sheep cooked for the fee
+    assert p.resources.food == res0.food         # the 2 raised food went to the fee
+    assert p.resources.wood == res0.wood + 1
+    assert p.resources.reed == res0.reed + 1
+    assert p.resources.grain == res0.grain + 1
+    assert CARD_ID in p.harvest_conversions_used
+    assert CommitHarvestConversion(conversion_id=CARD_ID) not in legal_actions(state)
+
+
+def test_feed_frame_offer_withheld_when_fee_unreachable():
+    """The mirror of the rule above: liquidation-aware is not unconditional.
+    With no food and nothing cookable the fee is reachable by no legal route,
+    so the buy is correctly withheld (never a dead-end offer)."""
+    state, _ = _walk_until(_harvest_state(owner_food=0), _top_is_p0_feed)
+    assert _top_is_p0_feed(state)
+    assert CommitHarvestConversion(conversion_id=CARD_ID) not in legal_actions(state)
+
+
 def test_feed_frame_buy_spends_two_food_and_grants_bundle():
     state, _ = _walk_until(_harvest_state(owner_food=10), _top_is_p0_feed)
     assert _top_is_p0_feed(state)

@@ -819,6 +819,11 @@
       state.game_over ? 'Game over' : `Deciding: P${state.decider}`;
     document.getElementById('harvest-note').textContent =
       state.harvest_note || '';
+    // The specific timing moment (harvest window / ladder step) behind the
+    // current pause — distinguishes the harvest's many visually-similar
+    // Proceed screens so an advance is visible.
+    document.getElementById('timing-note').textContent =
+      state.timing_note ? `Now: ${state.timing_note}` : '';
   }
 
   // -------- action board --------

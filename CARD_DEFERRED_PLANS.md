@@ -113,6 +113,39 @@ Two refinements found 2026-07-27 while flagging Market Master:
    eligibility now consults the latch. The reverse order (return first, then no bake) was
    already correct via `people_home`. Both orders pinned in `tests/test_card_steam_machine.py`.
 
+## Ruling 88 (2026-07-30) — the settled post-breed cooking rule, and forgoing a newborn to fund an in-phase cost
+
+Consolidates rulings 39 and 85 (39's "for the rest of that harvest" is superseded; see its
+entry) and records the decisions taken this session. The rule end-to-end:
+
+1. **Shape: a FLOOR, not a freeze.** After a type's breed resolves, it may be cooked down to
+   `min_parents + 1` (3, or 2 for sheep with Dolly's Mother) but no lower. The printed line
+   is stricter — *"You cannot eat or exchange animals during the breeding phase"* — and the
+   user chose the floor on engine grounds (verbatim): **"has to be a floor, pareto pruning +
+   total freeze is overly restrictive."** Floor + the one restored config per type (item 4)
+   reaches the same OUTCOMES as a total freeze plus the full pre-breed cook space, at ~8
+   extra options instead of the whole `(s+1)(b+1)(c+1)` cross-product.
+2. **Lapse: at `end_of_harvest`**, and the breeding phase is **shared**, not per-player — a
+   player's floors stay frozen through the other player's band and lift only at the shared
+   boundary (user: *"lapses at end of harvest is good"*).
+3. **Pre-breed cooking is unrestricted** (user, 2026-07-30): a player may cook animals
+   immediately before breeding to fund anything, not only to make room for newborns — *"If
+   we happen to have a trigger that pushes a pendingfoodpayment, the player can cook to fund
+   it (and as we said, they can preemptively cook as well)."* Only ANIMALS are frozen
+   post-breed; crops stay convertible through the raise frame at every surface.
+4. **The frontier gains a forgo-the-newborn config per breeding type (Cards mode only).**
+   Motivation, mechanism, the `min_parents` pin, the deliberately-kept dominated config, and
+   the typed-slot shift-back trap are written up in `CARD_ENGINE_IMPLEMENTATION.md` §5b
+   ("Forgoing a newborn to fund an in-breeding-phase cost"); the short version is that
+   `breeding_frontier`'s animal-only Pareto and `post_breed_floors` were each justified by
+   the other and together deleted the Slurry → Drill Harrow line. Family is untouched and
+   byte-identical.
+5. **Both over-protection corners ruling 39 left open are re-derived and unreachable**
+   (2026-07-30, verified rather than assumed): a total harvest-skipper has no in-harvest
+   surface at all, a partial skipper keeps only surfaces before its own breeding sentinel,
+   and nothing grants ANIMALS after the breed. Recorded in `post_breed_floors`' docstring
+   with the conditions to re-check if either premise moves.
+
 ## Ruling 87 (2026-07-29) — before-window enablers count toward legality; the enabling-extension seams; the stuck-turn monitor; uniform jump fees
 
 1. **The ratified rule.** An optional before-window purchase or grant counts toward "can
@@ -258,8 +291,33 @@ through `engine.py`'s probe — deliberately not done.
    rider-output buys stay out of the conversion frontier ("never a row of the CommitConvert
    Pareto frontier") — and says nothing about how such a buy's own fee is paid. Furniture
    Carpenter's and Basket Carrier's span-surface fees are therefore ordinary ruling-82 fees;
-   their FEED-seam offers stay on-hand-gated, harmless because the span surface preserves every
-   legal line.
+   ~~their FEED-seam offers stay on-hand-gated, harmless because the span surface preserves every
+   legal line.~~
+   **→ WITHDRAWN by the user, 2026-07-30. The FEED seam is now on the raise shape too.** The
+   struck sentence was never a user ruling: the first half of item 4 is attributed to the user,
+   the "harmless because…" carve-out was the implementer's own reachability argument, exempting
+   the last two plain food gates in the catalog from a rule ruling 82 had called absolute. The
+   objection is not that the argument was wrong on today's catalog — it may well hold — but that
+   the code was left in a shape the user had already directed be changed, and the user was not
+   told. The governing principle is `CARD_AUTHORING_GUIDE.md` §0.4 (the plain food gate, and the
+   noticing-and-justifying anti-pattern beneath it); it needs no restatement here. Two reasons
+   the argument was more load-bearing than the record said: it silently assumed cooking rates
+   stay LINEAR and un-budgeted (Cooking Hearth Extension, parked under ruling 42, breaks it and
+   nothing would have failed), and no test pinned the on-hand behaviour, so the carve-out rested
+   entirely on prose.
+   **As built (2026-07-30):** `harvest_conversions.fee_is_food_raisable(spec)` keys on
+   `input_cost.food > 0` — the honest semantic, so any future food-priced conversion is covered
+   the day it registers, not a card-id list. The feed enumerator gates such an entry with
+   `_liquidatable_to` (other inputs stay on-hand: the raise can only ever spend them, never
+   produce them), and `_execute_harvest_conversion` pushes the raise-only `PendingFoodPayment`
+   when the fee is short, resuming into the card's already-registered
+   `register_food_payment_resume` continuation — so the feed and span surfaces share one
+   continuation instead of duplicating the debit/grant/budget-mark. Two asserts there state the
+   registration contract (a resume must exist; `PendingFoodPayment` carries no variant) so a
+   future food-priced conversion fails LOUDLY in its own tests rather than silently reverting to
+   the plain gate. Family is untouched — the three craft majors take goods, not food. Pinned by
+   `test_feed_frame_fee_is_raisable_not_food_on_hand` +
+   `test_feed_frame_offer_withheld_when_fee_unreachable` in both card suites.
 5. **The eligibility gate is harvest-aware** (engine, `legality._liquidatable_to`): inside a
    harvest instant it now delegates to the same frontier the raise frame enumerates (in-span
    converters + ruling-39 floors), closing a gate↔frontier gap no pre-wave card had reached.
@@ -1348,8 +1406,15 @@ user made during this design — cite these, dated, in the docstrings of the car
    followed here). [3+] — a design input until 4p.
 39. **Post-breed cooking protection** (ruled 2026-07-06, the user's catch):
    after the breed action has resolved, the PARENTS and the OFFSPRING of a
-   type that bred may not be cooked for the rest of that harvest — only
-   non-parents. The user's implementation sketch: a per-type cooking FLOOR
+   type that bred may not be cooked ~~for the rest of that harvest~~ — only
+   non-parents. **→ The duration clause is SUPERSEDED by ruling 85
+   (2026-07-27): the protection lapses at `end_of_harvest`, not at the end of
+   the harvest round.** Ruling 39 predates the harvest tail being carved out
+   as sitting outside the breeding phase, so "the rest of that harvest" was
+   written when no such boundary existed. Everything else in this entry — the
+   FLOOR shape, the `min_parents + 1` threshold, and the stateless
+   no-breed-record decision — remains in force and is what the code
+   implements; see ruling 88 for the settled rule end-to-end. The user's implementation sketch: a per-type cooking FLOOR
    on post-breed in-harvest conversions — a type may not be cooked from
    (min_parents + 1) or above down below (min_parents + 1), i.e. below 3,
    or below 2 for sheep with Dolly's Mother in play. This becomes LIVE

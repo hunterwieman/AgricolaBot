@@ -16,6 +16,18 @@ once-per-harvest budget — the "furniture_carpenter" entry in
    its only effect is the banked bonus point. This entry is what puts the buy
    on the feed frame's offer list, beside the payment decision — and its
    conversion_id is the shared budget's key.
+
+   Because it charges FOOD, this surface is on the SAME raise shape as
+   surface 2 (brought over 2026-07-30 at the user's direction): the feed
+   enumerator gates it with ``_liquidatable_to`` — payable by any legal route,
+   not food-on-hand — via ``harvest_conversions.fee_is_food_raisable``, and
+   when the fee is short ``_execute_harvest_conversion`` pushes the same
+   raise-only ``PendingFoodPayment``, resuming into ``_pay_and_buy``. Until
+   2026-07-30 this seam kept a plain ``_can_afford`` food gate, which ruling 84
+   item 4 recorded as harmless because the span windows flanking the feed frame
+   preserved every legal line. That was the implementer's reachability
+   argument, not a ruling, and the user withdrew it: a food price is offered
+   wherever the player can reach it, with no carve-out to defend.
 2. **The free-span window surface** — ``register_free_span_trigger`` puts an
    optional FireTrigger on every free-span event (the in-span simple windows,
    the FIELD during-window, the breed frame's pre-commit stretch), so the point

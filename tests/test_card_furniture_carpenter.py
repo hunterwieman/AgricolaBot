@@ -109,6 +109,54 @@ def test_registered_as_conversion_and_scoring():
 
 # --- The buy fires and banks a point ---------------------------------------
 
+def test_feed_frame_fee_is_raisable_not_food_on_hand():
+    """Ruling 82 / CARD_AUTHORING_GUIDE.md §0.4 at the FEED seam (brought onto
+    the raise shape 2026-07-30, retiring ruling 84 item 4's on-hand carve-out).
+
+    With 0 food but a cookable sheep the 2-food fee is reachable by a legal
+    route, so the feed frame MUST offer the buy — the old plain `_can_afford`
+    gate withheld it. Firing pushes the raise-only PendingFoodPayment; paying
+    resumes into the card's own continuation, which banks the point and marks
+    the shared once-per-harvest budget.
+    """
+    from agricola.actions import CommitFoodPayment
+    from agricola.pending import PendingFoodPayment
+    from tests.factories import with_animals
+
+    state = _owner_state(owner_food=0)
+    state = with_animals(state, 0, sheep=3)
+    state = with_majors(state, owner_by_idx={7: 0, 0: 0})   # Joinery + Fireplace(2c)
+    state = _enter_feed(state)
+
+    assert _buy_actions(state) == [CommitHarvestConversion(conversion_id=CARD_ID)]
+
+    state = step(state, CommitHarvestConversion(conversion_id=CARD_ID))
+    assert isinstance(state.pending_stack[-1], PendingFoodPayment)
+    # Nothing is charged or banked until the fee is actually raised.
+    assert CARD_ID not in state.players[0].harvest_conversions_used
+    assert state.players[0].card_state.get(CARD_ID, 0) == 0
+
+    bundle = next(a for a in legal_actions(state)
+                  if isinstance(a, CommitFoodPayment))
+    state = step(state, bundle)
+
+    p = state.players[0]
+    assert not isinstance(state.pending_stack[-1], PendingFoodPayment)
+    assert p.animals.sheep == 2                    # one sheep cooked for the fee
+    assert p.resources.food == 0                   # the 2 raised food went to the fee
+    assert p.card_state.get(CARD_ID, 0) == 1       # point banked
+    assert CARD_ID in p.harvest_conversions_used   # shared budget marked
+    assert _buy_actions(state) == []               # once per harvest
+
+
+def test_feed_frame_offer_withheld_when_fee_unreachable():
+    """The mirror of the rule above: liquidation-aware is not unconditional.
+    With no food and nothing cookable the fee is reachable by no legal route,
+    so the buy is correctly withheld (never a dead-end offer)."""
+    state = _enter_feed(_owner_state(owner_food=0))
+    assert _buy_actions(state) == []
+
+
 def test_buy_spends_two_food_and_banks_one_point():
     state = _enter_feed(_owner_state(owner_food=10))
     assert _buy_actions(state) == [CommitHarvestConversion(conversion_id=CARD_ID)]

@@ -2263,6 +2263,17 @@ def _execute_harvest_conversion(
     The pending stays on top to host further craft decisions plus the final
     CommitConvert. A variant-bearing conversion (spec.variants_fn set — Craft
     Brewery) has the chosen variant threaded into its side_effect_fn.
+
+    **A FOOD-priced conversion whose fee is not on hand raises it first**
+    (ruling 82 / CARD_AUTHORING_GUIDE.md §0.4; the FEED seam was brought onto
+    the raise shape 2026-07-30, retiring ruling 84 item 4's on-hand carve-out
+    for Basket Carrier and Furniture Carpenter). The raise-only
+    `PendingFoodPayment` produces food up to the fee and then resumes into the
+    card's registered continuation, which performs the WHOLE effect — debit,
+    grant, and the shared once-per-harvest budget mark — exactly as the card's
+    free-span window fire already does. So this handler's own accounting below
+    runs only on the fee-on-hand path, and the two paths agree by sharing the
+    card's continuation rather than duplicating it.
     """
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 
@@ -2270,6 +2281,30 @@ def _execute_harvest_conversion(
     assert isinstance(top, PendingHarvestFeed)
     p = state.players[player_idx]
     spec = HARVEST_CONVERSIONS[commit.conversion_id]
+
+    if spec.input_cost.food > p.resources.food:
+        from agricola.cards.specs import FOOD_PAYMENT_RESUMES
+
+        # Reachable because the legality gate is liquidation-aware for these
+        # entries. Both asserts state a registration contract a future
+        # food-priced conversion must meet: fail LOUDLY in that card's own
+        # tests rather than silently reverting to the plain gate §0.4 forbids.
+        assert commit.conversion_id in FOOD_PAYMENT_RESUMES, (
+            f"{commit.conversion_id}: a food-priced harvest conversion must "
+            f"call register_food_payment_resume(...) — the raise frame resumes "
+            f"into it (ruling 82)")
+        assert spec.variants_fn is None, (
+            f"{commit.conversion_id}: PendingFoodPayment carries no variant, so "
+            f"a variant-bearing food-priced conversion needs its resume to carry "
+            f"the variant before this path can serve it")
+        return push(state, PendingFoodPayment(
+            player_idx=player_idx,
+            food_needed=spec.input_cost.food,
+            resume_kind=commit.conversion_id,
+            # The raise must not cook a good the resumed continuation still
+            # owes (no current entry has a non-food component; general shape).
+            reserved=Cost(resources=fast_replace(spec.input_cost, food=0)),
+        ))
 
     new_used = p.harvest_conversions_used | {commit.conversion_id}
 

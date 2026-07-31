@@ -3054,7 +3054,10 @@ def _enumerate_pending_harvest_feed(
     trivial (0,0,0,0,0)-consumed config; food_owed > 0 always has the
     consume-nothing + beg-everything entry).
     """
-    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+    from agricola.cards.harvest_conversions import (
+        HARVEST_CONVERSIONS,
+        fee_is_food_raisable,
+    )
     from agricola.helpers import (
         cooking_rates,
         feeding_requirement,
@@ -3075,8 +3078,17 @@ def _enumerate_pending_harvest_feed(
         if not spec.is_owned_fn(state, pending.player_idx):
             continue
         # Offer the conversion only if affordable; declining is implicit
-        # (commit CommitConvert without firing it).
-        if not _can_afford(p, spec.input_cost):
+        # (commit CommitConvert without firing it). A FOOD-priced conversion
+        # (Basket Carrier, Furniture Carpenter) is affordable by ANY legal
+        # route — ruling 82 / CARD_AUTHORING_GUIDE.md §0.4 — so its gate is
+        # liquidation-aware here and `_execute_harvest_conversion` pushes the
+        # raise frame when the fee is short. Every other input is a good the
+        # raise can only spend, never produce, so it stays an on-hand check
+        # (the three craft majors included — Family is untouched).
+        if fee_is_food_raisable(spec):
+            if not _liquidatable_to(state, pending.player_idx, p, spec.input_cost):
+                continue
+        elif not _can_afford(p, spec.input_cost):
             continue
         if spec.variants_fn is None:
             actions.append(CommitHarvestConversion(conversion_id=conversion_id))

@@ -113,6 +113,38 @@ def register_harvest_conversion(spec: HarvestConversionSpec) -> None:
     HARVEST_CONVERSIONS[spec.conversion_id] = spec
 
 
+def fee_is_food_raisable(spec: HarvestConversionSpec) -> bool:
+    """Does this conversion charge FOOD, so a player short of food must be
+    allowed to raise it rather than be denied the use?
+
+    `input_cost.food > 0` is the whole condition — the honest semantic rather
+    than a list of card ids, so a future food-priced conversion is covered the
+    day it registers. Every other input component is a building resource or a
+    crop, which the raise frame can only ever CONSUME to produce food and never
+    conjure, so those stay a plain on-hand requirement exactly as before.
+
+    Why it exists — ruling 82 (2026-07-26), now CARD_AUTHORING_GUIDE.md §0.4:
+    a food price gated on `resources.food >= N` "makes that legal payment line
+    unplayable", because Agricola's at-any-time conversions are a legal way to
+    pay. A food price must therefore be offered whenever the player can reach
+    it by ANY legal route, with the shortfall raised through
+    `PendingFoodPayment`.
+
+    The FEED seam kept the plain gate until 2026-07-30. Ruling 84 item 4 had
+    recorded that as harmless on the grounds that the free-span windows
+    flanking the feed frame preserved every legal line — a reachability
+    argument written by the implementer, not a user ruling; the user withdrew
+    it on 2026-07-30 and directed the raise shape here too.
+
+    Two entries qualify today: Basket Carrier (2 food → 1 wood + 1 reed +
+    1 grain) and Furniture Carpenter (2 food → 1 bonus point). Both already
+    register the continuation the raise frame resumes into
+    (`register_food_payment_resume`); `_execute_harvest_conversion` asserts
+    that contract rather than silently falling back to the plain gate.
+    """
+    return spec.input_cost.food > 0
+
+
 # --- Built-in major-improvement crafts --------------------------------------
 
 def _owns_major(idx: int) -> Callable[["GameState", int], bool]:

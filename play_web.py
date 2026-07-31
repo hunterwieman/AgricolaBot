@@ -1403,6 +1403,60 @@ def _card_choice_display(state: GameState, action: CommitCardChoice) -> str:
     return f"Choose: {option}"
 
 
+_ANIMAL_FIELDS = ("sheep", "boar", "cattle")
+
+
+def _breed_display(state: GameState, action) -> str:
+    """Label a CommitBreed as final counts plus per-type breed status —
+    "sheep=4, breed; boar=3, no breed" (user's format, 2026-07-30).
+
+    Deliberately terse and non-prose, matching the raw-repr style the rest of
+    the numeric commits use. The counts alone already distinguish every option
+    (a bred type ends at min_parents + 1 or above, an unbred one at min_parents
+    or below — disjoint by construction), so the annotation is not needed to
+    tell options apart; it is there so a player reading `sheep=2` next to
+    `sheep=3` sees WHICH is the one that gave up a newborn without having to
+    know the parent threshold.
+
+    Status is annotated for EVERY reported type, including ones that could
+    never have bred (user, 2026-07-30): a uniform `breed` / `no breed` in a
+    fixed position is a quicker visual scan than reading the counts and
+    working out which types cleared the parent threshold. A type the player
+    neither holds nor ends with is dropped, so a sheep-only farm reads
+    `sheep=3, breed` rather than padding every button with `boar=0`.
+
+    `bred_flags` is the engine's own indicator, shared with the food formula
+    and the BreedingOutcome payload, so this label cannot contradict what the
+    commit does. Note a config may be `breed` while also removing animals: with
+    5 animals and room for 5 the frontier's reading is "cook one, then breed
+    back to five".
+    """
+    from agricola.cards.capacity_mods import sheep_min_parents
+    from agricola.helpers import bred_flags
+    from agricola.pending import PendingHarvestBreed
+    from agricola.resources import Animals
+
+    idx = next((f.player_idx for f in reversed(state.pending_stack)
+                if isinstance(f, PendingHarvestBreed)), None)
+    if idx is None:
+        return _fmt_action_inline(action)
+
+    p = state.players[idx]
+    pre = p.animals
+    post = Animals(sheep=action.sheep, boar=action.boar, cattle=action.cattle)
+    sheep_min = sheep_min_parents(p)
+    flags = bred_flags(pre, post, sheep_min)
+
+    parts = []
+    for i, f in enumerate(_ANIMAL_FIELDS):
+        if getattr(pre, f) == 0 and getattr(post, f) == 0:
+            continue
+        parts.append(f"{f}={getattr(post, f)}, "
+                     + ("breed" if flags[i] else "no breed"))
+
+    return "; ".join(parts) if parts else "no animals"
+
+
 def _action_group_key(action: Action, engine_index: int) -> str:
     """Grouping key for the presentation-order sort in _legal_actions_to_dicts.
 
@@ -1441,8 +1495,12 @@ def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dic
     out = []
     for i in _grouped_action_order(actions):
         a = actions[i]
-        display = (_card_choice_display(state, a)
-                   if isinstance(a, CommitCardChoice) else _web_action_display(a))
+        if isinstance(a, CommitCardChoice):
+            display = _card_choice_display(state, a)
+        elif isinstance(a, CommitBreed):
+            display = _breed_display(state, a)
+        else:
+            display = _web_action_display(a)
         out.append({
             # The engine index — the client submits by this, so it must stay
             # the action's position in legal_actions(state), NOT the position
@@ -1461,6 +1519,99 @@ _OUTER_HARVEST_NOTES = {
     Phase.END_OF_HARVEST: "harvest: ending",
     Phase.AFTER_HARVEST:  "harvest: over",
 }
+
+
+# Human phrasing for the harvest walk's timing moments (window ids + the three
+# sentinels), and for the round-end / preparation ladders' window ids, which
+# ride the same PendingHarvestWindow frame class. Anything unmapped falls back
+# to the de-slugified id, so a future window degrades to readable text rather
+# than a blank line.
+_WINDOW_PHRASES = {
+    # the harvest ladder
+    "immediately_before_harvest": "immediately before the harvest",
+    "start_of_harvest":           "the start of the harvest",
+    "before_field_phase":         "before the field phase",
+    "start_of_field_phase":       "the start of the field phase",
+    "field_phase":                "the field phase (harvesting crops)",
+    "end_of_field_phase":         "the end of the field phase",
+    "after_field_phase":          "after the field phase",
+    "start_of_feeding":           "the start of the feeding phase",
+    "feeding":                    "the feeding payment",
+    "after_feeding":              "after the feeding phase",
+    "start_of_breeding":          "the start of the breeding phase",
+    "breeding":                   "breeding",
+    "after_breeding":             "after the breeding phase",
+    "end_of_harvest":             "the end of the harvest",
+    "after_harvest":              "after the harvest",
+}
+
+
+def _timing_note(state: GameState) -> str:
+    """The specific timing moment behind the current pause, phrased for the
+    header's second line — the fix for the harvest's nine visually-identical
+    window pauses (a player declining a span converter at every window saw the
+    same screen repeatedly and read it as 'my click did nothing').
+
+    Derived from `state.harvest_cursor`, NOT the top pending frame: mid-harvest
+    the top frame is often a nested PendingFoodPayment or a card-granted
+    PendingSow, and a frame-derived note would blank out at exactly those
+    moments. A paused frame's stored cursor is its window's virtual position
+    + 1, so the current moment is `walk_position(cursor - 1)`. FEED and BREED
+    are banded — each window id occurs once per player per harvest — so the
+    band player is named to keep the two passes visually distinct (two
+    identical adjacent notes would recreate the original defect).
+
+    The round-end and preparation ladders reuse PendingHarvestWindow but carry
+    no harvest cursor; for them (and any other windowed frame) the note falls
+    back to the top frame's window_id through the same phrase map.
+    """
+    from agricola.cards.harvest_windows import HARVEST_WINDOWS, walk_position
+    from agricola.pending import (
+        PendingFieldPhase,
+        PendingHarvestBreed,
+        PendingHarvestFeed,
+        PendingHarvestWindow,
+    )
+
+    def phrase(window_id: str) -> str:
+        return _WINDOW_PHRASES.get(window_id, window_id.replace("_", " "))
+
+    if state.harvest_cursor is not None and state.harvest_cursor >= 1:
+        w_idx, band_player = walk_position(
+            state.harvest_cursor - 1, state.starting_player)
+        note = phrase(HARVEST_WINDOWS[w_idx])
+        # A single cursor position can host several pauses in a row — the
+        # window-major outer windows pause once per player, and the sentinel
+        # frames pause before AND after their commit. Refine from the harvest
+        # frames on the stack so adjacent pauses stay visually distinct (two
+        # identical adjacent screens are the defect this note exists to fix).
+        owner = band_player
+        for frame in reversed(state.pending_stack):
+            if isinstance(frame, PendingFieldPhase):
+                if frame.take_fired:
+                    note = phrase("field_phase") + " — crops taken"
+                break
+            if isinstance(frame, PendingHarvestFeed):
+                if frame.conversion_done:
+                    note = phrase("feeding") + " — paid"
+                break
+            if isinstance(frame, PendingHarvestBreed):
+                if frame.breed_chosen:
+                    note = phrase("breeding") + " — after the breed"
+                break
+            if isinstance(frame, PendingHarvestWindow):
+                if owner is None:
+                    owner = frame.player_idx
+                break
+        if owner is not None:
+            note = f"P{owner} — {note}"
+        return note
+
+    top = state.pending_stack[-1] if state.pending_stack else None
+    wid = getattr(top, "window_id", None)
+    if wid is not None:
+        return phrase(wid)
+    return ""
 
 
 def _harvest_note(state: GameState) -> str:
@@ -1567,6 +1718,7 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
         "current_player": state.current_player,
         "decider": decider,
         "harvest_note": _harvest_note(state),
+        "timing_note": _timing_note(state),
         "game_over": game_over,
         "seats": seat_list,
         "players": [

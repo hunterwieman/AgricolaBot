@@ -65,6 +65,7 @@ h3 {
   margin-right: 18px;
 }
 #harvest-note { color: #FFD27B; font-style: italic; }
+#timing-note  { color: #9ecfff; font-style: italic; }
 
 .header-toggle {
   display: inline-flex;

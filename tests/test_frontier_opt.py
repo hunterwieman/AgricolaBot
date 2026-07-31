@@ -97,6 +97,43 @@ def test_breeding_frontier_equiv():
             )
 
 
+def test_breeding_frontier_equiv_cards_mode():
+    """The Cards-mode forgo-the-newborn configs (2026-07-30) must survive every
+    optimization level identically.
+
+    They are added OUTSIDE the cached core, by asking `_animal_frontier_points`
+    for restricted boxes rather than by changing it — so this is the gate that
+    catches a bad box or a bad shift-back. The typed-slot combinations matter
+    most: Dolly's Mother both LOWERS the sheep parent threshold to 1 and
+    contributes a card slot, so owning it alongside another sheep-slot card
+    makes the strip exceed the threshold, which the naive uniform shift-back
+    would silently resolve into a BRED config.
+    """
+    import dataclasses
+
+    import agricola.cards  # noqa: F401  (registers the slot-bearing cards)
+    from agricola.constants import GameMode
+
+    card_sets = [
+        frozenset(),
+        frozenset({"dollys_mother"}),
+        frozenset({"dollys_mother", "sheep_agent"}),
+        frozenset({"dollys_mother", "sheep_agent", "wildlife_reserve"}),
+        frozenset({"sheep_agent", "wildlife_reserve"}),
+    ]
+    for name, base in _states():
+        state = dataclasses.replace(base, mode=GameMode.CARDS)
+        for cards in card_sets:
+            for pidx, ps in enumerate(state.players):
+                ps = dataclasses.replace(ps, minor_improvements=cards,
+                                         occupations=cards)
+                rates3 = helpers.cooking_rates(state, pidx)[:3]
+                _assert_equiv(
+                    lambda ps=ps, r=rates3, s=state: helpers.breeding_frontier(s, ps, r),
+                    _norm_animal,
+                )
+
+
 @pytest.mark.parametrize("food_owed", FOOD_OWED)
 def test_food_payment_frontier_equiv(food_owed):
     for name, state in _states():

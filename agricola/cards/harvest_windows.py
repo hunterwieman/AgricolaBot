@@ -242,9 +242,15 @@ def in_conversion_span(state, idx: int) -> bool:
     Family-mode-with-hand-given-cards shape, whose walk keeps HARVEST_BREED
     through the tail (see the boundary note above `_END_OF_HARVEST_POS`):
     the walk must have reached the player's band start (paused AT
-    before_field_phase counts — the band's first instant; the
-    before-vs-start_of_field_phase distinction is an unreachable corner
-    today, no in-band cost frame exists) and not yet reached end_of_harvest.
+    before_field_phase counts — the band's first instant) and not yet reached
+    end_of_harvest. In-band cost frames DO exist since ruling 84 put every
+    food price on the raise shape and the free-span buys are registered on
+    both before_field_phase and start_of_field_phase — but the
+    before-vs-start_of_field_phase distinction stays immaterial, because a
+    frame paused at either stores a cursor strictly past
+    `sentinel_position("before_field_phase", band_pass)` and so answers
+    in-span alike. (An earlier note called the distinction unreachable; that
+    reason died with ruling 84, the conclusion did not.)
     A None cursor inside FEED/BREED is the legacy hand-built shape
     (mid-phase — in span); a None cursor at FIELD is the fresh entry
     (pre-span)."""
@@ -285,16 +291,49 @@ def post_breed_floors(state, idx: int) -> tuple:
     covers the Family-mode-with-hand-given-cards shape, whose tail still
     runs under Phase.HARVEST_BREED.
 
+    THE FLOORS ARE LIVE, not theoretical. An earlier version of this
+    docstring claimed "unreachable today — every raise-frame producer is
+    WORK-phase or outer-window"; ruling 84 (2026-07-27) falsified that by
+    putting every implemented food PRICE on the raise shape, and several of
+    those cards are registered on `after_breeding` (the free-span buys:
+    Basket Carrier, Furniture Carpenter, Plow Builder's standalone fee).
+    Firing one with the fee short pushes a `PendingFoodPayment` inside the
+    breed band, post-breed, where these floors clip the animal supply the
+    raise frontier may draw on. Verified 2026-07-30: with 3 sheep post-breed
+    the buy is withheld (nothing cookable); with 4, exactly one sheep is
+    cookable; at end_of_harvest the floor has lapsed and Winter Caretaker can
+    cook a just-bred animal.
+
+    Crops are NOT clipped — the printed prohibition is on eating or
+    exchanging ANIMALS, so grain/veg remain fully convertible at every
+    post-breed surface.
+
     The stateless shorthand is EXACT at every reachable state (ruling 39's
     corrected record, 2026-07-13: at count 2 the floor does not bind, so a
-    capacity-blocked pair stays cookable — correct, they never bred). The
-    one theoretical residue, for whoever builds the first POST-BREED cost
-    effect that pushes the raise frame: a PARTIAL harvest-skipper (Lunchtime
-    Beer skips field + breeding but keeps the outer windows) standing at
-    such a surface with 3+ of a type that never bred would be
-    over-protected. Unreachable today — every raise-frame producer is
-    WORK-phase or outer-window; a TOTAL skipper (Layabout) has no in-harvest
-    surface at all."""
+    capacity-blocked pair stays cookable — correct, they never bred). Its
+    premise is "how would a player end at min_parents + 1 or above WITHOUT
+    breeding?", and the Cards-mode forgo-the-newborn breed configs do not
+    disturb it: they cap the forfeited type at min_parents, creating no new
+    route to sitting at or above min_parents + 1 unbred.
+
+    Both over-protection corners the ruling-39 record left open were
+    RE-DERIVED 2026-07-30 and are unreachable in the current catalog —
+    re-check them, don't assume, when either premise moves:
+      (a) a harvest-SKIPPER holding 3+ of a type that never bred. Layabout
+          (total skip) has literally no in-harvest surface, so these floors
+          are never consulted for them. Lunchtime Beer (skips the field and
+          breeding bands, keeps feeding and the outer windows) keeps only
+          surfaces that sit BEFORE its own breeding sentinel, where the
+          floors are already (0, 0, 0); a band window hosts a frame for its
+          own band player only, so the skipper gets no surface inside the
+          other player's breed band either.
+      (b) post-breed ANIMAL gains reaching 3+. Nothing grants animals after
+          the breed: `breeding_outcome` hosts only sow grants and banking
+          (Slurry C71, Fodder Planter, Dung Collector, Champion Breeder) and
+          `after_breeding` hosts only the free-span converter/buy family,
+          whose outputs are food, building resources, points or a plow.
+          Shepherd's Whistle's sheep grant is at `start_of_breeding`, i.e.
+          PRE-breed, and so is outside this class."""
     from agricola.constants import Phase
     from agricola.pending import PendingHarvestBreed
 

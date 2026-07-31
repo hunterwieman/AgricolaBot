@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 import math
-from itertools import product as iproduct
+from itertools import combinations as _combinations, product as iproduct
 
 from agricola import opt_config
 from agricola.constants import CellType, HARVEST_ROUNDS, Phase
@@ -662,6 +662,42 @@ def feeding_requirement(state, idx: int) -> int:
     return max(0, need)
 
 
+def bred_flags(
+    pre: Animals, post: Animals, sheep_min: int = 2,
+) -> tuple[bool, bool, bool]:
+    """Per type, did this (pre -> post) breed-phase configuration KEEP a
+    newborn? `(sheep, boar, cattle)`.
+
+    The engine's single kept-newborn indicator, and the one rule several
+    consumers must agree on or the breed phase becomes incoherent:
+    `breeding_food_gained` (how many animals were removed), the
+    `BreedingOutcome` payload handed to the `breeding_outcome` cards, and —
+    since 2026-07-30 — `breeding_frontier`'s Pareto partition. It was inlined
+    in each; drift between copies would mean the food charged, the newborn
+    reported, and the config offered disagreeing about the same choice.
+
+    A type with `pre >= m` breeds iff the player leaves at least `m` parents
+    standing, so a KEPT newborn shows up as `post >= m + 1`; `m` is 2 for
+    boar and cattle always, and `sheep_min` for sheep (1 with Dolly's Mother
+    — ruled 2026-07-06). An unaccommodated newborn is never placed, which is
+    why the test reads the achieved `post` rather than asking about capacity:
+    "you must be able to accommodate each newborn in order to get it" is
+    inherent.
+
+    NOTE the indicator answers about the FOOD-MAXIMAL reading of a config,
+    which is the one the frontier offers. With 5 animals and room for 5,
+    `post = 5` means "cook one, then breed back to five" (food, plus a
+    newborn), not "keep five and skip breeding" — the two share a final count
+    and the former dominates, so the frontier collapses them and this test
+    reports the newborn."""
+    m = sheep_min
+    return (
+        pre.sheep >= m and post.sheep >= m + 1,
+        pre.boar >= 2 and post.boar >= 3,
+        pre.cattle >= 2 and post.cattle >= 3,
+    )
+
+
 def breeding_food_gained(
     pre: Animals,
     post: Animals,
@@ -690,13 +726,13 @@ def breeding_food_gained(
     ENGINE_IMPLEMENTATION.md (§4 Harvest) for the m = 2 derivation, which
     generalizes verbatim.
     """
+    sR, bR, cR = rates
+    kept_s, kept_b, kept_c = bred_flags(pre, post, sheep_min)
     s, b, c = pre.sheep, pre.boar, pre.cattle
     sF, bF, cF = post.sheep, post.boar, post.cattle
-    sR, bR, cR = rates
-    m = sheep_min
-    food_s = (s + 1 - sF) * sR if (s >= m and sF >= m + 1) else (s - sF) * sR
-    food_b = (b + 1 - bF) * bR if (b >= 2 and bF >= 3) else (b - bF) * bR
-    food_c = (c + 1 - cF) * cR if (c >= 2 and cF >= 3) else (c - cF) * cR
+    food_s = (s + 1 - sF) * sR if kept_s else (s - sF) * sR
+    food_b = (b + 1 - bF) * bR if kept_b else (b - bF) * bR
+    food_c = (c + 1 - cF) * cR if kept_c else (c - cF) * cR
     return food_s + food_b + food_c
 
 
@@ -730,12 +766,19 @@ def breeding_frontier(
     4. Compute food for each via `breeding_food_gained` (the shared formula).
     """
     from agricola.cards.capacity_mods import sheep_min_parents, typed_slot_counts
+    from agricola.constants import GameMode
 
     sheep_min = sheep_min_parents(player_state)
     slots = typed_slot_counts(state, player_state)
+    # Cards mode only (2026-07-30): the forgo-the-newborn configs exist to fund
+    # in-harvest food costs, and the Family game has no card that charges food
+    # anywhere in the breeding band — so withholding them there is lossless,
+    # and it keeps the Family trace byte-identical for the C++ twin engine.
+    augment = state.mode is GameMode.CARDS
 
     if opt_config.PARETO_OPT_LEVEL >= 1:
-        return _breeding_frontier_opt(state, player_state, rates, sheep_min, slots)
+        return _breeding_frontier_opt(state, player_state, rates, sheep_min,
+                                      slots, augment)
 
     s = player_state.animals.sheep
     b = player_state.animals.boar
@@ -758,13 +801,26 @@ def breeding_frontier(
                            max(0, cF - slots.cattle))
     ]
 
+    pre = player_state.animals
+    # Precompute once per candidate — `dominates` is called O(n^2) times.
+    flags = {cfg: bred_flags(pre, cfg, sheep_min) for cfg in feasible}
+
     def dominates(a: Animals, b_: Animals) -> bool:
+        # Configurations with DIFFERENT breeding outcomes are incomparable:
+        # forgoing a type's newborn buys food the deferred post-breed cook
+        # cannot (the floor pins that type at min_parents + 1), so the two are
+        # different trades rather than better/worse versions of one. Without
+        # this the forfeit config is dominated on raw animal counts and pruned,
+        # and the line exists nowhere — the post-breed floor cannot express it
+        # either. A PARTITION rather than an extra ordered dimension, so the
+        # code states the intent instead of leaning on a sign convention.
+        if augment and flags[a] != flags[b_]:
+            return False
         return (
             a.sheep >= b_.sheep and a.boar >= b_.boar and a.cattle >= b_.cattle
             and a != b_
         )
 
-    pre = player_state.animals
     frontier = []
     for candidate in feasible:
         if not any(dominates(other, candidate) for other in feasible):
@@ -1302,7 +1358,28 @@ def _pareto_frontier_opt(state, player_state, gained, rates):
     ]
 
 
-def _breeding_frontier_opt(state, player_state, rates, sheep_min=2, typed_slots=None):
+def _breeding_frontier_opt(state, player_state, rates, sheep_min=2,
+                           typed_slots=None, augment=False):
+    """Optimised twin of `breeding_frontier` (see it for the semantics).
+
+    `augment` adds the Cards-mode forgo-the-newborn configs. They cannot come
+    out of the ordinary call: `_animal_frontier_points` applies the animal-only
+    Pareto — and a max-corner shortcut that returns a singleton when everything
+    fits — INSIDE the cached core, so those configs are already discarded by
+    the time we see the result. Restricting the requested BOX is how each
+    breeding-outcome partition's own maximum is recovered, which keeps the
+    cached core (and the Level-2/3 caches beneath it) completely untouched: we
+    only ask it different questions.
+
+    Completeness: let `p` be Pareto-maximal within partition `P`. The call for
+    `P`'s not-bred types searches a box CONTAINING `P`'s box, extended only by
+    LOWER values on the bred-type dimensions. Any `q` dominating `p` is >= `p`
+    on every dimension; if `q`'s bred-type counts are all >= `p`'s then `q`
+    lies in `P`'s box too, contradicting `p`'s maximality there; otherwise `q`
+    is lower somewhere and cannot dominate. So `p` survives its call, and the
+    final partitioned pass discards the extras the wider box let in. The empty
+    subset IS the ordinary call, so the change is strictly additive.
+    """
     s = player_state.animals.sheep
     b = player_state.animals.boar
     c = player_state.animals.cattle
@@ -1319,21 +1396,80 @@ def _breeding_frontier_opt(state, player_state, rates, sheep_min=2, typed_slots=
     # independently). The reduced bounds change the memo key, so the cache
     # stays honest.
     slots = typed_slots if typed_slots is not None else Animals()
-    strip_s = min(slots.sheep, s_des)
-    strip_b = min(slots.boar, b_des)
-    strip_c = min(slots.cattle, c_des)
-    pts = _animal_frontier_points(
-        tuple(sorted(pasture_capacities)), num_flexible,
-        s_des - strip_s, b_des - strip_b, c_des - strip_c,
-    )
+    caps_key = tuple(sorted(pasture_capacities))
     pre = player_state.animals
+    desired = (s_des, b_des, c_des)
+    strips = (min(slots.sheep, s_des), min(slots.boar, b_des),
+              min(slots.cattle, c_des))
+    thresholds = (sheep_min, 2, 2)
+
+    base_bounds = tuple(desired[i] - strips[i] for i in range(3))
+    base_pts = _animal_frontier_points(caps_key, num_flexible, *base_bounds)
+
+    if not augment:
+        # Family (and any non-Cards caller): the cached core already returned
+        # the Pareto frontier, so this is the original single pass — no set, no
+        # flag table, no O(n^2) filter. Keep it that way; it runs inside MCTS.
+        strip_s, strip_b, strip_c = strips
+        return [
+            (cfg, breeding_food_gained(pre, cfg, rates, sheep_min))
+            for cfg in (Animals(sheep=ss + strip_s, boar=bb + strip_b,
+                                cattle=cc + strip_c)
+                        for (ss, bb, cc) in base_pts)
+        ]
+
+    def collect(bounds, shifts, out):
+        for pt in _animal_frontier_points(caps_key, num_flexible, *bounds):
+            out.add(tuple(v + shifts[i] for i, v in enumerate(pt)))
+
+    configs: set = set()
+    collect(base_bounds, strips, configs)
+
+    # One extra config per type that WOULD breed: pin it to min_parents,
+    # forfeiting its newborn to cook the rest. `final = min_parents` is
+    # deliberate (user, 2026-07-30) — it stands in for breed-then-release, and
+    # from there the post-breed raise frame reaches 0 because the cooking floor
+    # (min_parents + 1) does not bind below itself.
+    #
+    # The pinned type needs its OWN shift-back, not the uniform strip: the strip
+    # transform can only produce finals >= strip, so a type whose typed card
+    # slots already hold min_parents or more (Dolly's Mother — which LOWERS the
+    # sheep threshold to 1 and contributes a slot — plus any second sheep-slot
+    # card) would silently land ABOVE the threshold and yield a BRED config
+    # labelled as the not-bred one. Targeting min_parents exactly makes the
+    # shift `min(threshold, strip)`, correct whether or not the strip exceeds it.
+    pre_counts = (pre.sheep, pre.boar, pre.cattle)
+    breedable = [i for i in range(3) if pre_counts[i] >= thresholds[i]]
+    for r in range(1, len(breedable) + 1):
+        for subset in _combinations(breedable, r):
+            bounds, shifts = [], []
+            for i in range(3):
+                if i in subset:
+                    bounds.append(max(0, thresholds[i] - strips[i]))
+                    shifts.append(min(thresholds[i], strips[i]))
+                else:
+                    bounds.append(desired[i] - strips[i])
+                    shifts.append(strips[i])
+            collect(tuple(bounds), tuple(shifts), configs)
+
+    animals = [Animals(sheep=x[0], boar=x[1], cattle=x[2]) for x in configs]
+    flags = {cfg: bred_flags(pre, cfg, sheep_min) for cfg in animals}
+
+    def dominated(cfg) -> bool:
+        """Partitioned dominance — see `breeding_frontier`. Configs with
+        different breeding outcomes are incomparable, so the forfeit configs
+        survive alongside the ones that keep their newborns."""
+        for other in animals:
+            if other == cfg or flags[other] != flags[cfg]:
+                continue
+            if (other.sheep >= cfg.sheep and other.boar >= cfg.boar
+                    and other.cattle >= cfg.cattle):
+                return True
+        return False
+
     return [
-        (Animals(sheep=ss + strip_s, boar=bb + strip_b, cattle=cc + strip_c),
-         breeding_food_gained(
-             pre, Animals(sheep=ss + strip_s, boar=bb + strip_b,
-                          cattle=cc + strip_c),
-             rates, sheep_min))
-        for (ss, bb, cc) in pts
+        (cfg, breeding_food_gained(pre, cfg, rates, sheep_min))
+        for cfg in animals if not dominated(cfg)
     ]
 
 

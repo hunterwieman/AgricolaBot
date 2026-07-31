@@ -2877,6 +2877,79 @@ caveat: any future card breeding 2+ newborns outside `_execute_breed` must emit 
 or the outcome consumers under-fire. The FEED frames, by contrast, carry no trigger
 events (§8).
 
+### Forgoing a newborn to fund an in-breeding-phase cost (Cards mode)
+
+**The pair that forced this.** **Slurry (C71)** — *"In the breeding phase of each harvest,
+if you get newborn animals of at least two types, you also get a 'Sow' action"* — pushes a
+`PendingSow` at `breeding_outcome`, i.e. inside the breeding phase, after the breed
+resolves. **Drill Harrow (D17)** — *"Each time before you take an unconditional 'Sow'
+action, you can pay 3 food to plow 1 field"* — fires on that sow's `before_sow` window. So
+Drill Harrow's 3-food fee falls **inside** the breeding phase, and it cannot be pre-spent:
+the plow exists only at that instant, and only because breeding produced two newborn types.
+
+A player holding 2 sheep / 2 boar / 2 cattle with room breeds to 3/3/3. Every type lands
+exactly on its post-breed cooking floor, nothing is cookable, and the fee is unpayable. The
+printed cards permit the line: cook one cattle *before* breeding (4 food at a Cooking
+Hearth, forgoing the cattle newborn), breed to 3/3/1, still get two newborn types so Slurry
+fires, and pay for the plow.
+
+**Why it was reachable in neither place — two prunes, each justified by the other.**
+
+- `breeding_frontier`'s Pareto runs over **animal counts only**. Food is a downstream
+  proceed, excluded per Foundations' preserving-optionality rule — *don't cook now, you can
+  cook later*. Every cook-for-food configuration is therefore dominated by not cooking, and
+  pruned. The frontier offered exactly one config in the ample-capacity case.
+- `post_breed_floors` (ruling 39) then blocks the deferred equivalent. A type that just bred
+  sits at `min_parents + 1`, which **is** its floor, so nothing of it is cookable for the
+  rest of the breeding phase.
+
+The first prune says "cook later"; the second says "you should have cooked earlier." The
+equivalence that licenses the deferral — *cook down to 2 then breed ≡ breed then cook down
+to 3* — is exact for every `k` leaving at least `min_parents` parents standing, and has **no
+post-breed image** for the `k` that drops below it. That tail is precisely "forgo this
+type's newborn", and it went missing.
+
+**As built (2026-07-30).** `helpers.bred_flags(pre, post, sheep_min)` is the engine's single
+kept-newborn indicator (`pre >= m and post >= m + 1`), now shared by `breeding_food_gained`,
+the `BreedingOutcome` payload, and the frontier. `breeding_frontier` partitions its
+dominance comparison by that flag triple, so a config forfeiting a newborn is **incomparable**
+to one keeping it rather than dominated by it. A partition, not an extra ordered dimension:
+as a dimension the sign would have to be *not-bred-is-higher* to work, and the code should
+state the intent rather than lean on a counterintuitive convention.
+
+The retained config pins the forfeited type at **`min_parents`** — 2 normally, 1 with Dolly's
+Mother (user, 2026-07-30). It is not a legal *terminal* state (breeding is mandatory when you
+have the parents and the room), and it is kept deliberately: it stands in for breed-then-
+release, which reaches the same animals and food, and it is strictly **dominated** because
+the newborn never happens, so the `breeding_outcome` consumers (Slurry, Champion Breeder,
+Dung Collector, Fodder Planter) do not fire for it. From `min_parents` the post-breed raise
+frame reaches 0, because the floor does not bind below itself — which is why one extra config
+per type suffices rather than the whole cook-for-food space.
+
+**Cards mode only**, and losslessly so: no Family card charges food anywhere in the breeding
+band, so the config has no consumer there — and gating on `GameMode.CARDS` keeps the Family
+trace byte-identical for the C++ twin and the NN breed policy head.
+
+**The optimised path.** `_animal_frontier_points` applies the animal-only Pareto — and a
+max-corner shortcut returning a singleton when everything fits — *inside* the cached core, so
+the wanted configs are gone before the caller sees them. The extra configs are recovered by
+asking that core for **restricted boxes** (one call per subset of breeding types, ≤ 8, each
+pinning its subset to `min_parents`), leaving the core and the Level-2/3 caches untouched.
+Completeness: for `p` Pareto-maximal in partition `P`, the call for `P`'s not-bred types
+searches a box containing `P`'s, extended only by *lower* values on the bred dimensions; any
+dominator of `p` either lies in `P`'s box too (contradiction) or is lower somewhere (cannot
+dominate). The empty subset is the ordinary call, so the change is strictly additive.
+
+**The trap in that path** — pinned types need their **own** shift-back, `min(threshold,
+strip)`, not the uniform typed-slot strip. The strip transform can only produce finals `>=
+strip`, so a type whose card slots already hold `min_parents` or more would land *above* the
+threshold and yield a bred config wearing the not-bred label. This is reachable today:
+**Dolly's Mother sits on both sides** — it lowers the sheep threshold to 1 *and* contributes
+a slot — so owning it plus any second sheep-slot card (Sheep Agent, Wildlife Reserve) trips
+it. Cross-level equivalence cannot catch it (both paths compute the same wrong shift and
+agree), so `tests/test_breeding_forgo_newborn.py` asserts the returned config's flag
+directly.
+
 ### The retired `harvest_field` seam
 
 The legacy `harvest_field` seam no longer exists: every member card lives on the window /

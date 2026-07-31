@@ -45,12 +45,23 @@ harvest walk at each fresh FIELD entry):
    this card's own fee is paid.)
 
 2. **The FEED payment frame** — the one in-span surface the window events do
-   not cover — via a ``HarvestConversionSpec`` (``food_out=0``; the enumerator
-   gates the budget and affordability, and its executor
-   ``_execute_harvest_conversion`` debits the 2-food input and marks the SAME
-   budget id itself, so ``_grant_bundle`` only grants the three goods).
+   not cover — via a ``HarvestConversionSpec`` (``food_out=0``).
    ``is_owned_fn`` must check occupation ownership: registrations are global
    and the conversion enumerator gates only on ``is_owned_fn``.
+
+   This surface charges FOOD, so it is on the SAME raise shape as surface 1
+   (brought over 2026-07-30 at the user's direction). The feed enumerator
+   gates it with ``_liquidatable_to`` — payable by any legal route, not
+   food-on-hand — via ``harvest_conversions.fee_is_food_raisable``; with the
+   fee on hand ``_execute_harvest_conversion`` debits the 2 food and marks the
+   budget itself and ``_grant_bundle`` only grants the three goods, and when
+   short it pushes the same raise-only ``PendingFoodPayment`` surface 1 uses,
+   resuming into ``_pay_and_grant``. Until 2026-07-30 this seam kept a plain
+   ``_can_afford`` food gate — ruling 84 item 4 recorded that as harmless
+   because the span windows flanking the feed frame preserved every legal
+   line. That was the implementer's reachability argument, not a ruling, and
+   the user withdrew it: a food price is offered whenever the player can reach
+   it, at every surface, with no carve-out to defend.
 
 Firing on either surface therefore withholds the buy from every other surface
 for the rest of that harvest, and the next harvest offers it afresh.
