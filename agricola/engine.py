@@ -1452,7 +1452,8 @@ def _advance_until_decision(state: GameState) -> GameState:
         # window phases (a paused lead/tail window frame resumes here when it
         # pops; the Family walk never produces them).
         if state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                           Phase.HARVEST_BREED, Phase.PRE_HARVEST,
+                           Phase.AFTER_FEEDING, Phase.HARVEST_BREED,
+                           Phase.PRE_HARVEST,
                            Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
             state = _advance_harvest(state)
             continue
@@ -2189,7 +2190,10 @@ def _advance_harvest(state: GameState) -> GameState:
     them), or the harvest completes into PREPARATION / BEFORE_SCORING.
 
     The harvest phase is derived from the walk position (the flip happens at
-    each band's entry, so a whole band runs under one phase). The four OUTER
+    each band's entry, so a band runs under one phase — with ONE exception:
+    in CARDS mode the FEED band's last rung, `after_feeding`, carries its own
+    `Phase.AFTER_FEEDING`, because it is after the feeding PHASE though still
+    inside the band and the harvest span; ruling 88, 2026-08-01). The four OUTER
     windows diverge by mode: the CARDS walk gives them honest phases —
     PRE_HARVEST over the two lead windows, END_OF_HARVEST / AFTER_HARVEST at
     the tail (ruling 85 put the tail outside the harvest span, so
@@ -2225,9 +2229,11 @@ def _advance_harvest(state: GameState) -> GameState:
         elif state.phase == Phase.HARVEST_FEED:
             cur = sentinel_position("after_feeding", 1)
         else:
-            # Only the legacy bare-BREED shape may reach here cursorless; the
-            # CARDS outer-window phases always ride a stored cursor (every
-            # lead/tail pause carries one), so a bare one is a malformed state.
+            # Only the legacy bare-BREED shape may reach here cursorless; every
+            # CARDS-only phase-honesty member (the lead/tail windows and
+            # AFTER_FEEDING) always rides a stored cursor, since each is stamped
+            # only inside the walk and every pause carries one — so a bare one is
+            # a malformed state.
             assert state.phase is Phase.HARVEST_BREED, state.phase
             cur = sentinel_position("after_breeding", 1)
     else:
@@ -2257,6 +2263,14 @@ def _advance_harvest(state: GameState) -> GameState:
         elif w_idx >= BREED_BAND_START:
             if state.phase != Phase.HARVEST_BREED:
                 state = fast_replace(state, phase=Phase.HARVEST_BREED)
+        elif cards_mode and w_idx == FEED_BAND_END:
+            # after_feeding: inside the FEED band, but AFTER the feeding phase.
+            # Must precede the band branch below, which would otherwise swallow
+            # it. See Phase.AFTER_FEEDING's docstring — the band-vs-phase label
+            # confusion this fixes let a feeding-phase converter fire one rung
+            # too late (tests/test_after_feeding_phase.py).
+            if state.phase is not Phase.AFTER_FEEDING:
+                state = fast_replace(state, phase=Phase.AFTER_FEEDING)
         elif FEED_BAND_START <= w_idx <= FEED_BAND_END:
             if state.phase != Phase.HARVEST_FEED:
                 state = fast_replace(state, phase=Phase.HARVEST_FEED)

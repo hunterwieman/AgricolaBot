@@ -536,9 +536,18 @@ each harvest, you can exchange exactly 1 food for … 1 vegetable"). Offered dur
 player can buy a vegetable for 1 food and then **cook it with a Fireplace/Hearth to pay that
 same feeding** — a food-laundering exploit the "after" wording exists to forbid. An
 "after the feeding phase" exchange must fire **only once feeding is fully resolved** (after the
-feeding payment / `CommitConvert`), so its proceeds cannot pay the feeding. There is no
-post-feeding conversion window today → **§0: defer and ask** (or build the window with the
-user), rather than shoehorning it into the during-feeding hook.
+feeding payment / `CommitConvert`), so its proceeds cannot pay the feeding.
+
+**The window EXISTS — register on `after_feeding`, do not defer.** (This paragraph said "no
+post-feeding window today, defer and ask" long after that stopped being true; Farm Store has
+been implemented on the window since 2026-07-05.) Two things make it correct:
+`after_feeding` resolves after that player's payment frame, and — ruling 88, 2026-08-01 — the
+rung carries its own **`Phase.AFTER_FEEDING`**, so a card printed *"in the feeding phase"*
+(Studio, the two Schnapps) correctly reads as OUT of scope there. Before that phase member
+existed, the phase label spanned the whole FEED band and the laundering line was live again
+through the back door: Farm Store's vegetable could still be converted by Schnapps at the very
+rung Farm Store fires on. If you are writing a card that reads "am I in the feeding phase?",
+read the phase, and check §5b's rung/band callout in CARD_ENGINE_IMPLEMENTATION.md first.
 
 ### "End of turn" is NOT "after the action's effects and triggers"
 
@@ -1037,19 +1046,20 @@ they need design decisions, not just code.
   at-round-end triggers. Do **not** approximate any of these with `start_of_round`. ("At any
   time, but only once per round" — Clay Carrier D122 — is instead the anytime-conversion family,
   §2.)
-- **"After the feeding phase of each harvest, you can …" cards** — DEFERRED pending an after-phase
-  on `PendingHarvestFeed` (design in `CARD_DEFERRED_PLANS.md`). These must fire only once feeding
-  is fully resolved, so their proceeds can't pay that harvest's feeding; a during-feed
-  `register_harvest_conversion` is **wrong** (e.g. Farm Store C41 lets you buy a vegetable for 1
-  food then cook it to pay the feeding — the exact exploit the "after" wording forbids). No
-  after-feed window exists today (`PendingHarvestFeed` has no phase model), and the harvest is the
-  engine's most delicate subsystem, so building it is a §0. (Farm Store is archived in
-  `archive/deferred_cards/`.) Contrast an ordinary during-feed conversion — "each harvest you can
-  buy X for food" with no "after" — which correctly stays a `register_harvest_conversion`.
+- ~~**"After the feeding phase of each harvest, you can …" cards**~~ — **NO LONGER DEFERRED.**
+  The `after_feeding` window exists and **Farm Store C41 is implemented on it** (it is not
+  archived). Register on the window; do not reach for `register_harvest_conversion`, which is
+  offered DURING the payment and would let the proceeds pay that same feeding — the laundering
+  exploit the "after" wording forbids. Since ruling 88 (2026-08-01) the rung also carries its own
+  `Phase.AFTER_FEEDING`, so feeding-phase-scoped converters correctly go out of scope there.
+  Contrast an ordinary during-feed conversion — "each harvest you can buy X for food" with no
+  "after" — which correctly stays a `register_harvest_conversion`.
 - **Individually deferred base cards** with known blockers: **Organic Farmer** (scoring over
-  aggregate animal counts + the end-game "remove animals to free capacity" play),
-  **Acorns Basket** (deferred animals scheduling). Revisit each only when its blocker
-  lands. (**Mini Pasture** and **Shepherd's Crook** were on this list but are now
+  aggregate animal counts + the end-game "remove animals to free capacity" play). Revisit only
+  when its blocker lands. *(**Acorns Basket** was listed here too and is IMPLEMENTED — its
+  blocker, deferred animal scheduling, landed as `schedule_animals` + the accommodation barrier.
+  CARD_ENGINE_IMPLEMENTATION.md §9's doc map already flagged the same claim as stale in
+  CARD_IMPLEMENTATION_PLAN.md; this second copy survived unannotated. Corrected 2026-08-01.)* (**Mini Pasture** and **Shepherd's Crook** were on this list but are now
   IMPLEMENTED — `mini_pasture.py` via the restricted free-fence grant, `shepherds_crook.py`
   via the before/after `build_fences` CardStore snapshot.)
 - **Animal grants have NO general accommodation path.** Animals are only kept-or-overflowed

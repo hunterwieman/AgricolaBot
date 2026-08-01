@@ -39,8 +39,10 @@ Coverage:
 - Eligibility negatives for the fused fire: card not owned / Joinery not this
   player's / no wood / no plowable cell (each verified at the real surface).
 - The early-harvest value case (the ruled point of the span availability):
-  firing at start_of_feeding nets +1 food that then pays the feeding —
-  begging-free where the no-fire walk begs.
+  firing on the feed frame BEFORE committing the payment nets +1 food that
+  then pays the feeding — begging-free where the no-fire walk begs. (Ruling
+  88, 2026-08-01 moved that pre-payment surface off the deleted
+  `start_of_feeding` rung onto the payment frame itself.)
 - The ruling-85 (2026-07-27) floor boundary at the standalone fire's fee: the
   post-breed cooking floor still BINDS at an after_breeding surface (a 1-food
   fee whose only fuel is floored animals is not offered there) — and per the
@@ -102,7 +104,8 @@ from agricola.state import Cell
 from tests.factories import with_grid, with_majors, with_phase, with_resources
 from tests.test_utils import sole_play_minor
 
-_HARVEST_PHASES = (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED)
+_HARVEST_PHASES = (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                   Phase.AFTER_FEEDING, Phase.HARVEST_BREED)
 
 _CRAFT_SPAN_JOINERY = "craft_span_joinery"
 
@@ -539,6 +542,19 @@ def test_standalone_needs_the_food():
     state, _ = _walk_until(state, _top_is_p0_feed)
     state = step(state, CommitHarvestConversion(conversion_id="joinery"))
     assert state.players[0].resources.food == 4    # 2 + 2, exactly the bill
+
+    # Ruling 88: the payment frame hosts the standalone, so it IS offered here —
+    # the Joinery is used and the 4 food is still in hand. Paying 1 of it is
+    # rules-legal (it just costs a begging marker), and withholding a legal line
+    # is the §0.4 defect. Before ruling 88 this surface did not exist and the
+    # player could not fire until after_feeding, by which point the payment had
+    # taken the food.
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+
+    # Decline it and pay: the bill consumes all 4, and from there the fee is
+    # unpayable by any route (no crops, no animals — the wood went to the
+    # Joinery), so no offer appears for the rest of the harvest.
+    state = step(state, CommitConvert(0, 0, 0, 0, 0))
     state, offers = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
     assert state.players[0].resources.food == 0
@@ -644,13 +660,18 @@ def test_no_plowable_cell_not_offered():
 
 # --- The early-harvest value case (the ruled point of the span) --------------
 
-def test_early_fire_at_start_of_feeding_pays_the_feeding():
+def test_early_fire_on_the_feed_frame_pays_the_feeding():
     """Ruling 75 item 7's 'so the player can take the plow early': with 3 food
-    against a 4-food feeding bill, firing the fused trigger at
-    start_of_feeding nets +1 food — the feeding is then paid begging-free."""
+    against a 4-food feeding bill, firing the fused trigger BEFORE committing
+    the payment nets +1 food — the feeding is then paid begging-free.
+
+    Ruling 88 (2026-08-01) moved that pre-payment surface from the deleted
+    `start_of_feeding` rung onto the payment frame itself, which is strictly
+    better placed: the player now decides with the payment frontier in view
+    instead of one rung earlier and blind. The line it enables is unchanged."""
     state = _cards_harvest_state(wood=1, food=3)
-    state, _ = _walk_until(state, _top_is_p0_start_of_feeding)
-    assert _top_is_p0_start_of_feeding(state)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    assert _top_is_p0_feed(state)
 
     state = step(state, FireTrigger(card_id=CARD_ID))
     state = _commit_the_plow(state)

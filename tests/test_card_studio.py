@@ -364,7 +364,7 @@ def _neutral(state):
                 if not isinstance(a, (FireTrigger, CommitHarvestConversion)))
 
 
-def test_reachable_feeding_phase_frame_offers_studio():
+def test_after_feeding_raise_frame_excludes_studio():
     cs, _env = setup_env(5, card_pool=_POOL)
     assert cs.mode is GameMode.CARDS
     cs = with_phase(cs, Phase.HARVEST_FIELD)
@@ -400,36 +400,45 @@ def test_reachable_feeding_phase_frame_offers_studio():
     else:
         raise AssertionError("never reached P0's after_feeding window")
 
-    assert cs.phase is Phase.HARVEST_FEED
+    # after_feeding is AFTER the feeding phase, so Studio's printed window has
+    # closed here — the rung carries its own Phase member for exactly that
+    # reason (Phase.AFTER_FEEDING; tests/test_after_feeding_phase.py).
+    assert cs.phase is Phase.AFTER_FEEDING
     assert cs.players[0].resources.food == 1
 
     # The standalone pay-1-food plow (ruling 76 item 3) — Joinery used, latch
-    # unused, exactly the printed 1 food on hand.
+    # unused, exactly the printed 1 food on hand. Plow Builder is a free-SPAN
+    # carrier, so unlike Studio it is still live here (the span runs through
+    # after_breeding, ruling 85).
     cs = step(cs, FireTrigger(card_id=PLOW_BUILDER))
     assert isinstance(cs.pending_stack[-1], PendingPlow)
     assert cs.players[0].resources.food == 0
 
-    # Rocky Terrain's buy, food-short: the raise-only frame, mid-feeding.
+    # Rocky Terrain's buy, food-short: the raise-only frame, post-feeding.
     assert FireTrigger(card_id=ROCKY_TERRAIN) in legal_actions(cs)
     cs = step(cs, FireTrigger(card_id=ROCKY_TERRAIN))
     assert isinstance(cs.pending_stack[-1], PendingFoodPayment)
-    assert cs.phase is Phase.HARVEST_FEED
+    assert cs.phase is Phase.AFTER_FEEDING
 
-    # Studio's singleton fire is offered (the ruled surface); the Joinery is
-    # not (budget spent); the pure-crops route remains.
+    # Studio is NOT offered: its text is "In the feeding phase of each harvest",
+    # and this raise frame is past that phase (ruling 85's companion rule — a
+    # raise bundle fires a converter only inside that converter's OWN printed
+    # window). The Joinery is out on its spent budget. The pure-crops route is
+    # what remains, so the frame is still live — no dead end.
     fired = _fired_sets(cs)
-    assert ("studio_wood",) in fired
+    assert ("studio_wood",) not in fired
+    assert ("studio_clay",) not in fired
+    assert ("studio_stone",) not in fired
     assert ("joinery",) not in fired
     assert () in fired
 
-    # Fire it: wood debited, budget marked, the raised food pays the buy.
+    # Raise from crops instead: the grain cooks at the base rate to pay the buy.
     cs = step(cs, next(a for a in legal_actions(cs)
                        if isinstance(a, CommitFoodPayment)
-                       and a.conversions == ("studio_wood",)))
+                       and a.conversions == ()))
     p = cs.players[0]
-    assert p.resources.wood == 0            # 2 - joinery - studio
+    assert p.resources.wood == 1            # 2 - joinery; Studio never fired
     assert p.resources.stone == 1           # Rocky Terrain's buy resolved
-    assert p.resources.food == 1            # +2 raised, -1 for the stone
-    assert p.resources.grain == 1           # crops untouched
-    assert {"joinery", "studio_wood"} <= p.harvest_conversions_used
+    assert p.resources.grain == 0           # the grain was the fuel
+    assert "studio_wood" not in p.harvest_conversions_used
     assert isinstance(cs.pending_stack[-1], PendingPlow)   # the plow resumes

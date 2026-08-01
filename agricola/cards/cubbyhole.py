@@ -63,7 +63,13 @@ from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "cubbyhole"
-WINDOW_ID = "start_of_feeding"
+# Ruling 88 (2026-08-01): the `start_of_feeding` rung is gone — every
+# feeding-phase effect consolidates onto the FEED sentinel/frame. This is a
+# choice-free INCOME auto, so it fires at the sentinel (with Town Hall,
+# Milking Place, Dentist) BEFORE the payment frame is pushed, which is what
+# keeps its food payable. Outcome-identical to the old rung: nothing between
+# the two instants reads the player's food, and pure food gains commute.
+WINDOW_ID = "feeding"
 
 # The per-session room-count snapshot (reset to 0 at the after-phase so commit
 # orders converge) and the persistent on-card food bank (accumulated over the

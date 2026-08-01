@@ -60,8 +60,12 @@ HARVEST_WINDOWS: tuple[str, ...] = (
     "field_phase",                   # 5  (sentinel — the FIELD during-window)
     "end_of_field_phase",            # 6
     "after_field_phase",             # 7
-    "start_of_feeding",              # 8
-    "feeding",                       # 9  (sentinel — the FEED payment frames)
+    # NOTE: `start_of_feeding` stood here until ruling 88 (2026-08-01). Both cards
+    # that named it (Baker, Cubbyhole) consolidated onto the FEED sentinel/frame,
+    # and it was dropped from FREE_SPAN_EVENTS, leaving an empty rung — so it was
+    # deleted outright. The FEED band is now two rungs, and every cursor from here
+    # on renumbers (the walk is 24 positions at 2 players, was 26).
+    "feeding",                       # 8  (sentinel — the FEED payment frames)
     "after_feeding",                 # 10 — user ruling 2026-07-05: "immediately after
     #                                       the feeding phase" and "after the feeding
     #                                       phase" are the SAME instant (one window, was
@@ -103,7 +107,8 @@ SENTINEL_WINDOWS: frozenset = frozenset({"field_phase", "feeding", "breeding"})
 # - FIELD: before_field_phase .. after_field_phase, the take included
 #   (ruling 3, PROVISIONAL: the user dislikes the later-player advantage;
 #   revisit if distortive — it matches the official implementation).
-# - FEED:  start_of_feeding .. after_feeding, the payment included, and
+# - FEED:  feeding .. after_feeding, the payment included (was
+#          start_of_feeding .. after_feeding before ruling 88), and
 # - BREED: start_of_breeding .. after_breeding, the breeding included
 #   (**ruling 40, 2026-07-12**: the banding extends to FEED and BREED; the
 #   payment/breeding frames push ONE player per band pass, and that player's
@@ -130,7 +135,7 @@ SENTINEL_WINDOWS: frozenset = frozenset({"field_phase", "feeding", "breeding"})
 FIELD_BAND_START: int = WINDOW_INDEX["before_field_phase"]
 FIELD_BAND_END: int = WINDOW_INDEX["after_field_phase"]        # inclusive
 FIELD_BAND_LEN: int = FIELD_BAND_END - FIELD_BAND_START + 1
-FEED_BAND_START: int = WINDOW_INDEX["start_of_feeding"]
+FEED_BAND_START: int = WINDOW_INDEX["feeding"]
 FEED_BAND_END: int = WINDOW_INDEX["after_feeding"]             # inclusive
 BREED_BAND_START: int = WINDOW_INDEX["start_of_breeding"]
 BREED_BAND_END: int = WINDOW_INDEX["after_breeding"]           # inclusive
@@ -256,8 +261,13 @@ def in_conversion_span(state, idx: int) -> bool:
     (pre-span)."""
     from agricola.constants import Phase
 
+    # AFTER_FEEDING is the Cards-mode label for the `after_feeding` rung, which
+    # is INSIDE the harvest span (the span runs field phase → after_breeding,
+    # ruling 85) even though it is outside the feeding PHASE. Omitting it here
+    # would strip in-span liquidation from that rung — Farm Store's own 1-food
+    # fee lives there and is raisable by ruling 82.
     if state.phase not in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                           Phase.HARVEST_BREED):
+                           Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         return False
     cur = state.harvest_cursor
     if cur is None:
@@ -372,9 +382,19 @@ def post_breed_floors(state, idx: int) -> tuple:
 FREE_SPAN_EVENTS: tuple[str, ...] = (
     "before_field_phase", "start_of_field_phase", "field_phase",
     "end_of_field_phase", "after_field_phase",
-    "start_of_feeding", "after_feeding",
+    "after_feeding",
     "start_of_breeding", "breeding", "after_breeding",
 )
+# NOTE (ruling 88, 2026-08-01): `start_of_feeding` is GONE from this tuple, and
+# is NOT replaced by "feeding". Eight of the nine span carriers already reach the
+# FEED band through their own HarvestConversionSpec entry on the payment frame
+# (the shared once-per-harvest budget id) — registering a span trigger on
+# "feeding" too would offer each of them TWICE on one frame, once as a
+# CommitHarvestConversion and once as a FireTrigger. The sole carrier with no
+# conversion entry, Plow Builder (its grant is conditioned on USING the Joinery,
+# not on a fixed goods->food rate), registers its own "feeding" trigger instead.
+# Nothing is narrowed: the payment frame sits inside the same interval the rung
+# did, and only the choice-free income autos fire in between.
 
 
 def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
@@ -466,12 +486,25 @@ def register_harvest_window_hook(card_id: str, window_id: str) -> None:
     Two sentinels are also registrable: "field_phase" (the FIELD during-window
     hosts free-order triggers and pre-take flat autos on that event — design
     doc §4a/§4d; a "field_phase" trigger is what makes the walk push the
-    PendingFieldPhase host) and "feeding" (choice-free INCOME autos only —
-    "in the feeding phase, you get X food" cards fire at the FEED entry,
-    before the payment decision, so their food is payable; design doc §5).
-    In-feeding CONVERSIONS ride the HARVEST_CONVERSIONS seam, and "breeding"
-    is not registrable — in-breeding effects ride the BREED frames' own
-    machinery.
+    PendingFieldPhase host) and "feeding".
+
+    **"feeding" takes BOTH kinds, resolved at different instants** (ruling 88,
+    2026-08-01 — the FEED consolidation, which deleted `start_of_feeding` as a
+    card surface):
+
+    - ``register_auto("feeding", …)`` — choice-free INCOME, fired at the FEED
+      entry BEFORE the payment frame is pushed, so the food is payable
+      ("in the feeding phase, you get X food": Town Hall, Milking Place,
+      Dentist; Cubbyhole's "at the start of each feeding phase" payout).
+    - ``register("feeding", …)`` — an optional TRIGGER, hosted by
+      ``PendingHarvestFeed`` itself alongside the conversions and the payment
+      (Baker's granted bake, Plow Builder's fused Joinery-and-plow). Use this
+      only for a CHOICE that is not a fixed goods->food rate; a fixed rate is a
+      HarvestConversionSpec, and registering both would double-surface the card
+      on one frame.
+
+    "breeding" is not registrable — in-breeding effects ride the BREED frames'
+    own machinery.
     """
     assert window_id in WINDOW_INDEX and window_id != "breeding", (
         f"not a registrable harvest window: {window_id!r}")

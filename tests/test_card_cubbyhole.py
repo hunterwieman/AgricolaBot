@@ -10,7 +10,7 @@ Two effects, both exercised end-to-end:
     on the build-rooms sub-action host banks 1 food (a CardStore int) per room
     built this session (the Rustic idiom). Driven through the real Farm Expansion
     build-rooms flow.
-  - FEEDING PAYOUT: a `start_of_feeding` (harvest window #8) auto grants food equal
+  - FEEDING PAYOUT: a `feeding` (the FEED sentinel) auto grants food equal
     to the on-card bank, BEFORE the FEED payment (so it is payable) and WITHOUT
     consuming the bank (recurring). Driven through the real harvest walk.
 """
@@ -132,8 +132,11 @@ def test_registered_spec():
     # Wired on the three events + the harvest-window hook.
     assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("before_build_rooms", ())}
     assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("after_build_rooms", ())}
-    assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("start_of_feeding", ())}
-    assert CARD_ID in HARVEST_WINDOW_CARDS.get("start_of_feeding", set())
+    # Ruling 88 (2026-08-01): the payout consolidated onto the FEED sentinel,
+    # firing with the other feeding-income autos before the payment frame is
+    # pushed — same instant in effect, one rung later on the ladder.
+    assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("feeding", ())}
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("feeding", set())
 
 
 # ---------------------------------------------------------------------------

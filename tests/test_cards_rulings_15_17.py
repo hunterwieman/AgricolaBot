@@ -36,6 +36,7 @@ from agricola.legality import legal_actions
 from agricola.pending import (
     PendingAccommodate,
     PendingBakeBread,
+    PendingHarvestFeed,
     PendingHarvestWindow,
     PendingPlayOccupation,
 )
@@ -82,10 +83,26 @@ def _harvest_state(seed=0, food=10):
     return state
 
 
+def _walk_to_feed_frame(state, player_idx):
+    """Walk to `player_idx`'s PendingHarvestFeed — the payment frame, which
+    since ruling 88 also hosts the in-feeding card triggers."""
+    state = _advance_until_decision(state)
+    for _ in range(300):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if (isinstance(top, PendingHarvestFeed)
+                and top.player_idx == player_idx and not top.conversion_done):
+            return state
+        acts = legal_actions(state)
+        if not acts:
+            break
+        state = step(state, acts[0])
+    raise AssertionError(f"never reached player {player_idx}'s feed frame")
+
+
 def _walk_to_window(state, window_id):
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if isinstance(top, PendingHarvestWindow) and top.window_id == window_id:
             return state
@@ -149,7 +166,11 @@ def test_baker_feeding_grant_fires_and_declines():
     state = _own(_with_fireplace(_harvest_state(), 0), 0, BAKER, minor=False)
     state = _edit_player(state, 0, resources=fast_replace(
         state.players[0].resources, grain=1))
-    state = _walk_to_window(state, "start_of_feeding")
+    # Ruling 88 (2026-08-01): the bake is hosted by the payment frame itself
+    # (event "feeding"), not a separate rung before it — so the player chooses
+    # it alongside the conversions, with the payment frontier in view.
+    state = _walk_to_feed_frame(state, 0)
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
     assert FireTrigger(card_id=BAKER) in legal_actions(state)
     f0 = state.players[0].resources.food
     state = step(state, FireTrigger(card_id=BAKER))

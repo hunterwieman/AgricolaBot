@@ -146,6 +146,126 @@ entry) and records the decisions taken this session. The rule end-to-end:
    and nothing grants ANIMALS after the breed. Recorded in `post_breed_floors`' docstring
    with the conditions to re-check if either premise moves.
 
+## Ruling 88 (2026-08-01) — the FEED consolidation: `Phase.AFTER_FEEDING`, and every feeding-phase effect onto the sentinel or the frame
+
+**Two halves.** The user's goal was the consolidation (part B): `PendingHarvestFeed` should
+offer the whole feeding phase, and `start_of_feeding` should stop existing as a card surface.
+The phase bug (part A) was found while analysing that design and is fixed first because it is
+independent and had a failing test.
+
+### Part A — `after_feeding` is OUTSIDE the feeding phase
+
+**The defect (found while designing the feeding-phase consolidation; verified by a failing
+test before any fix).** `state.phase` is stamped once per **band**, not per rung:
+`_advance_harvest` set `Phase.HARVEST_FEED` across the whole FEED band —
+`start_of_feeding` → `feeding` → **`after_feeding`**. Three cards read that value as if it
+meant the feeding PHASE, because it is the only signal available: **Studio C55**, **Schnapps
+Distiller C109** and **Schnapps Distillery C59** each gate `is_owned_fn` on
+`state.phase is Phase.HARVEST_FEED` to realize ruling 85's companion rule (*a raise-frame
+bundle fires a converter only inside that converter's OWN printed window*). All three print
+"in the feeding phase of each harvest", so a label one rung wider than the concept made all
+three usable one rung too late.
+
+**What that re-opened.** The food-laundering line Farm Store's printed "After the feeding
+phase" wording exists to forbid — the exploit CARD_AUTHORING_GUIDE.md §2 names, and one of
+the three deviations the 2026-07-02 audit caught:
+
+    Farm Store        1 food      -> 1 vegetable   (after_feeding, its printed rung)
+    Schnapps          1 vegetable -> 5 food        (printed: in the feeding phase)
+
++4 food per harvest, reachable inside one window: fire Farm Store, then any food-priced fee
+at the same rung (Basket Carrier's 2 food) opens a `PendingFoodPayment` whose frontier still
+offered Schnapps. **Farm Store is not the only producer** — `after_feeding` also carries
+**Social Benefits**, an AUTOMATIC 1 wood + 1 clay, and Studio converts wood/clay; that pairing
+is the same shape with no Farm Store involved (noted, not separately tested — the fix removes
+the converter from the rung either way).
+
+**The ruling.** The `after_feeding` rung gets its own `Phase` member, **`AFTER_FEEDING`** —
+part of the harvest, outside the feeding phase. This is ruling 85's correction applied one
+band earlier: that pass gave the tail windows honest phases because labelling them
+`HARVEST_BREED` "was misleading state", but it did not revisit the band interiors, so the
+identical shape survived here.
+
+**As built (2026-08-01).** `Phase.AFTER_FEEDING` appended (pre-existing `auto()` values
+unchanged); the walk branch is `GameMode.CARDS`-gated and placed AHEAD of the FEED-band
+branch, which would otherwise swallow it. Three readers needed the new member, each for its
+own reason:
+
+- `helpers.completed_feeding_phases` — on the same cursor comparison as `HARVEST_FEED`, **not**
+  in the tail list: the FIRST player's `after_feeding` still precedes the SECOND player's
+  payment, so the harvest's feeding is not complete there.
+- `harvest_windows`'s in-span probe — the rung is inside the harvest SPAN (field phase →
+  after_breeding, ruling 85) even though outside the feeding phase; omitting it would strip
+  in-span liquidation from a rung where Farm Store's own 1-food fee lives (ruling 82).
+- `engine._advance_until_decision`'s phase dispatch — omitted, the walk raises
+  "Unexpected phase".
+
+Family byte-identical, C++ gates green untouched (139). Pinned by
+`tests/test_after_feeding_phase.py` (the direct probe + the end-to-end Farm Store chain).
+**`tests/test_card_studio.py` had frozen the defect as expected behavior** — a test named
+`test_reachable_feeding_phase_frame_offers_studio` drove to `after_feeding`, called it
+"mid-feeding", and asserted Studio *was* offered; inverted and renamed
+`test_after_feeding_raise_frame_excludes_studio` (the pure-crops route keeps the raise frame
+live, so nothing dead-ends).
+
+**Scope, ruled the same day: NOT generalized.** The identical band-vs-phase shape sits at the
+other two band ends — `after_field_phase` runs under `HARVEST_FIELD`, `after_breeding` under
+`HARVEST_BREED`. Neither has a live consumer, and the user ruled against generalizing.
+⚠ **Boar Spear E53** (unimplemented) prints *"Each time you get at least 1 wild boar **outside
+of the breeding phase** of a harvest…"* and will need the `after_breeding` cut when built —
+re-open this ruling then rather than widening its guard.
+
+### Part B — the FEED consolidation: `start_of_feeding` holds no cards
+
+**The ruling.** Every feeding-phase effect resolves on the FEED sentinel or the payment frame.
+`start_of_feeding` keeps its ladder slot but carries **no card surface at all**.
+
+**The audit that scoped it.** All 21 cards whose printed text names the feeding phase were
+checked against their registrations: **no misplacements** — income autos at the sentinel
+(Dentist, Milking Place, Town Hall), 8 conversions on the seam, `after_feeding` (Farm Store,
+Social Benefits), the requirement fold (Child's Toy), capacity-only readers with no timing
+surface (Truffle Searcher, Woolgrower), 3 unimplemented (Beer Tap — deferred per ruling 78 —
+Old Miser, Smuggler). So the move set was exactly **Baker + Cubbyhole**, plus the span cohort.
+
+**As built.** Three surfaces, by KIND rather than by rung (§5b has the table):
+
+- **Cubbyhole** → `register_auto("feeding", …)`, the sentinel, firing with the other income
+  autos before the payment frame exists. Outcome-identical to the old rung: no eligibility
+  predicate on either instant reads the player's food, and pure food gains commute.
+- **Baker** → `register("feeding", …)`, an optional trigger on the **payment frame**. This
+  retires the FEED half of §8's "no harvest FEED trigger events" deferral, exactly as the BREED
+  half retired at `ff874ba`: `PendingHarvestFeed` gains `triggers_resolved` (QUALIFIED canonical
+  skip, since the frame exists in every Family harvest) and its enumerator surfaces
+  `TRIGGERS["feeding"]` pre-commit. Not a pure relocation — the bake is now orderable against
+  the conversions and chosen with the payment frontier in view, where before it resolved a rung
+  earlier and blind.
+- **`FREE_SPAN_EVENTS` drops `start_of_feeding` and does NOT replace it with `"feeding"`.**
+  Eight of the nine span carriers already reach the frame through their own
+  `HarvestConversionSpec` entry (the shared once-per-harvest budget id), so a span trigger on
+  `"feeding"` would offer each of them **twice on one frame** — once as a
+  `CommitHarvestConversion`, once as a `FireTrigger`. **Plow Builder** is the sole carrier with
+  no conversion shape (its grant is conditioned on USING the Joinery, not on a fixed rate), so
+  it registers its own `"feeding"` trigger.
+
+**A withheld legal line, closed as a side effect.** Plow Builder's standalone plow previously
+had no surface on the payment frame, so a player who used the Joinery there could not fire it
+until `after_feeding` — by which point the payment had taken the food. Paying 1 of the
+Joinery's proceeds for a plow is rules-legal (it costs a begging marker), so the old shape was
+deleting a legal option — CARD_AUTHORING_GUIDE.md §0.4's defect. Pinned by the rewritten
+`test_standalone_needs_the_food`.
+
+**Not done — the rung's ladder slot.** Deleting `"start_of_feeding"` from `HARVEST_WINDOWS`
+renumbers the virtual walk (26 → 24 positions at 2 players; Family pause cursors 14/17/20/23 →
+13/15/18/21). That is Family-visible via `harvest_cursor` in the canonical JSON, so it needs a
+C++ re-port — and, load-bearing, **the NN encoder's `has_fed` boundary is defined against the
+deleted rung**: `encoder._FEED_SECOND_PASS = sentinel_position("start_of_feeding", 1)` in
+Python, `CURSOR_START_FEEDING_PASS1 = 15` as a literal in `cpp/include/agricola/constants.hpp`.
+Re-deriving it as `sentinel_position("feeding", 1)` should be the same instant with a different
+integer — but the differential gates compare Python against C++ and would NOT catch a change
+made consistently in both, so this needs a before/after encode comparison over a harvest-state
+corpus first. Deferred to the user with the cost stated; the rung sitting empty costs one
+skip-guard check per band pass.
+
 ## Ruling 87 (2026-07-29) — before-window enablers count toward legality; the enabling-extension seams; the stuck-turn monitor; uniform jump fees
 
 1. **The ratified rule.** An optional before-window purchase or grant counts toward "can

@@ -247,7 +247,9 @@ void write_player_block(float* out, int base, const GameState& state,
       // The non-SP has paid only once the walk has crossed into their pass
       // (cursor >= the second pass's start; a nullopt cursor is the legacy
       // hand-built shape, where absent == paid). Mirrors encoder.py's
-      // _FEED_SECOND_PASS = sentinel_position("start_of_feeding", 1).
+      // _FEED_SECOND_PASS = sentinel_position("feeding", 1) — the second
+      // player's FEED band entry (ruling 88 renumbered it 15 -> 14 when the
+      // start_of_feeding rung was deleted; the instant is unchanged).
       has_fed = (!state.harvest_cursor ||
                  *state.harvest_cursor >= CURSOR_START_FEEDING_PASS1)
                     ? 1.0f

@@ -56,7 +56,13 @@ from agricola.resources import Resources
 from agricola.state import GameState
 
 CARD_ID = "baker"
-WINDOW_ID = "start_of_feeding"
+# Ruling 88 (2026-08-01): the `start_of_feeding` rung is gone — the bake is a
+# CHOICE, so it is an optional trigger hosted by the payment frame itself
+# (`PendingHarvestFeed`, event "feeding"), alongside the conversions. The
+# player therefore decides the bake while looking at the payment frontier
+# rather than one rung earlier and blind; CommitConvert forecloses it
+# unfired, exactly as it does every conversion.
+WINDOW_ID = "feeding"
 
 
 def _variants(state: GameState, idx: int) -> list:

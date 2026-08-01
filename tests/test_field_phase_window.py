@@ -150,7 +150,8 @@ def test_walk_position_decodes_the_bands():
     names = [(HARVEST_WINDOWS[w], bp) for w, bp in decoded]
     field = ["before_field_phase", "start_of_field_phase", "field_phase",
              "end_of_field_phase", "after_field_phase"]
-    feed = ["start_of_feeding", "feeding", "after_feeding"]
+    # Two rungs since ruling 88 (2026-08-01) deleted `start_of_feeding`.
+    feed = ["feeding", "after_feeding"]
     breed = ["start_of_breeding", "breeding", "after_breeding"]
     expected = (
         [("immediately_before_harvest", None), ("start_of_harvest", None)]
@@ -160,7 +161,7 @@ def test_walk_position_decodes_the_bands():
         + [("end_of_harvest", None), ("after_harvest", None)]
     )
     assert names == expected
-    assert WALK_LENGTH == 26
+    assert WALK_LENGTH == 24    # was 26 before ruling 88
     # The virtual walk ends exactly at the ladder's end.
     assert walk_position(WALK_LENGTH - 1, sp)[0] == len(HARVEST_WINDOWS) - 1
 

@@ -56,7 +56,7 @@ constexpr int NUM_ROUNDS = 14;
 constexpr int NUM_MAJOR_IMPROVEMENTS = 10;
 
 // Harvest virtual-walk cursor anchors (ruling 40, 2026-07-12 — FEED/BREED
-// banding). GameState.harvest_cursor indexes the 26-position 2-player VIRTUAL
+// banding). GameState.harvest_cursor indexes the 24-position 2-player VIRTUAL
 // walk of the harvest-window ladder (agricola/cards/harvest_windows.py: the
 // raw window ladder with the FIELD/FEED/BREED bands each repeated once per
 // player, starting player's pass — "pass 0" — first). The C++ engine is
@@ -65,10 +65,19 @@ constexpr int NUM_MAJOR_IMPROVEMENTS = 10;
 // anchors below. Each CURSOR_AFTER_* value is the position just PAST a band
 // pass's frame push (Python: sentinel_position("<after-window>", pass)) — the
 // value carried while that pass's frame is up.
-constexpr int CURSOR_AFTER_FEEDING_PASS0 = 14;    // SP's payment frame up
-constexpr int CURSOR_START_FEEDING_PASS1 = 15;    // 2nd FEED pass begins (encoder's has_fed boundary)
-constexpr int CURSOR_AFTER_FEEDING_PASS1 = 17;    // other player's payment frame up
-constexpr int CURSOR_AFTER_BREEDING_PASS0 = 20;   // SP's breeding frame up
-constexpr int CURSOR_AFTER_BREEDING_PASS1 = 23;   // other player's breeding frame up
+//
+// RENUMBERED by ruling 88 (2026-08-01): the `start_of_feeding` rung was deleted
+// from the ladder, so the FEED band is two rungs and the walk is 24 positions
+// (was 26). Every anchor at or after the FEED band shifted; these values MUST
+// stay equal to the Python sentinel_position() results or the canonical JSON
+// diverges mid-feed/mid-breed and the differential gates fail. The has_fed
+// anchor keeps its MEANING (the second player's FEED pass begins) — that instant
+// is now the `feeding` sentinel rather than the deleted rung, and the encoder
+// output was verified bit-identical across the change.
+constexpr int CURSOR_AFTER_FEEDING_PASS0 = 13;    // SP's payment frame up
+constexpr int CURSOR_START_FEEDING_PASS1 = 14;    // 2nd FEED pass begins (encoder's has_fed boundary)
+constexpr int CURSOR_AFTER_FEEDING_PASS1 = 15;    // other player's payment frame up
+constexpr int CURSOR_AFTER_BREEDING_PASS0 = 18;   // SP's breeding frame up
+constexpr int CURSOR_AFTER_BREEDING_PASS1 = 21;   // other player's breeding frame up
 
 }  // namespace agricola

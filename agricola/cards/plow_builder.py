@@ -342,6 +342,14 @@ register_occupation(CARD_ID, lambda state, idx: state)
 # entries); the apply is the card's ONE shared dispatch fn (see _fire_apply).
 # The standalone fire's food-short raise frame resumes here (ruling 82).
 register_free_span_trigger(CARD_ID, _span_eligible, _fire_apply)
+# The FEED-band surface, explicitly (ruling 88, 2026-08-01). `start_of_feeding`
+# is gone from FREE_SPAN_EVENTS, and this card is the ONE span carrier with no
+# HarvestConversionSpec entry to reach the payment frame through — its grant is
+# conditioned on USING the Joinery, not on a fixed goods->food rate, so it has no
+# conversion shape. It therefore registers its own trigger on the frame's
+# "feeding" event; the other eight carriers must NOT (they would double-surface,
+# once as a CommitHarvestConversion and once as a FireTrigger).
+register("feeding", CARD_ID, _span_eligible, _fire_apply)
 register_food_payment_resume(CARD_ID, _pay_and_plow_standalone)
 
 # Clause 1 — the named-minor-action build: the branch gate registration + the

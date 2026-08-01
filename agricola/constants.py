@@ -10,18 +10,34 @@ class Phase(Enum):
     BREED, each covering its whole band of the harvest-window walk — through
     ``after_breeding`` for BREED, per user ruling 85, 2026-07-27).
 
-    The last three members are the harvest walk's OUTER windows, entered ONLY
+    The last four members are CARDS-walk-only phase-honesty members, entered ONLY
     by the CARDS-mode walk (``engine._advance_harvest``, gated on
     ``GameMode.CARDS``): PRE_HARVEST while the two lead windows
     (``immediately_before_harvest``, ``start_of_harvest``) run, END_OF_HARVEST
     at the ``end_of_harvest`` window, AFTER_HARVEST at ``after_harvest`` — the
     two tail windows sit OUTSIDE the harvest span (ruling 85), so labeling them
-    HARVEST_BREED was misleading state. **The Family game never produces these
-    values** — its walk keeps the original sequence (HARVEST_FIELD from entry
-    through the FIELD band, HARVEST_BREED through the tail). That guarantee is
-    load-bearing for the C++ twin engine and the NN encoder, both of which are
-    Family-only and know nothing of these members. Members are appended at the
-    end so every pre-existing ``auto()`` value is unchanged.
+    HARVEST_BREED was misleading state — and AFTER_FEEDING at the
+    ``after_feeding`` window.
+
+    AFTER_FEEDING is the same correction one band earlier. HARVEST_FEED is a
+    *band* label the walk stamps across ``start_of_feeding`` → ``feeding`` →
+    ``after_feeding``, but three cards read it as a *phase* label to scope
+    themselves to their printed "in the feeding phase" timing (Schnapps
+    Distiller, Schnapps Distillery, Studio — each gating ``is_owned_fn`` on it
+    per ruling 85's companion rule, "a raise-frame bundle fires a converter only
+    inside that converter's OWN printed window"). Stamping HARVEST_FEED on
+    ``after_feeding`` made those guards one rung too wide and re-opened the
+    food-laundering line Farm Store's printed "After the feeding phase" wording
+    exists to forbid: 1 food → 1 vegetable (Farm Store, at this rung) → 5 food
+    (Schnapps, printed for the feeding phase). Pinned by
+    ``tests/test_after_feeding_phase.py``.
+
+    **The Family game never produces these values** — its walk keeps the
+    original sequence (HARVEST_FIELD from entry through the FIELD band,
+    HARVEST_FEED across the whole FEED band, HARVEST_BREED through the tail).
+    That guarantee is load-bearing for the C++ twin engine and the NN encoder,
+    both of which are Family-only and know nothing of these members. Members are
+    appended at the end so every pre-existing ``auto()`` value is unchanged.
     """
     DRAFT = auto()
     WORK = auto()
@@ -34,6 +50,7 @@ class Phase(Enum):
     PRE_HARVEST = auto()        # CARDS-mode harvest walk only (see docstring)
     END_OF_HARVEST = auto()     # CARDS-mode harvest walk only
     AFTER_HARVEST = auto()      # CARDS-mode harvest walk only
+    AFTER_FEEDING = auto()      # CARDS-mode harvest walk only
 
 
 class GameMode(Enum):

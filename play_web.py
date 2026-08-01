@@ -1516,6 +1516,7 @@ def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dic
 
 _OUTER_HARVEST_NOTES = {
     Phase.PRE_HARVEST:    "harvest: starting",
+    Phase.AFTER_FEEDING:  "harvest: after feeding",
     Phase.END_OF_HARVEST: "harvest: ending",
     Phase.AFTER_HARVEST:  "harvest: over",
 }
@@ -1535,7 +1536,6 @@ _WINDOW_PHRASES = {
     "field_phase":                "the field phase (harvesting crops)",
     "end_of_field_phase":         "the end of the field phase",
     "after_field_phase":          "after the field phase",
-    "start_of_feeding":           "the start of the feeding phase",
     "feeding":                    "the feeding payment",
     "after_feeding":              "after the feeding phase",
     "start_of_breeding":          "the start of the breeding phase",

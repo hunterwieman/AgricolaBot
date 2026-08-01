@@ -3,7 +3,7 @@
 Deep-mechanics companion to **`ENGINE_IMPLEMENTATION.md`**, for the **card system** (Phase 3).
 That document describes the Family-game engine — `step` / `legal_actions`, the pending stack, the
 sub-action primitives, the Fencing / accommodation / harvest subsystems. This one describes
-everything the card game **adds**: the host/firing system that lets ~270 played cards hook engine
+everything the card game **adds**: the host/firing system that lets ~579 played cards hook engine
 events, the registries a card registers into, the card-only state and pending frames, the
 cost-modifier and food-payment layers, and the capacity modifiers.
 
@@ -116,7 +116,48 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-29 — ruling 87, the before-window-enabler arc** (full record:
+> **Last updated: 2026-08-01 — ruling 88, the FEED consolidation.** Two halves. **(B, the
+> goal)** Every feeding-phase effect now resolves on the FEED sentinel or on
+> `PendingHarvestFeed` itself; the **`start_of_feeding` rung is DELETED** from the ladder. This
+> retires the FEED half of §8's "no harvest FEED trigger events" deferral — the half left
+> behind when the BREED half went at `ff874ba`: the frame gains `triggers_resolved` (QUALIFIED
+> canonical skip) and hosts `TRIGGERS["feeding"]` pre-commit. **Baker** moves onto the frame (a
+> CHOICE, now orderable against the conversions and decided with the payment frontier in view),
+> **Cubbyhole** onto the sentinel's income autos (outcome-identical — nothing at either instant
+> reads the player's food). `FREE_SPAN_EVENTS` **drops** `start_of_feeding` without replacing
+> it: 8 of the 9 span carriers already reach the frame via their conversion entry, so a
+> `"feeding"` span trigger would double-surface them; **Plow Builder**, the one with no
+> conversion shape, registers its own — which also closed a §0.4 withheld-legal-line (its
+> standalone plow was unreachable on the frame where the Joinery is actually used). A 21-card
+> audit of every "feeding phase" text found **no misplacements**, so the move set was exactly
+> those two cards. **The rung is DELETED from the ladder** (14 windows, the walk 24 positions at
+> 2 players, was 26) — the FEED band now opens at the `feeding` sentinel. That renumbers every
+> cursor from the FEED band on, which is **Family-visible** (a mid-feed/mid-breed Family state
+> carries `harvest_cursor` in its canonical JSON), so the five C++ anchors were re-ported
+> (14/15/17/20/23 → 13/14/15/18/21) and the gates re-run. **The NN encoder's `has_fed` boundary
+> was defined against the deleted rung** (`sentinel_position("start_of_feeding", 1)`, and a
+> hardcoded 15 in C++); it is now `sentinel_position("feeding", 1)` — the same INSTANT (the
+> second player's FEED pass begins), a different integer. That distinction feeds a trained,
+> deployed model and the differential gates cannot catch a drift applied identically to both
+> sides, so it was verified directly: a **3856-state harvest corpus encoded before and after the
+> deletion is bit-identical across all 170 features** — no `ENCODING_VERSION` bump.
+>
+> **(A, found while designing B)** `state.phase` is stamped per BAND, so `HARVEST_FEED` covered
+> `after_feeding` too (full record:
+> CARD_DEFERRED_PLANS.md ruling 88; the §5b callout is the durable statement). `state.phase`
+> is stamped per BAND, so `HARVEST_FEED` covered `after_feeding` too — and the three cards
+> printed "in the feeding phase" (**Studio C55, Schnapps Distiller C109, Schnapps Distillery
+> C59**) scope themselves on exactly that value, so all three were usable one rung after their
+> printed window closed. That re-opened the food-laundering line Farm Store's "After the
+> feeding phase" wording exists to forbid (1 food → 1 vegetable → 5 food, +4/harvest;
+> Social Benefits' automatic wood+clay is a second producer at the same rung). Fixed with a
+> CARDS-gated **`Phase.AFTER_FEEDING`** — ruling 85's tail correction applied one band earlier
+> — plus its three readers (`completed_feeding_phases`' cursor comparison, the in-span probe,
+> `_advance_until_decision`'s dispatch). **A shipped test had frozen the defect as correct**
+> (`test_reachable_feeding_phase_frame_offers_studio` → inverted and renamed). No card moved;
+> census unchanged. Family byte-identical, C++ gates green untouched; suite 7158.
+>
+> **Prior: 2026-07-29 — ruling 87, the before-window-enabler arc** (full record:
 > CARD_DEFERRED_PLANS.md ruling 87). The user-ratified rule: an optional before-window
 > purchase/grant counts toward "can carry out the action" at placement and
 > jump-destination time — with the corollary that an extension-only admission makes the
@@ -961,9 +1002,11 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   `register_minor_action_major_build` seam)*. Feeding itself stays UN-generalized
   (ruling 34) and Gypsy's Crock / Cooking Hearth Extension stay parked (rulings 35/42).
 - **FEED/BREED banding landed (2026-07-12; ruling 40, `479135e`)**: the harvest walk's
-  three phase segments each resolve whole-phase-per-player (the 26-position virtual walk;
+  three phase segments each resolve whole-phase-per-player (the virtual walk — 24 positions at
+  2 players since ruling 88 deleted the `start_of_feeding` rung, was 26;
   one payment/breeding frame per band pass, per-pass feeding income, the cursor carried
-  while band frames are up — Family pauses at 14/17/20/23). The first Family-visible
+  while band frames are up — Family pauses at 13/15/18/21, renumbered from 14/17/20/23
+  by ruling 88). The first Family-visible
   harvest-shape change; the C++ twin was re-ported in the same commit and all 139
   differential gates are green. The encoder's `has_fed` is band-aware (value-identical —
   no ENCODING_VERSION bump).
@@ -1161,7 +1204,10 @@ the coarse `after_build_improvement` ("any improvement built" — fired by
 Vegetable Slicer's seam). The harvest adds its
 own event family: every simple harvest-window id is a literal event string (`start_of_harvest`,
 `after_feeding`, `end_of_harvest`, …), plus the during-window `field_phase` and the
-feeding-income `feeding` — §5b. (The old `harvest_field` event is deleted.) The round-end
+the FEED `feeding` — which since ruling 88 (2026-08-01) carries BOTH kinds at two
+different instants: autos are choice-free income fired at the sentinel before the payment
+frame exists, triggers are hosted by that frame — §5b. (The old `harvest_field` event is
+deleted, as is the `start_of_feeding` window.) The round-end
 ladder (§5c) and the **preparation ladder (§5d — ruling 54, 2026-07-14)** add theirs: every
 prep window id is a literal event string — `before_round`, `round_space_collection`, `reveal`,
 `start_of_round`, `replenishment`, `before_work`, `start_of_work` (the last carrying
@@ -1814,7 +1860,9 @@ The registration side of the window system; §5b has the mechanics and
   `register(<window_id>, …)` for an optional trigger or `register_auto(<window_id>, …)` for an
   automatic effect — the window id IS the event string. Registrable: every simple window, plus
   the sentinels `"field_phase"` (during-window triggers + pre-take flat autos) and `"feeding"`
-  (**choice-free income autos only** — fired at the FEED entry, before the payment decision);
+  (since ruling 88, 2026-08-01, BOTH kinds, resolved at different instants: an **auto** is
+  choice-free income fired at the FEED entry before the payment frame exists, a **trigger** is
+  hosted by the payment frame itself alongside the conversions — §5b's consolidation table);
   `"breeding"` is not hook-registrable — there is no window frame to host at that sentinel;
   instead the breed frames host their own `"breeding"` / `"breeding_outcome"` triggers directly
   (§5b, ruling 20 — Stone Importer / Fodder Planter). A card may register in more than one
@@ -2230,9 +2278,11 @@ the Family-constant value and is canonical-skipped:
   uncapped, every Family sow and the full granted Sow action. `required_crop: str | None`
   — a forced single-crop sow (Fern Seeds' "1 grain, which you must sow immediately"): the
   enumerator offers only commits sowing exactly that crop, card-field stacks included.
-- **`PendingHarvestBreed`**: `triggers_resolved: frozenset` — the breed frame hosts card
-  triggers in both of its stretches (§5b), but the frame itself is pushed in every Family
-  harvest, so the field is skipped via a **qualified** canonical entry (below).
+- **`PendingHarvestBreed`** and **`PendingHarvestFeed`**: `triggers_resolved: frozenset` —
+  the breed frame hosts card triggers in both of its stretches (§5b, ruling 20), and since
+  ruling 88 (2026-08-01) the feed frame hosts its own pre-commit `"feeding"` triggers. Both
+  frames are pushed in every Family harvest, so each field is skipped via its own
+  **qualified** canonical entry (below).
 - The seven Proceed-host space parents (five Family + Basic Wish + Meeting Place) carry the
   derived `subaction_started` property (§2 — not a field, so nothing to skip).
 - **The 2026-07-20 granted-primitive parameter fields** (rulings 68/69 — each a push-time
@@ -2667,12 +2717,14 @@ green).
 
 ### The ladder and the virtual walk
 
-`harvest_windows.HARVEST_WINDOWS` — 15 ids in resolve order: `immediately_before_harvest`,
+`harvest_windows.HARVEST_WINDOWS` — **14** ids in resolve order: `immediately_before_harvest`,
 `start_of_harvest`, `before_field_phase`, `start_of_field_phase`, **`field_phase`**
-(sentinel — the take), `end_of_field_phase`, `after_field_phase`, `start_of_feeding`,
+(sentinel — the take), `end_of_field_phase`, `after_field_phase`,
 **`feeding`** (sentinel — the payment frames), `after_feeding`, `start_of_breeding`,
 **`breeding`** (sentinel — the breed frames), `after_breeding`, `end_of_harvest`,
-`after_harvest`. The ordering is rules-derived (design doc §1). Two printed qualifiers name
+`after_harvest`. (`start_of_feeding` stood between `after_field_phase` and `feeding` until
+ruling 88, 2026-08-01, which consolidated its two cards onto the FEED sentinel/frame and
+deleted the empty rung — so the list was 15 and the walk 26 before that.) The ordering is rules-derived (design doc §1). Two printed qualifiers name
 instants the ladder already has: "immediately after each harvest" is `after_harvest`
 (ruling 18) and "immediately after the feeding phase" is `after_feeding` (ruling 19) — in each
 pair the "immediately" wording is the same instant, not a distinct earlier one. `end_of_harvest`
@@ -2680,10 +2732,22 @@ is the last chance for in-harvest conversions; `after_harvest` is outside the ha
 registers on the instant its text names (§3's `harvest_windows.py` block has the registration
 API); it never approximates a neighbor.
 
+> **A window id is a RUNG; `state.phase` is a BAND — do not use one for the other**
+> (ruling 88, 2026-08-01). The walk stamps one phase per band, so `Phase.HARVEST_FEED`
+> means "somewhere in the FEED band", not "in the feeding phase". Three cards printed
+> "in the feeding phase" (Studio, Schnapps Distiller, Schnapps Distillery) scoped
+> themselves on that value and were therefore live at `after_feeding` too — re-opening
+> the food-laundering line Farm Store's "After the feeding phase" wording forbids
+> (1 food → 1 vegetable → 5 food). The rung now carries its own **`Phase.AFTER_FEEDING`**
+> in CARDS mode: inside the harvest span, outside the feeding phase. The same
+> band-vs-rung gap still exists at `after_field_phase` and `after_breeding` — deliberately
+> not generalized (no live consumer), but ⚠ **Boar Spear E53** ("outside of the breeding
+> phase of a harvest") needs the `after_breeding` cut when built.
+
 **The walk** is `engine._advance_harvest`, resuming at `GameState.harvest_cursor` (§4) — an
 index into a **virtual** ladder in which each of the three phase segments is a per-player
 **band** (`_BANDS` in `harvest_windows.py`): the FIELD band (`before_field_phase` …
-`after_field_phase`, the take included), the FEED band (`start_of_feeding` … `after_feeding`,
+`after_field_phase`, the take included), the FEED band (`feeding` … `after_feeding`,
 the payment frame included) and the BREED band (`start_of_breeding` … `after_breeding`, the
 breed frame included) each appear once **per player**, starting player first — a player
 resolves their *entire* phase segment, its before/after windows included, before the other
@@ -2691,7 +2755,8 @@ player's band begins (rulings 3 and 40; ruling 3 is PROVISIONAL — it matches t
 implementation, but the user dislikes the later-player advantage and may revisit). At the FEED
 and BREED sentinels the payment/breeding frames are pushed for **one player per band pass**,
 via `_initiate_harvest_feed_for` / `_initiate_harvest_breed_for`. At 2 players the virtual
-ladder is 26 positions; `walk_position(cursor, starting_player)` decodes an index into
+ladder is **24** positions (26 before ruling 88); `walk_position(cursor, starting_player)`
+decodes an index into
 (window, band player), and N players would repeat each band N times (the shape 4-player
 needs). Only the four outer windows — `immediately_before_harvest`, `start_of_harvest`,
 `end_of_harvest`, `after_harvest` — sit outside every band and resolve **window-major**: per
@@ -2836,13 +2901,28 @@ TOTAL — every window on the ladder, feeding, and breeding, before/after bounda
 the user dislikes this reading but ruled to follow the official implementation; latched
 automatically at play, targeting the next harvest round at-or-after the play round).
 
+**The FEED consolidation (ruling 88, 2026-08-01).** Every feeding-phase effect now lands on
+one of exactly **two** surfaces (the `start_of_feeding` rung, having emptied, was deleted):
+
+| kind | surface | members |
+|---|---|---|
+| choice-free INCOME | `register_auto("feeding", …)`, fired at the sentinel **before** the frame | Town Hall, Milking Place, Dentist, **Cubbyhole** |
+| a fixed goods→food CONVERSION | a `HarvestConversionSpec` on the frame's offer list | the craft majors, Studio, Beer Keg/Stall/Tent, Craft Brewery, Schnapps ×2, Feed Pellets, … |
+| a CHOICE that is neither | `register("feeding", …)`, an optional trigger **on the frame** | **Baker** (granted bake), **Plow Builder** (fused Joinery-and-plow) |
+
+The third row is what ruling 88 added, retiring §8's last FEED deferral. Hosting the choice on
+the payment frame rather than a rung before it means the player decides with the payment
+frontier in view; `CommitConvert` forecloses whatever is unfired, exactly as for conversions.
+`FREE_SPAN_EVENTS` **dropped `start_of_feeding` and did not replace it with `"feeding"`** —
+eight of the nine span carriers already reach the frame through their own conversion entry, so
+a span trigger there would offer each of them twice on one frame; Plow Builder, the sole
+carrier with no conversion shape, registers its own.
+
 **Feeding income and the requirement chokepoint.** `register_auto("feeding", …)` fires in
 `_initiate_harvest_feed_for` at each player's own FEED band pass, **before** that player's
-payment frame is pushed — "in the feeding phase, you get X food" must be payable. Consumers:
-Dentist (a two-window card — wood banked at its `start_of_harvest` trigger, per-wood food
-paid out here), Town Hall,
-Milking Place. Choice-free income only; in-feeding *conversions* stay on
-`HARVEST_CONVERSIONS` (§3) — and, since rulings 76/77 (2026-07-21), a converter marked
+payment frame is pushed — "in the feeding phase, you get X food" must be payable, and
+Cubbyhole's "at the start of each feeding phase" payout rides the same instant. Choice-free
+income only; in-feeding *conversions* stay on `HARVEST_CONVERSIONS` (§3) — and, since rulings 76/77 (2026-07-21), a converter marked
 `frontier_fire` also surfaces in any harvest-time `PendingFoodPayment` raise frame (the
 craft majors + Stone Carver + Braid Maker via the span, and the feeding-phase crop
 converters Schnapps Distiller/Distillery via the crop-input widening; the greedy-composition
@@ -3268,9 +3348,16 @@ examples; this is the reference list.
 - **"/" in a cost: now supported for minors; "/" in a *reward* is not.** A printed
   alternative cost (Chophouse "2 Wood / 2 Clay") is `MinorSpec.alt_costs`; a state-scaling cost
   is `cost_fn`; an occupation's pay-on-play choice is a play-variant (§3). *(This supersedes the
-  earlier batch-era ruling that any "/" cost is an automatic defer — commit a8e1ee2.)* Still
-  unsupported: a minor whose "/" is in the *effect* (Canvas Sack's choose-a-reward) — no
-  `PLAY_MINOR_VARIANTS` registry exists; defer (§8).
+  earlier batch-era ruling that any "/" cost is an automatic defer — commit a8e1ee2.)* A "/" in
+  the **effect** is likewise supported: `register_play_minor_variant` → `PLAY_MINOR_VARIANTS`
+  (17 entries at HEAD). **When the reward's "/" is COUPLED to a cost's "/", use `cost_labels`
+  instead** — Canvas Sack ("*paying grain/reed for it, get 1 vegetable/4 wood*") is implemented
+  that way, because the reward is DETERMINED by which alternative cost was paid, and a variant
+  surcharge would bypass the cost modifiers a genuine alternative cost must stay visible to
+  (§3's `cost_labels` bullet has the full rule). *(Until 2026-08-01 this bullet read "still
+  unsupported … no `PLAY_MINOR_VARIANTS` registry exists; defer" — false on both counts, and a
+  SECOND copy of the same wrong claim: §3 carries a note that an identical stale line there
+  misled the 2026-07-13 session. Fixed in one place, missed in the other.)*
 - **An occupation-cost SUBSTITUTION is a conversion; a food PRODUCER is a source** (ruling
   67, 2026-07-20 — the classification rule for every future "occupation cost" card). "Pay X
   in place of food" → `register_conversion("play_occupation", …)`: the ways to pay surface
@@ -3566,7 +3653,8 @@ exact-set (§6).
 | take-modifier | `scythe_worker` (auto), `stable_manure`, `scythe` (choice-bearing) |
 | occasion auto | `grain_sieve` (take-only), `crack_weeder` (phase-scoped), `lynchet` (per tile) |
 | harvest skip | `lunchtime_beer` (phases), `layabout` (total) |
-| feeding income | `town_hall`, `dentist` (two-window) |
+| feeding income (auto at the FEED sentinel, pre-payment) | `town_hall`, `dentist` (two-window), `cubbyhole` |
+| in-feeding CHOICE (optional trigger ON the payment frame) | `baker` (granted bake), `plow_builder` (fused use-and-plow) |
 | window growth grant | `autumn_mother`, `bed_in_the_grain_field` |
 | conditional one-shot latch | `manservant` |
 | deferred goods / effect | `pond_hut` / `handplow` |
@@ -3633,12 +3721,18 @@ defer (§7); building the missing piece is a design conversation with the user f
   both harvest-scoped registries rather than general events: the harvest OCCASION registries
   (the `HarvestOccasion` manifest) and the breeding-outcome registry (the `BreedingOutcome`
   payload) — §5b.
-- **No harvest FEED trigger events.** `PendingHarvestFeed` still carries no
-  `triggers_resolved`; feeding-phase cards ride the feeding-income auto, the
-  requirement folds, the harvest-conversion registry, or the
-  `start_of_feeding`/`after_feeding` windows (§5b). *(The BREED half of the old deferral
-  retired at `ff874ba`: the breed frame hosts `"breeding"` / `"breeding_outcome"` triggers —
-  §5b.)*
+- ~~**No harvest FEED trigger events.**~~ **RETIRED 2026-08-01 (ruling 88)** — the last half
+  of this deferral is gone. `PendingHarvestFeed` now carries `triggers_resolved` (qualified
+  canonical skip) and its enumerator surfaces `TRIGGERS["feeding"]` pre-commit, exactly as the
+  BREED frame hosts `"breeding"` (that half retired earlier, at `ff874ba`). So an in-feeding
+  effect that is a CHOICE rather than a fixed goods→food rate is an optional trigger on the
+  frame (Baker's granted bake; Plow Builder's fused Joinery-and-plow), surfaced alongside the
+  conversions and the payment — and `CommitConvert` forecloses it unfired, like every
+  conversion. Choice-free feeding INCOME is still an AUTO on the same event, fired at the
+  sentinel before the frame is pushed so its food is payable (Town Hall, Milking Place,
+  Dentist, Cubbyhole); the two registries are disjoint. The `start_of_feeding` **rung was
+  deleted from the ladder** — every feeding-phase effect now consolidates onto the sentinel
+  or the frame (§5b).
 - **The before-round-start hook exists now** (this was a boundary). The preparation ladder's
   `before_round` window (`preparation.py` position 0 — the first rung, after the §5c round-end
   ladder and any harvest, before the reveal and round income) is exactly that instant;

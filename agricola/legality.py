@@ -3064,12 +3064,21 @@ def _enumerate_pending_harvest_feed(
         harvest_feed_frontier,
     )
 
-    actions: list[Action] = []
     p = state.players[pending.player_idx]
 
     if pending.conversion_done:
-        actions.append(Stop())
-        return actions
+        return [Stop()]
+
+    # 0. The frame's in-feeding card triggers (event "feeding") — ruling 88's
+    #    consolidation, mirroring the BREED frame's pre-commit stretch. An
+    #    in-feeding effect that is a CHOICE rather than a fixed goods->food
+    #    conversion (Baker's granted bake) lives here; firing leaves the frame
+    #    up, and `CommitConvert` forecloses whatever is unfired, exactly as it
+    #    already does for the conversions. Choice-free feeding INCOME is an AUTO
+    #    on the same event and fired at the sentinel before this frame exists,
+    #    so the two never collide. Empty registry -> [] (the Family path).
+    actions: list[Action] = _expand_variant_triggers(
+        state, pending, _eligible_fire_triggers(state, pending, "feeding"))
 
     # 1. Undecided owned conversions.
     for conversion_id, spec in HARVEST_CONVERSIONS.items():

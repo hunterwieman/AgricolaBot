@@ -82,7 +82,7 @@ resolution order is player-chosen (§3).
 | 5 | `field_phase` (the during-window) | "in/during the field phase", "each time you harvest…" | §4 — the take + the four during-classes |
 | 6 | `end_of_field_phase` | "at the end of the field phase" | Beer Table |
 | 7 | `after_field_phase` | "after the field phase" | Winnowing Fan, Market Stall C54, Home Brewer (re-home RULED 2026-07-03 — §7) |
-| 8 | `start_of_feeding` | "at the start of each feeding phase" | Baker (a granted bake), Cubbyhole |
+| ~~8~~ | ~~`start_of_feeding`~~ | ~~"at the start of each feeding phase"~~ | **DELETED — ruling 88 (2026-08-01).** Baker moved onto the payment frame (`register("feeding", …)`, a CHOICE decided with the frontier in view); Cubbyhole onto the FEED sentinel's income autos. No card in the 840-card catalog names this instant any more, so the rung was removed and the walk renumbered 26→24. |
 | 9 | *(during feeding)* | "in the feeding phase" | the existing `HARVEST_CONVERSIONS` seam (unchanged) + feeding-income autos (Town Hall, Milking Place, Dentist's payout) + the feeding-cost fold (§5); Old Miser [4] |
 | 10–11 | `after_feeding` | "immediately after the feeding phase" = "after the feeding phase" (RULED 2026-07-05, ruling 19: the same instant — one window, was two; Social Benefits first via autos-before-triggers) | Social Benefits (auto, resolves first), Farm Store (optional trigger; un-archive — the previously-designed `PendingHarvestFeed` after-phase collapses into this window) |
 | 12 | `start_of_breeding` | "at the start of the breeding phase" | Shepherd's Whistle |
@@ -592,14 +592,15 @@ of §0–§11 is the authority; this only orients.*
 ### The as-built code map (grounded, post-stage-2)
 
 > **AMENDED 2026-07-12 — ruling 40 (FEED/BREED banding).** The virtual walk now
-> has THREE per-player bands: FIELD (#3–#7), FEED (start_of_feeding → feeding →
+> has THREE per-player bands: FIELD (#3–#7), FEED (feeding →
 > after_feeding), and BREED (start_of_breeding → breeding → after_breeding),
 > each resolved wholly by one player before the other begins (SP first); the
 > four OUTER moments stay window-major. `_VIRTUAL_WALK`/`walk_position` decode
-> the 26-position 2p sequence; the FEED/BREED sentinels push ONE frame per band
+> the 24-position 2p sequence (26 before ruling 88 deleted `start_of_feeding`); the
+> FEED/BREED sentinels push ONE frame per band
 > pass (`_initiate_harvest_feed_for`/`_breed_for` — that player's feeding
 > income fires at their own pass), the cursor is CARRIED while those frames are
-> up (Family pauses at 14/17/20/23 — the arc's first Family-visible shape
+> up (Family pauses at 13/15/18/21, renumbered by ruling 88 — the arc's first Family-visible shape
 > change, mirrored in the C++ twin), and the harvest phase is derived from the
 > walk position (flips at each band's entry). The both-players
 > `_initiate_harvest_feed`/`_breed` survive as legacy TEST helpers whose bare

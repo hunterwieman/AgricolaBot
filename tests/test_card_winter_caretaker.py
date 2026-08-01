@@ -100,7 +100,7 @@ def _walk_to_end_of_harvest(state):
     saw_buy_in_feeding = False
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if isinstance(top, PendingHarvestFeed):
             if any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
@@ -215,7 +215,7 @@ def test_not_offered_to_non_owner_seat():
     saw_p1_window = False
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
             buys = [a for a in legal_actions(state)
@@ -236,7 +236,7 @@ def test_not_offered_when_unowned():
     saw_window = False
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
             saw_window = True
@@ -252,7 +252,7 @@ def test_not_offered_when_food_short():
     saw_window = False
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
-                          Phase.HARVEST_BREED):
+                          Phase.AFTER_FEEDING, Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
             saw_window = True
@@ -312,6 +312,7 @@ def _walk_to_p0_window(state, window_id):
     window carries the honest phase, not a band phase."""
     state = _advance_until_decision(state)
     while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.AFTER_FEEDING,
                           Phase.HARVEST_BREED, Phase.PRE_HARVEST,
                           Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
         top = state.pending_stack[-1] if state.pending_stack else None
@@ -458,6 +459,7 @@ def test_probe_hosts_no_frame_when_only_route_is_closed_converter():
     eoh_frames = []
     for _ in range(300):
         if state.phase not in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                               Phase.AFTER_FEEDING,
                                Phase.HARVEST_BREED, Phase.PRE_HARVEST,
                                Phase.END_OF_HARVEST, Phase.AFTER_HARVEST):
             break

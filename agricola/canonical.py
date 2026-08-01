@@ -253,6 +253,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # default keeps the Family JSON byte-identical with no C++ change — while the
     # sow/bake/plow frames keep emitting theirs as before.
     "PendingHarvestBreed.triggers_resolved",
+    # PendingHarvestFeed is the same shape (ruling 88, 2026-08-01): the frame is
+    # pushed in every Family harvest, but only cards stamp its triggers_resolved
+    # (the in-feeding card triggers — Baker's granted bake), so the qualified
+    # skip keeps the Family JSON byte-identical with no C++ change.
+    "PendingHarvestFeed.triggers_resolved",
 })
 
 

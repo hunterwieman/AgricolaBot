@@ -59,7 +59,8 @@ from agricola.setup import CardPool, setup, setup_env
 
 from tests.factories import with_majors, with_phase, with_resources
 
-_HARVEST_PHASES = (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED)
+_HARVEST_PHASES = (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                   Phase.AFTER_FEEDING, Phase.HARVEST_BREED)
 
 _PSEUDO_IDS = tuple(pid for pid, _cid in CRAFT_SPAN_IDS)
 _BUDGET_IDS = tuple(cid for _pid, cid in CRAFT_SPAN_IDS)

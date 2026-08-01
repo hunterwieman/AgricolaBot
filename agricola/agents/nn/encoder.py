@@ -45,7 +45,16 @@ from agricola.cards.harvest_windows import sentinel_position
 
 # The virtual-walk position where the second player's FEED band pass begins
 # (ruling 40's banding) -- the has_fed feature's fed/not-yet-reached boundary.
-_FEED_SECOND_PASS = sentinel_position("start_of_feeding", 1)
+#
+# Ruling 88 (2026-08-01) deleted the `start_of_feeding` rung this was written
+# against, so the band now OPENS at the `feeding` sentinel. The INSTANT is
+# unchanged -- "the second player's FEED pass begins" -- only its integer moved
+# (15 -> 14) with the rest of the walk. That distinction is load-bearing: this
+# feeds a trained, deployed model, and the Python/C++ differential gates cannot
+# catch a semantic drift applied identically to both sides. Verified by encoding
+# a 3856-state harvest corpus before and after the deletion and asserting the
+# feature matrices are bit-identical -- so no ENCODING_VERSION bump.
+_FEED_SECOND_PASS = sentinel_position("feeding", 1)
 
 from agricola.pending import (
     PendingBakeBread,

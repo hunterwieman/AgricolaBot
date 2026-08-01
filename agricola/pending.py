@@ -1055,14 +1055,28 @@ class PendingHarvestFeed:
     not on this pending — per the "per-card budgets that span multiple
     events live on PlayerState" convention.
 
-    No `triggers_resolved` / `TRIGGER_EVENT` fields yet — added per Task 5D
-    precedent only when the first card needing them lands. Natural future
-    events: `before_harvest_feed`, `after_harvest_feed`.
+    **The frame hosts `"feeding"` triggers** (ruling 88's consolidation,
+    2026-08-01) — the FEED half of §8's old "no harvest FEED trigger events"
+    deferral, retiring it exactly as the BREED half was retired at `ff874ba`.
+    An in-feeding effect that is a CHOICE rather than a fixed goods→food
+    conversion (Baker's granted bake) is an optional trigger on the event
+    `"feeding"`, surfaced alongside the conversions and the payment; firing one
+    leaves the frame up. Choice-free feeding INCOME stays an auto on the same
+    event, fired at the sentinel BEFORE this frame is pushed so its food is
+    payable (Town Hall, Milking Place, Dentist) — the two registries are
+    disjoint and never collide.
+
+    `triggers_resolved` is stamped by the generic FireTrigger dispatch and is
+    the once-per-frame budget. The frame itself is pushed in EVERY Family
+    harvest, so the field is canonical-skipped via the QUALIFIED entry
+    "PendingHarvestFeed.triggers_resolved" (no C++ change) — the
+    `PendingHarvestBreed` treatment.
     """
     PENDING_ID: ClassVar[str] = "harvest_feed"
     player_idx:      int
     initiated_by_id: str            # always "phase:harvest_feed"
     conversion_done: bool = False
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)

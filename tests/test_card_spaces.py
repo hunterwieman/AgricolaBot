@@ -278,14 +278,33 @@ def _family_fingerprint(setup_seed, agent_seed, max_steps=400):
 
 
 def test_family_game_byte_identical_to_pre_change():
-    """Two full random Family games; the digests were captured on the
-    pre-change engine (2026-07-21, before the card-space machinery landed),
-    so a match proves the Family state JSON, the legal-action set, and the
-    wire encoding are all byte-unchanged."""
+    """Two full random Family games; a match proves the Family state JSON, the
+    legal-action set, and the wire encoding are all byte-unchanged.
+
+    RE-BASELINED ONCE, 2026-08-01 (ruling 88). The original digests were captured
+    2026-07-21, before the card-space machinery landed, and held until ruling 88
+    deleted the `start_of_feeding` rung from the harvest ladder — which renumbers
+    `harvest_cursor`, a Family-VISIBLE canonical field (a mid-feed/mid-breed
+    Family state carries it). So this tripwire firing was correct and expected.
+
+    Re-baselining a byte-identity fingerprint is only honest with proof that the
+    delta is exactly the intended one, so the two traces were diffed structurally
+    against the pre-change engine (a detached worktree at the prior HEAD) rather
+    than merely re-hashed: over all 210 steps of game (7, 11) the ONLY differing
+    JSON path is `/state/harvest_cursor`, 49 occurrences, each the renumbering
+    (e.g. 14 -> 13). No state field, no legal-action set and no wire encoding
+    moved. The five C++ anchors were re-ported to match and the differential
+    gates re-run; the NN encoder's `has_fed` boundary — defined against the
+    deleted rung — was separately verified bit-identical over a 3856-state
+    harvest corpus.
+
+    If this test fires again, do the same thing: prove what moved before you
+    touch these numbers.
+    """
     assert _family_fingerprint(7, 11) == (
-        210, "7717f31b891e1c1f12435927c82f182f3025fc6bf5a300cbef450a1f1fc483f7")
+        210, "0dd532547e52f3809231e9395638453456db0d373f88dcf5d332d645657b2017")
     assert _family_fingerprint(3, 5) == (
-        199, "1a5b0f45af4d4a64032e93e8caaa0ee0854a604ecd039b4c4afedb05f9f74af8")
+        199, "3d3b8ed1e056021bd89e6091c37d321f289f79ed93ba6316332cdc17ff69c61a")
 
 
 def test_family_placement_actions_carry_default_picks():

@@ -76,11 +76,14 @@ register_harvest_window_hook(SNAP_CARD, "after_harvest")
 # (This pair replaced immediately_after_feeding/after_feeding when those two
 # windows merged — ruling 2026-07-05: the same instant.)
 ORDER_CARD = "_test_hw_orderer"
-register_auto("start_of_feeding", ORDER_CARD, lambda s, i: True,
+# The FEED-entry auto fires at the `feeding` SENTINEL, before that player's
+# payment frame is pushed (ruling 88, 2026-08-01 deleted the `start_of_feeding`
+# rung this used to ride; the sentinel is the surviving pre-payment instant).
+register_auto("feeding", ORDER_CARD, lambda s, i: True,
               lambda s, i: _append_seq(s, i, "sof"))
 register_auto("after_feeding", ORDER_CARD, lambda s, i: True,
               lambda s, i: _append_seq(s, i, "af"))
-register_harvest_window_hook(ORDER_CARD, "start_of_feeding")
+register_harvest_window_hook(ORDER_CARD, "feeding")
 register_harvest_window_hook(ORDER_CARD, "after_feeding")
 
 # An optional TRIGGER at end_of_harvest: +1 stone, declinable, once per window.
@@ -131,7 +134,11 @@ def test_family_harvest_banded_cursor_pauses_only():
                           Phase.HARVEST_BREED):
         state = step(state, legal_actions(state)[0])
         seen_cursors.add(state.harvest_cursor)
-    assert seen_cursors == {None, 14, 17, 20, 23}
+    # Renumbered by ruling 88 (2026-08-01): deleting the `start_of_feeding` rung
+    # shortened the walk 26 -> 24, shifting every FEED-band-and-later position.
+    # These are Family-VISIBLE (they ride the canonical JSON mid-feed/mid-breed),
+    # so the five C++ anchors moved in lockstep.
+    assert seen_cursors == {None, 13, 15, 18, 21}
     assert state.phase == Phase.PREPARATION
     # No window frame ever appeared, and the canonical JSON has no cursor key.
     assert "harvest_cursor" not in to_canonical(state)
@@ -160,7 +167,7 @@ def test_window_autos_straddle_the_take():
     assert seq == (("soh", 3), ("ah", 2))
 
 
-def test_start_of_feeding_precedes_after_feeding():
+def test_feed_entry_precedes_after_feeding():
     state = _own_occ(_harvest_state(), 1, ORDER_CARD)
     state = _run_harvest(state)
     assert state.players[1].card_state.get("_test_hw_seq", ()) == ("sof", "af")
@@ -258,7 +265,6 @@ def test_ladder_shape():
             < WINDOW_INDEX["field_phase"]
             < WINDOW_INDEX["end_of_field_phase"]
             < WINDOW_INDEX["after_field_phase"]
-            < WINDOW_INDEX["start_of_feeding"]
             < WINDOW_INDEX["feeding"]
             < WINDOW_INDEX["after_feeding"]
             < WINDOW_INDEX["start_of_breeding"]

@@ -310,7 +310,11 @@ def completed_feeding_phases(state: GameState) -> int:
         # The two tail phases (Cards-mode outer windows, phase-honesty pass
         # 2026-07-27) sit after this harvest's feeding: count it complete.
         return base + 1
-    if state.phase is Phase.HARVEST_FEED:
+    if state.phase in (Phase.HARVEST_FEED, Phase.AFTER_FEEDING):
+        # AFTER_FEEDING (Cards-mode `after_feeding`) belongs on the same cursor
+        # comparison, NOT in the tail list above: the FIRST player's
+        # after_feeding rung still precedes the SECOND player's payment, so the
+        # harvest's feeding is not yet complete there.
         from agricola.cards.harvest_windows import sentinel_position
         cur = state.harvest_cursor
         if cur is not None and cur > sentinel_position("feeding", 1):
